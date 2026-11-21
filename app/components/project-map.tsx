@@ -294,6 +294,8 @@ type Props = {
   initialView?: MapView | null;
   onViewChange?: (view: MapViewChange) => void;
   onReady?: (api: MapApi) => void;
+  /** The user starts panning the map by hand. */
+  onPanStart?: () => void;
   /**
    * Pixels along the bottom that a sheet covers, such as the mobile drawer.
    * Reported bounds leave them out, and framing keeps clear of them.
@@ -329,6 +331,7 @@ export default function ProjectMap({
   initialView = null,
   onViewChange,
   onReady,
+  onPanStart,
   bottomInset,
   selectedId = null,
   highlightedId = null,
@@ -365,6 +368,7 @@ export default function ProjectMap({
     onSelect: (id: string | null) => void;
       onViewChange?: (view: MapViewChange) => void;
     onReady?: (api: MapApi) => void;
+    onPanStart?: () => void;
     bottomInset?: () => number;
     draw: boolean;
     commit: (next: Point[]) => void;
@@ -423,13 +427,22 @@ export default function ProjectMap({
       onSelect,
       onViewChange,
       onReady,
+      onPanStart,
       bottomInset,
       draw,
       commit(next) {
         onPointsChange?.(next);
       },
     };
-  }, [onSelect, onViewChange, onReady, bottomInset, draw, onPointsChange]);
+  }, [
+    onSelect,
+    onViewChange,
+    onReady,
+    onPanStart,
+    bottomInset,
+    draw,
+    onPointsChange,
+  ]);
   useEffect(() => {
     if (!container.current) return;
     const map = L.map(container.current, {
@@ -456,6 +469,7 @@ export default function ProjectMap({
     map.on("click", () => {
       if (!handlers.current.draw) handlers.current.onSelect(null);
     });
+    map.on("dragstart", () => handlers.current.onPanStart?.());
     // The container grows and shrinks as panels beside it open, close and
     // resize. The geography on screen stays where it is: the edge that moves
     // uncovers or covers map, it doesn't drag it along. Run before paint, so

@@ -1025,6 +1025,11 @@ export default memo(function Explorer({
     // A project link frames its project, unless the URL already places the map.
     if (initialProjectId) enterPostView(initialProjectId, !initial.view);
   }
+  /** On phones, panning the map folds the list down out of its way. */
+  function onMapPan() {
+    if (isMobile && !topLayer && snapPoint === middleSnapPoint)
+      setSnapPoint(compactSnapPoint);
+  }
   /** Frames projects on the part of the map the mobile drawer leaves open. */
   function fitProjects(list: Project[], bottom?: number) {
     mapApi.current?.fit(list.flatMap(projectPoints), { bottom, maxZoom: 14 });
@@ -2854,6 +2859,7 @@ export default memo(function Explorer({
             initialView={initial.view}
             onViewChange={onMapView}
             onReady={onMapReady}
+            onPanStart={onMapPan}
             bottomInset={isMobile ? mobileMapInset : undefined}
             controlsContainer={
               isMobile ? (postOverMap ? postControlsSlot : controlsSlot) : undefined

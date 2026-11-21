@@ -425,6 +425,40 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expectDrawerHeight(page, 1);
   });
 
+  test("panning the map folds the list down from the middle height", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await expectDrawerHeight(page, compact);
+    await swipeUp(
+      page,
+      page.getByRole("button", { name: "Utvid prosjektlisten", exact: true }),
+    );
+    await expectDrawerHeight(page, 0.58);
+    // A finger across the map above the list, not on the list itself.
+    const session = await page.context().newCDPSession(page);
+    try {
+      await session.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [{ x: 160, y: 100 }],
+      });
+      for (let step = 1; step <= 10; step++) {
+        await session.send("Input.dispatchTouchEvent", {
+          type: "touchMove",
+          touchPoints: [{ x: 160 - step * 6, y: 100 + step * 4 }],
+        });
+        await page.waitForTimeout(16);
+      }
+      await session.send("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      });
+    } finally {
+      await session.detach();
+    }
+    await expectDrawerHeight(page, compact);
+  });
+
   test("wheel and touch expand the map drawer before scrolling list, project, and account content", async ({
     page,
   }) => {
