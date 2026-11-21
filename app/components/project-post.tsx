@@ -87,7 +87,10 @@ const note = "mt-3 text-xs leading-[1.6] text-muted";
  */
 const stickyToggle = cn(
   "bottom-3 z-2 mx-auto mt-1 mb-0.5 flex min-h-9 items-center gap-1 rounded-full border border-transparent pr-3 pl-3.5",
-  "text-ui font-medium text-ink transition-[background-color,border-color,box-shadow] duration-150 hover:bg-ink/5",
+  "text-ui font-medium text-ink transition-[background-color,border-color,box-shadow] duration-150 not-data-moving:hover:bg-ink/5",
+  // While it slides into place, it turns into the pill over the same stretch, without the hover
+  // tint left from the tap that moved it.
+  "data-moving:duration-320 data-moving:ease-out-soft",
   "data-[stuck=true]:border-border data-[stuck=true]:bg-surface data-[stuck=true]:shadow-float",
   "[&>svg]:text-muted [&>svg]:transition-transform [&>svg]:duration-240 motion-reduce:[&>svg]:transition-none",
 );
@@ -390,6 +393,14 @@ function EditImages() {
 
 const stickyGap = 12;
 
+/** Whether a sticky toggle's own spot, marked by `marker`, is below the fold. */
+function pastFold(marker: Element, scroller: Element) {
+  return (
+    marker.getBoundingClientRect().top >
+    scroller.getBoundingClientRect().bottom - stickyGap
+  );
+}
+
 /**
  * Runs `check` now and again once whatever animates `marker` into place
  * has finished. Measured mid-slide, it still sits where it started, which
@@ -537,6 +548,8 @@ function ProjectIntro({ project }: { project: Project }) {
   // The ellipsis clamp lifts before expanding and returns after collapsing.
   const [clamped, setClamped] = useState(true);
   const [stuck, setStuck] = useState(false);
+  // Expanding or collapsing: the toggle slides with the text.
+  const [moving, setMoving] = useState(false);
   // Without a photo, three lines show and fade out instead of an ellipsis.
   const photos = projectPhotos(project);
   const photo = photos.length > 0;
@@ -567,12 +580,13 @@ function ProjectIntro({ project }: { project: Project }) {
     const marker = end.current;
     const scroller = marker?.closest("[data-project-scroll]");
     if (!open || !marker || !scroller) return;
-    const update = () =>
-      setStuck(
-        marker.getBoundingClientRect().top >
-          scroller.getBoundingClientRect().bottom - stickyGap,
-      );
-    // Re-check as the expand animation grows the intro.
+    // Mid-slide the marker still sits where it started. The toggle already
+    // set where it lands, and this checks again once it settles.
+    const update = () => {
+      if (marker.getAnimations().length === 0)
+        setStuck(pastFold(marker, scroller));
+    };
+    // Re-check as the intro or the view resizes.
     const resize = new ResizeObserver(update);
     resize.observe(scroller);
     if (body.current) resize.observe(body.current);
@@ -618,6 +632,7 @@ function ProjectIntro({ project }: { project: Project }) {
       ...laterElements(intro, scroller),
     ];
     const reset = () => {
+      flushSync(() => setMoving(false));
       for (const el of parts) {
         el.style.height = "";
         el.style.marginBottom = "";
@@ -641,7 +656,11 @@ function ProjectIntro({ project }: { project: Project }) {
       animations = morph(parts, movers, () => {
         copy.style.marginBottom = `${target - copy.offsetHeight}px`;
         for (const el of parts) el.style.overflow = "visible";
-        flushSync(() => setOpen(false));
+        flushSync(() => {
+          setOpen(false);
+          setStuck(false);
+          setMoving(true);
+        });
       });
       // Clamped in the same frame the inline height goes, so nothing flashes.
       done = () => {
@@ -649,12 +668,17 @@ function ProjectIntro({ project }: { project: Project }) {
         reset();
       };
     } else {
-      animations = morph(parts, movers, () =>
+      animations = morph(parts, movers, () => {
         flushSync(() => {
           setClamped(false);
           setOpen(true);
-        }),
-      );
+          setMoving(true);
+        });
+        // Laid out where it lands, so the pill forms as the toggle slides
+        // there rather than after.
+        const marker = end.current;
+        if (marker) flushSync(() => setStuck(pastFold(marker, scroller)));
+      });
       done = reset;
     }
     // The fade's mask follows the clip, so the fade sits on the visible edge.
@@ -734,6 +758,7 @@ function ProjectIntro({ project }: { project: Project }) {
           "aria-expanded:[&>svg]:rotate-180",
         )}
         data-stuck={stuck}
+        data-moving={moving || undefined}
         aria-expanded={open}
         aria-controls={`intro-${project.id}`}
         onClick={toggle}
@@ -769,9 +794,7 @@ function CommentsDock({
     const scroller = section?.closest("[data-project-scroll]");
     if (!open || !section || !scroller) return;
     const update = () => {
-      const view = scroller.getBoundingClientRect();
-      const marker = end.current?.getBoundingClientRect();
-      setStuck(!!marker && marker.top > view.bottom - stickyGap);
+      setStuck(!!end.current && pastFold(end.current, scroller));
     };
     const resize = new ResizeObserver(update);
     resize.observe(scroller);
