@@ -313,6 +313,22 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expect(page.getByRole("dialog", { name: /^Bilder av / })).toHaveCount(0);
   });
 
+  test("Les mer takes a project at the middle height to the full height", async ({
+    page,
+  }) => {
+    await page.goto("/?kart=59.9100,10.7500,13");
+    const shape = page.locator(`path[data-project-id="${project.id}"]`);
+    await shape.dispatchEvent("pointerdown");
+    await shape.dispatchEvent("click");
+    await expect(page).toHaveURL(atProject);
+    await expectDrawerHeight(page, 0.58, "project");
+    await page
+      .locator("[data-project-drawer]")
+      .getByRole("button", { name: "Les mer", exact: true })
+      .click();
+    await expectDrawerHeight(page, 1, "project");
+  });
+
   test("a project tapped on the map opens at the middle height, centered above it", async ({
     page,
   }) => {
