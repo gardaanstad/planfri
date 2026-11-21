@@ -54,6 +54,7 @@ import ProjectDiscussion from "./project-discussion";
 import CategoryIcon from "./category-icon";
 import CategoryPicker from "./category-picker";
 import RelativeTime from "./relative-time";
+import { usePanelExpand } from "./panel";
 import Link from "next/link";
 import { profileHref } from "../lib/profiles";
 import { openProfile } from "../lib/profile-overlay";
@@ -545,6 +546,8 @@ function ProjectIntro({ project }: { project: Project }) {
   const details = useRef<HTMLDivElement>(null);
   const gallery = useRef<HTMLDivElement>(null);
   const end = useRef<HTMLDivElement>(null);
+  // On a phone resting at the middle height, reading on takes the full height.
+  const expandPanel = usePanelExpand();
   // The running change: its animations and the step that ends it.
   const running = useRef<{ animations: Animation[]; done: () => void }>(null);
 
@@ -597,6 +600,7 @@ function ProjectIntro({ project }: { project: Project }) {
       last.done();
     }
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!open) expandPanel?.();
     if (open) {
       // Collapsing returns to the top, so reading resumes from the start.
       scroller.scrollTo({ top: 0, behavior: still ? "auto" : "smooth" });
