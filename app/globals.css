@@ -198,6 +198,12 @@
 }
 
 /*
+ * Focus styles are for the keyboard, as the indicator in the base layer:
+ * none after a pointer press, whatever the browser's own heuristics say.
+ */
+@custom-variant focus-visible (&:focus-visible:not(:root[data-pointer] *));
+
+/*
  * Dark mode: the system's, or the one picked with the toggle (`data-theme`
  * on <html>, see lib/theme.ts). `dark:` utilities follow the same rule.
  */
@@ -329,10 +335,17 @@
     color-scheme: dark;
   }
 
-  /* One focus indicator everywhere; controls with their own opt out. */
+  /*
+   * One focus indicator everywhere; controls with their own opt out. Only
+   * for the keyboard: after a press (`data-pointer`, see layout.tsx) focus
+   * that a script moves shows none, though browsers may count it visible.
+   */
   :focus-visible {
     outline: 2px solid var(--color-focus);
     outline-offset: 2px;
+  }
+  :root[data-pointer] :focus-visible {
+    outline: none;
   }
 
   /* Tailwind 4 resets buttons to the default cursor. */
@@ -555,7 +568,7 @@
         translateY(var(--toast-swipe-movement-y));
     }
   }
-  &:focus-visible {
+  &:focus-visible:not(:root[data-pointer] *) {
     outline: 2px solid var(--color-focus);
     outline-offset: 2px;
   }
