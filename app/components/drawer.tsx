@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { Drawer as DrawerPrimitive } from "@base-ui/react/drawer";
 
 import { cn } from "@/app/lib/cn";
@@ -23,6 +24,49 @@ type DrawerMotion = {
   /** True while a finger or pointer drags it; otherwise it eases to a stop. */
   swiping: boolean;
 };
+
+/**
+ * The sheets' shadow. It goes on a layer holding all of them, not on each:
+ * where they overlap, one shadow falls around them together, never one
+ * stacked on another; and drawn outside the clip that gives a floating
+ * sheet its gap, it falls on its sides and bottom too.
+ */
+const sheetShadowClasses =
+  "[filter:drop-shadow(0_-1px_6px_rgb(20_28_24/0.05))_drop-shadow(0_-6px_28px_rgb(20_28_24/0.09))]";
+const SheetLayerContext = React.createContext<HTMLElement | null>(null);
+
+const subscribeNever = () => () => {};
+
+/** Phones: renders its drawers into one layer that casts their shadow. */
+function SheetLayer({ children }: { children: React.ReactNode }) {
+  const [layer, setLayer] = React.useState<HTMLDivElement | null>(null);
+  const mounted = React.useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
+  if (!mounted) return null;
+  return (
+    <>
+      {createPortal(
+        <div
+          ref={setLayer}
+          data-sheet-layer=""
+          className={cn(
+            "pointer-events-none fixed inset-0 z-50",
+            sheetShadowClasses,
+          )}
+        />,
+        document.body,
+      )}
+      {layer && (
+        <SheetLayerContext.Provider value={layer}>
+          {children}
+        </SheetLayerContext.Provider>
+      )}
+    </>
+  );
+}
 
 // The popup's own transition time.
 const drawerDuration = 450;
@@ -288,9 +332,10 @@ function DrawerContent({
   useFloatingGap(content, floating);
   const swipeAxis =
     swipeDirection === "down" || swipeDirection === "up" ? "y" : "x";
+  const layer = React.useContext(SheetLayerContext);
 
   return (
-    <DrawerPortal data-slot="drawer-portal">
+    <DrawerPortal data-slot="drawer-portal" container={layer}>
       {modal === true && (
         <DrawerOverlay data-snap-points={hasSnapPoints ? "" : undefined} />
       )}
@@ -403,6 +448,8 @@ export {
   DrawerTitle,
   DrawerDescription,
   DrawerVirtualKeyboardProvider,
+  SheetLayer,
+  sheetShadowClasses,
 };
 
 export type { DrawerMotion, DrawerSnapPoint };

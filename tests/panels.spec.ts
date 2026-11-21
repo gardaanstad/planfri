@@ -235,7 +235,7 @@ test.describe("mobile panels", () => {
     expect(await top(page, explorer)).toBe(before);
 
     // A project opened from the list rests over the map instead, the list
-    // folded down to its filters behind it.
+    // come down to the same height behind it.
     await page
       .getByRole("region", { name: "Prosjektliste", exact: true })
       .getByRole("button", { name: new RegExp(project.title) })
@@ -245,7 +245,7 @@ test.describe("mobile panels", () => {
     await expect(projectDrawer.locator("[data-project-post]")).toBeVisible();
     await expect
       .poll(() => top(page, explorer))
-      .toBe(page.viewportSize()!.height - 136);
+      .toBeCloseTo(page.viewportSize()!.height * (1 - 0.58), -1);
     await page
       .getByRole("button", { name: "Lukk prosjekt", exact: true })
       .click();

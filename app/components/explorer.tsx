@@ -101,6 +101,8 @@ import {
   DrawerTitle,
   DrawerDescription,
   DrawerVirtualKeyboardProvider,
+  SheetLayer,
+  sheetShadowClasses,
   type DrawerMotion,
   type DrawerSnapPoint,
 } from "./drawer";
@@ -110,6 +112,8 @@ import {
   Panel,
   PanelDrawer,
   PanelShell,
+  ScrollFade,
+  visibleBottomClasses,
 } from "./panel";
 import { takeLoginIntent } from "../lib/login-intent";
 import { cn } from "../lib/cn";
@@ -219,16 +223,13 @@ const compactSnapPoint = "136px";
 const middleMapInset = () => Math.round(window.innerHeight * middleSnapPoint);
 /** The map the drawer covers at its compact height. */
 const compactMapInset = Number.parseInt(compactSnapPoint);
-// The list is either folded down to its filters or the whole screen.
-const drawerSnapPoints: DrawerSnapPoint[] = [compactSnapPoint, 1];
-// While a project rises over the full list, the list comes down to meet it.
-const meetingSnapPoints: DrawerSnapPoint[] = [
+// The list folds down to its filters, rests at the middle height with the
+// map above it, or takes the whole screen.
+const drawerSnapPoints: DrawerSnapPoint[] = [
   compactSnapPoint,
   middleSnapPoint,
   1,
 ];
-// Both drawers' transition, and a little to spare.
-const meetingTime = 480;
 const projectSnapPoints: DrawerSnapPoint[] = [middleSnapPoint, 1];
 // The map controls ride a drawer's top edge, 14px clear of its border.
 const controlsSlotClasses = cn(
@@ -395,29 +396,21 @@ export default memo(function Explorer({
     compactSnapPoint,
   );
   const snapRef = useRef(snapPoint);
-  // A project opened from the full list rises to the middle height as the
-  // list comes down to meet it there, in step; met, the list folds the rest
-  // of the way behind it at once.
-  const foldBehindPost = useRef(false);
+  // A project opened over the map rests at the middle height with the list
+  // at the same height behind it, so closing it leaves the list there. From
+  // the full list, the list comes down to meet it, in step; from the folded
+  // one, the list rises behind it, unseen, once it is up.
+  const meetPost = useRef(false);
   const meetPending = useRef(false);
-  const [meeting, setMeeting] = useState(false);
-  const [foldInstantly, setFoldInstantly] = useState(false);
-  useEffect(() => {
-    if (!meeting || snapPoint !== middleSnapPoint) return;
-    const timer = window.setTimeout(() => {
-      setMeeting(false);
-      setFoldInstantly(true);
-      setSnapPoint(compactSnapPoint);
-    }, meetingTime);
-    return () => window.clearTimeout(timer);
-  }, [meeting, snapPoint]);
+  const raiseBehindPost = useRef(false);
+  const [snapInstantly, setSnapInstantly] = useState(false);
   useLayoutEffect(() => {
-    if (!foldInstantly) return;
+    if (!snapInstantly) return;
     let frame = requestAnimationFrame(() => {
-      frame = requestAnimationFrame(() => setFoldInstantly(false));
+      frame = requestAnimationFrame(() => setSnapInstantly(false));
     });
     return () => cancelAnimationFrame(frame);
-  }, [foldInstantly]);
+  }, [snapInstantly]);
   const drawerContentRef = useRef<HTMLDivElement>(null);
   const drawerHandleRef = useRef<HTMLButtonElement>(null);
   const projectTriggerRef = useRef<HTMLElement | SVGElement | null>(null);
@@ -1138,20 +1131,27 @@ export default memo(function Explorer({
     postSnap.point !== 1;
   // What of the map's bottom a drawer covers, for framing and the list.
   const mapInset = useRef(compactMapInset);
+  const listAtMiddle = isMobile && snapPoint === middleSnapPoint;
   useLayoutEffect(() => {
-    mapInset.current = postOverMap ? middleMapInset() : compactMapInset;
-  }, [postOverMap]);
+    mapInset.current =
+      postOverMap || listAtMiddle ? middleMapInset() : compactMapInset;
+  }, [postOverMap, listAtMiddle]);
   const mobileMapInset = useCallback(() => mapInset.current, []);
-  // A project closed before the list met it leaves the list folded all the
-  // same, there being nothing left to hide it behind.
+  // A project closed before the list reached it leaves the list at the
+  // middle height all the same.
   useLayoutEffect(() => {
-    if (postId || (!foldBehindPost.current && !meetPending.current && !meeting))
+    if (
+      postId ||
+      (!meetPost.current &&
+        !meetPending.current &&
+        !raiseBehindPost.current)
+    )
       return;
-    foldBehindPost.current = false;
+    meetPost.current = false;
     meetPending.current = false;
-    setMeeting(false);
-    setSnapPoint(compactSnapPoint);
-  }, [postId, meeting]);
+    raiseBehindPost.current = false;
+    setSnapPoint(middleSnapPoint);
+  }, [postId]);
 
   function openPost(
     id: string,
@@ -1164,9 +1164,10 @@ export default memo(function Explorer({
     );
     const project = projects.find((item) => item.id === id);
     if (isMobile && overMap) {
-      // The list folds down behind it, and the map centers the project
-      // above it.
-      foldBehindPost.current = snapPoint !== compactSnapPoint;
+      // The list comes to the middle height behind it, and the map centers
+      // the project above it.
+      meetPost.current = snapPoint === 1;
+      raiseBehindPost.current = snapPoint === compactSnapPoint;
       mapInset.current = middleMapInset();
       if (project) mapApi.current?.center(projectPoints(project));
     }
@@ -2509,6 +2510,7 @@ export default memo(function Explorer({
       aria-hidden="true"
       className={cn(
         explorerDrawerClasses,
+        sheetShadowClasses,
         "fixed inset-x-0 bottom-0 z-[900] flex flex-col",
         snapPoint === 1
           ? "h-[calc(100dvh-12px-env(safe-area-inset-top))]"
@@ -2555,6 +2557,10 @@ export default memo(function Explorer({
         }}
         onOpened={() => {
           if (layer === topLayer && held.length) setHeld([]);
+          if (layer !== "project" || !raiseBehindPost.current) return;
+          raiseBehindPost.current = false;
+          setSnapInstantly(true);
+          setSnapPoint(middleSnapPoint);
         }}
         onClosed={() =>
           setExiting((current) => current.filter((item) => item !== layer))
@@ -2562,13 +2568,12 @@ export default memo(function Explorer({
         onEnter={
           layer === "project"
             ? () => {
-                if (!foldBehindPost.current) return;
-                foldBehindPost.current = false;
+                if (!meetPost.current) return;
+                meetPost.current = false;
                 // A frame on, the two start moving together.
                 requestAnimationFrame(() => {
                   if (!meetPending.current) return;
                   meetPending.current = false;
-                  setMeeting(true);
                   setSnapPoint(middleSnapPoint);
                 });
                 meetPending.current = true;
@@ -2897,121 +2902,130 @@ export default memo(function Explorer({
 
       {drawerShell}
       {isMobile && (
-        <Drawer
-          open
-          modal={false}
-          disablePointerDismissal
-          snapPoints={meeting ? meetingSnapPoints : drawerSnapPoints}
-          snapToSequentialPoints
-          snapPoint={snapPoint}
-          onSnapPointChange={(point, details) => {
-            // Reject dismissal before Base UI restores the previous snap point.
-            // The navigation drawer always settles at its compact height.
-            if (point === null) {
+        <SheetLayer>
+          <Drawer
+            open
+            modal={false}
+            disablePointerDismissal
+            snapPoints={drawerSnapPoints}
+            snapToSequentialPoints
+            snapPoint={snapPoint}
+            onSnapPointChange={(point, details) => {
+              // Reject dismissal before Base UI restores the previous snap point.
+              // The navigation drawer always settles at its compact height.
+              if (point === null) {
+                details.cancel();
+                minimizeDrawer();
+                return;
+              }
+              if (point === compactSnapPoint) {
+                minimizeDrawer();
+                return;
+              }
+              setSnapPoint(point);
+            }}
+            onOpenChange={(open, details) => {
+              if (open) return;
               details.cancel();
+              // Escape belongs to the panel or dialog on top, if any.
+              if (
+                details.reason === "escape-key" &&
+                (liveLayers.length || document.querySelector("dialog[open]"))
+              )
+                return;
               minimizeDrawer();
-              return;
-            }
-            if (point === compactSnapPoint) {
-              minimizeDrawer();
-              return;
-            }
-            setSnapPoint(point);
-          }}
-          onOpenChange={(open, details) => {
-            if (open) return;
-            details.cancel();
-            // Escape belongs to the panel or dialog on top, if any.
-            if (
-              details.reason === "escape-key" &&
-              (liveLayers.length || document.querySelector("dialog[open]"))
-            )
-              return;
-            minimizeDrawer();
-          }}
-        >
-          <DrawerVirtualKeyboardProvider>
-            <DrawerContent
-              ref={drawerPopupRef}
-              restOffset
-              floating={snapPoint !== 1}
-              onMotion={followDrawer}
-              edge={
-                <div
-                  ref={controlsSlotNode}
-                  data-map-controls-slot=""
-                  className={cn(
-                    controlsSlotClasses,
-                    // A panel covers the map, all but a sliver.
-                    "group-data-map-covered/drawer-popup:invisible group-data-map-covered/drawer-popup:opacity-0",
-                  )}
-                />
-              }
-              data-explorer-drawer=""
-              data-panel-open={liveLayers.length > 0 || undefined}
-              data-map-covered={liveLayers.length > 0 || undefined}
-              viewportClassName={foldInstantly ? "transition-none" : undefined}
-              className={cn(
-                explorerDrawerClasses,
-                foldInstantly && "transition-none",
-                // Coming down to meet a project, the list leaves the shadow to
-                // it, so the two don't darken each other where they meet.
-                meeting && "shadow-none",
-                // Let Base UI swipe the drawer before its content starts scrolling.
-                snapPoint !== 1 &&
-                  "[&_[data-drawer-scroll]]:overflow-y-hidden",
-              )}
-              contentClassName={mobileDrawerInnerClasses}
-              initialFocus={false}
-              finalFocus={false}
-              onWheel={(event) => {
-                if (
-                  snapPoint === 1 ||
-                  event.ctrlKey ||
-                  event.deltaY <= 4 ||
-                  Math.abs(event.deltaX) > Math.abs(event.deltaY) ||
-                  (event.target instanceof Element &&
-                    event.target.closest("[popover], dialog"))
-                ) {
-                  return;
+            }}
+          >
+            <DrawerVirtualKeyboardProvider>
+              <DrawerContent
+                ref={drawerPopupRef}
+                restOffset
+                floating={snapPoint !== 1}
+                onMotion={followDrawer}
+                edge={
+                  <>
+                    <div
+                      ref={controlsSlotNode}
+                      data-map-controls-slot=""
+                      className={cn(
+                        controlsSlotClasses,
+                        // A panel covers the map, all but a sliver.
+                        "group-data-map-covered/drawer-popup:invisible group-data-map-covered/drawer-popup:opacity-0",
+                      )}
+                    />
+                    {/* For the list's own rows: hidden while a panel is over it,
+                      so none slides down into it. */}
+                  <ScrollFade
+                    shown={
+                      snapPoint === middleSnapPoint && mobileLayers.length === 0
+                    }
+                  />
+                  </>
                 }
+                data-explorer-drawer=""
+                data-panel-open={liveLayers.length > 0 || undefined}
+                data-map-covered={liveLayers.length > 0 || undefined}
+                viewportClassName={snapInstantly ? "transition-none" : undefined}
+                className={cn(
+                  explorerDrawerClasses,
+                  visibleBottomClasses,
+                  snapInstantly && "transition-none",
+                  // Let Base UI swipe the drawer before its content starts scrolling.
+                  snapPoint !== 1 &&
+                    "[&_[data-drawer-scroll]]:overflow-y-hidden",
+                )}
+                contentClassName={mobileDrawerInnerClasses}
+                initialFocus={false}
+                finalFocus={false}
+                onWheel={(event) => {
+                  if (
+                    snapPoint === 1 ||
+                    event.ctrlKey ||
+                    event.deltaY <= 4 ||
+                    Math.abs(event.deltaX) > Math.abs(event.deltaY) ||
+                    (event.target instanceof Element &&
+                      event.target.closest("[popover], dialog"))
+                  ) {
+                    return;
+                  }
 
-                setSnapPoint(1);
-              }}
-              handle={
-                <button
-                  ref={drawerHandleRef}
-                  className={cn(
-                    "group/handle flex h-6 w-full shrink-0 touch-none cursor-grab items-center justify-center p-0 active:cursor-grabbing",
-                    "transition-[color,opacity] duration-150 hover:text-accent active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100",
-                    "group-data-panel-open/drawer-popup:opacity-0",
-                  )}
-                  aria-label={
-                    snapPoint === 1
-                      ? "Vis mer av kartet"
-                      : "Utvid prosjektlisten"
-                  }
-                  onClick={() =>
-                    snapPoint === 1 ? minimizeDrawer() : setSnapPoint(1)
-                  }
-                >
-                  <DrawerGrip />
-                </button>
-              }
-            >
-              <DrawerTitle className="sr-only">
-                Utforsk prosjekter
-              </DrawerTitle>
-              <DrawerDescription className="sr-only">
-                Dra eller trykk på håndtaket for å endre høyden. Utforsk kart,
-                prosjekter og dem du har lagret.
-              </DrawerDescription>
-              {drawerReady && drawerBody}
-            </DrawerContent>
-          </DrawerVirtualKeyboardProvider>
-        </Drawer>
+                  setSnapPoint(1);
+                }}
+                handle={
+                  <button
+                    ref={drawerHandleRef}
+                    className={cn(
+                      "group/handle flex h-6 w-full shrink-0 touch-none cursor-grab items-center justify-center p-0 active:cursor-grabbing",
+                      "transition-[color,opacity] duration-150 hover:text-accent active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100",
+                      "group-data-panel-open/drawer-popup:opacity-0",
+                    )}
+                    aria-label={
+                      snapPoint === 1
+                        ? "Vis mer av kartet"
+                        : "Utvid prosjektlisten"
+                    }
+                    onClick={() =>
+                      snapPoint === 1 ? minimizeDrawer() : setSnapPoint(1)
+                    }
+                  >
+                    <DrawerGrip />
+                  </button>
+                }
+              >
+                <DrawerTitle className="sr-only">
+                  Utforsk prosjekter
+                </DrawerTitle>
+                <DrawerDescription className="sr-only">
+                  Dra eller trykk på håndtaket for å endre høyden. Utforsk kart,
+                  prosjekter og dem du har lagret.
+                </DrawerDescription>
+                {drawerReady && drawerBody}
+              </DrawerContent>
+            </DrawerVirtualKeyboardProvider>
+          </Drawer>
+          {panelDrawers}
+        </SheetLayer>
       )}
-      {panelDrawers}
       {panelShell}
     </div>
   );

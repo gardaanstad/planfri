@@ -18,6 +18,7 @@ import {
   DrawerContent,
   DrawerTitle,
   DrawerVirtualKeyboardProvider,
+  sheetShadowClasses,
   type DrawerMotion,
   type DrawerSnapPoint,
 } from "./drawer";
@@ -36,7 +37,8 @@ import {
  */
 
 export const mobileDrawerClasses = [
-  "z-[800] rounded-t-sheet border-t border-border bg-surface text-ink shadow-[0_-4px_12px_rgb(20_28_24/0.04),0_-16px_50px_rgb(20_28_24/0.08)]",
+  // Their shadow is cast by the layer they render into; see `SheetLayer`.
+  "z-[800] rounded-t-sheet border-t border-border bg-surface text-ink",
   "[--drawer-content-height:100dvh] [--drawer-bleed-background:var(--color-surface)]",
   "motion-reduce:transition-none motion-reduce:[&_*]:transition-none motion-reduce:[&_*]:animate-none",
 ].join(" ");
@@ -45,6 +47,9 @@ export const panelDrawerClasses = cn(
   mobileDrawerClasses,
   "[--drawer-content-max-height:calc(100dvh_-_22px_-_env(safe-area-inset-top))]!",
 );
+/** Holds a drawer's `ScrollFade` to the screen's bottom edge. */
+export const visibleBottomClasses =
+  "[--drawer-visible-bottom:calc(var(--drawer-snap-point-offset)+var(--drawer-swipe-movement-y))]";
 export const panelDrawerInnerClasses =
   "flex min-h-0 flex-1 flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]";
 
@@ -69,7 +74,7 @@ const gripBar = (
  * the screen edge against the drawer's offset and drag. Base UI's variables
  * don't inherit, so the popup copies them into one that does.
  */
-function ScrollFade({ shown }: { shown: boolean }) {
+export function ScrollFade({ shown }: { shown: boolean }) {
   return (
     <div
       data-scroll-fade={shown ? "" : undefined}
@@ -184,8 +189,7 @@ export function PanelDrawer({
           floating={snap ? snap.point !== 1 : undefined}
           className={cn(
             panelDrawerClasses,
-            snap &&
-              "[--drawer-visible-bottom:calc(var(--drawer-snap-point-offset)+var(--drawer-swipe-movement-y))]",
+            snap && visibleBottomClasses,
             snap &&
               snap.point !== 1 &&
               "[&_[data-drawer-scroll]]:overflow-y-hidden",
@@ -239,6 +243,7 @@ export function PanelShell({ children }: { children: ReactNode }) {
       aria-hidden="true"
       className={cn(
         panelDrawerClasses,
+        sheetShadowClasses,
         "fixed inset-x-0 bottom-0 z-[900] flex h-[calc(100dvh-22px-env(safe-area-inset-top))] flex-col",
       )}
     >

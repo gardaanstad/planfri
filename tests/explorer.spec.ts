@@ -235,9 +235,9 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await result.click();
     await expect(page).toHaveURL(atProject);
     // A project opened from the list rests at the middle height over the
-    // map, centered on it, with the list folded down behind it.
+    // map, centered on it, with the list come down behind it.
     await expectDrawerHeight(page, 0.58, "project");
-    await expectDrawerHeight(page, compact);
+    await expectDrawerHeight(page, 0.58);
     await expect(page.locator("[data-map-controls]")).toBeVisible();
     await expect(
       page.locator(`path[data-project-id="${project.id}"]`),
@@ -248,14 +248,15 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       .click();
     await expect(page).toHaveURL(atList);
     await expect(projectDrawer).toBeHidden();
-    await expectDrawerHeight(page, compact);
-    // The folded list hides the card, so focus returns to its handle.
-    await expect(expand).toBeFocused();
+    // Closed, it leaves the list at the middle height, focus on its card.
+    await expectDrawerHeight(page, 0.58);
+    await expect(result).toBeFocused();
     await expand.click();
+    await expectDrawerHeight(page, 1);
     await result.click();
     await page.goBack();
     await expect(projectDrawer).toBeHidden();
-    await expectDrawerHeight(page, compact);
+    await expectDrawerHeight(page, 0.58);
     await page.goForward();
     await expectDrawerHeight(page, 0.58, "project");
     await page.reload();
@@ -274,14 +275,16 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expect(shape).toBeVisible();
     await shape.press("Enter");
     await expect(page).toHaveURL(atProject);
-    // Opened from the map, it rests at the middle height over it.
+    // Opened from the map, it rests at the middle height over it, and the
+    // folded list rises behind it.
     await expectDrawerHeight(page, 0.58, "project");
-    // Swiping the project away returns to the map just as it was left.
+    await expectDrawerHeight(page, 0.58);
+    // Swiping the project away leaves the list at the middle height.
     // By its grip: the map controls ride above it.
     await swipeDown(page, projectDrawer.locator(":scope > [aria-hidden]"));
     await expect(page).toHaveURL(atList);
     await expect(projectDrawer).toBeHidden();
-    await expectDrawerHeight(page, 136 / viewport.height);
+    await expectDrawerHeight(page, 0.58);
     await expect
       .poll(() =>
         page.evaluate(
@@ -362,7 +365,48 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       .click();
     await expect(page).toHaveURL(atList);
     await expect(drawer).toBeHidden();
+    await expectDrawerHeight(page, 0.58);
+  });
+
+  test("the list rests at the middle height, the map above it", async ({
+    page,
+  }) => {
+    await page.goto("/");
     await expectDrawerHeight(page, compact);
+    const handle = page.getByRole("button", {
+      name: "Utvid prosjektlisten",
+      exact: true,
+    });
+    // A swipe up from the folded list stops at the middle height.
+    await swipeUp(page, handle);
+    await expectDrawerHeight(page, 0.58);
+    const list = page.getByRole("region", {
+      name: "Prosjektliste",
+      exact: true,
+    });
+    const result = list
+      .getByRole("button", { name: new RegExp(project.title) })
+      .first();
+    await expect(result).toBeInViewport();
+    await expect(page.locator("[data-map-controls]")).toBeVisible();
+    await expect(
+      page.locator("[data-explorer-drawer] [data-scroll-fade]"),
+    ).toHaveCount(1);
+    await shot(page, "mobile-list-middle");
+    // A project opened from it rests at the same height over it.
+    await result.click();
+    await expect(page).toHaveURL(atProject);
+    await expectDrawerHeight(page, 0.58, "project");
+    await expectDrawerHeight(page, 0.58);
+    await page
+      .getByRole("button", { name: "Lukk prosjekt", exact: true })
+      .click();
+    await expect(page).toHaveURL(atList);
+    await expectDrawerHeight(page, 0.58);
+    await expect(result).toBeFocused();
+    // The handle opens it the rest of the way.
+    await handle.click();
+    await expectDrawerHeight(page, 1);
   });
 
   test("wheel and touch expand the map drawer before scrolling list, project, and account content", async ({
@@ -393,6 +437,9 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       .getByRole("button", { name: "Vis mer av kartet", exact: true })
       .click();
     await expectDrawerHeight(page, compact);
+    // A swipe up stops at the middle height, the next goes on to the top.
+    await swipeUp(page, filters);
+    await expectDrawerHeight(page, 0.58);
     await swipeUp(page, filters);
     await expectDrawerHeight(page, 1);
     // Logging in asks in a sheet over the drawer, which stays put.
@@ -757,9 +804,9 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await search.fill(project.title);
     await search.press("Enter");
     await expect(page).toHaveURL(atProject);
-    // Over the map, the list folded down behind it.
+    // Over the map, the list come down behind it.
     await expectDrawerHeight(page, 0.58, "project");
-    await expectDrawerHeight(page, compact);
+    await expectDrawerHeight(page, 0.58);
     await page
       .getByRole("button", { name: "Lukk prosjekt", exact: true })
       .click();
