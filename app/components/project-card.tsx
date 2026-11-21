@@ -188,7 +188,7 @@ export default memo(function ProjectCard({
           <p className="mt-1 line-clamp-2 text-sm leading-5 text-ink-soft">
             {project.description.split("\n")[0]}
           </p>
-          <Photos project={project} />
+          <Photos project={project} onOpen={onOpen} />
           <div className="mt-3 flex items-center gap-4">
             <button
               type="button"
@@ -303,12 +303,21 @@ export default memo(function ProjectCard({
   );
 });
 
+const phoneQuery = "(width < 48rem)";
+
 /** Expanded: every photo, full width; nothing when the project has none. */
-function Photos({ project }: { project: Project }) {
+function Photos({
+  project,
+  onOpen,
+}: {
+  project: Project;
+  onOpen: (id: string) => void;
+}) {
   const photos = projectPhotos(project);
   if (photos.length === 0) return null;
   return (
-    // Above the card link: the photos page and open the lightbox.
+    // Above the card link: the photos page and open the lightbox, or on a
+    // phone, the project.
     <div className="relative z-1 mt-3">
       <ImageGallery
         images={photos}
@@ -316,6 +325,11 @@ function Photos({ project }: { project: Project }) {
         // As in the project's own gallery, so opening it reuses the file.
         sizes="(max-width: 768px) 100vw, 560px"
         className="aspect-3/2 rounded-lg"
+        onPress={() => {
+          if (!window.matchMedia(phoneQuery).matches) return false;
+          onOpen(project.id);
+          return true;
+        }}
       />
     </div>
   );

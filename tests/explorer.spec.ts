@@ -291,6 +291,28 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       .toBe(true);
   });
 
+  test("a photo tapped in an expanded card opens the project, not the lightbox", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page
+      .getByRole("button", { name: "Utvid prosjektlisten", exact: true })
+      .click();
+    const card = page
+      .getByRole("region", { name: "Prosjektliste", exact: true })
+      .locator("[data-card-id]")
+      .filter({ has: page.getByRole("group", { name: /^Bilder av / }) })
+      .first();
+    const id = await card.getAttribute("data-card-id");
+    await card
+      .getByRole("group", { name: /^Bilder av / })
+      .getByRole("button")
+      .first()
+      .tap();
+    await expect(page).toHaveURL(new RegExp(`/prosjekt/${id}`));
+    await expect(page.getByRole("dialog", { name: /^Bilder av / })).toHaveCount(0);
+  });
+
   test("a project tapped on the map opens at the middle height, centered above it", async ({
     page,
   }) => {

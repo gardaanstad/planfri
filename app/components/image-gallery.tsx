@@ -155,12 +155,15 @@ export default function ImageGallery({
   label,
   sizes,
   className,
+  onPress,
 }: {
   images: ProjectImage[];
   label: string;
   sizes: string;
   /** Sizes the frame, e.g. its aspect ratio. */
   className?: string;
+  /** Takes a press instead of the lightbox when it returns true. */
+  onPress?: () => boolean;
 }) {
   const { ref, index, go, scroll } = useSlides(images.length);
   const [open, setOpen] = useState<number | null>(null);
@@ -201,7 +204,9 @@ export default function ImageGallery({
                   .join(", ") || "Bilde"
               }
               tabIndex={i === index ? undefined : -1}
-              onClick={() => setOpen(i)}
+              onClick={() => {
+                if (!onPress?.()) setOpen(i);
+              }}
             >
               <Image
                 src={image.src}
