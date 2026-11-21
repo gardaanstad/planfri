@@ -2954,6 +2954,9 @@ export default memo(function Explorer({
               className={cn(
                 explorerDrawerClasses,
                 foldInstantly && "transition-none",
+                // Coming down to meet a project, the list leaves the shadow to
+                // it, so the two don't darken each other where they meet.
+                meeting && "shadow-none",
                 // Let Base UI swipe the drawer before its content starts scrolling.
                 snapPoint !== 1 &&
                   "[&_[data-drawer-scroll]]:overflow-y-hidden",
