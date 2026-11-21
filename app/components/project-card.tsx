@@ -7,7 +7,6 @@ import {
   MessageCircle,
 } from "lucide-react";
 import {
-  categoryLabels,
   formatDate,
   getProjectUpdates,
   hasPhoto,
@@ -95,7 +94,6 @@ export default memo(function ProjectCard({
 }) {
   const updates = getProjectUpdates(project);
   const expanded = density === "expanded";
-  const labels = categoryLabels(project.categories);
   const fresh = news && unreadCount(news) > 0 ? news : undefined;
   const title = (
     <h2
@@ -113,7 +111,7 @@ export default memo(function ProjectCard({
           reach,
           "focus-visible:after:outline-2 focus-visible:after:outline-focus",
         )}
-        aria-label={`${project.title} · ${labels.join(", ")} · ${project.city}${fresh ? ` · ${unreadSummary(fresh)}` : ""}`}
+        aria-label={`${project.title} · ${project.city}${fresh ? ` · ${unreadSummary(fresh)}` : ""}`}
         data-press=""
         onClick={() => onOpen(project.id)}
       >
