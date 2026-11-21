@@ -173,13 +173,10 @@ export default memo(function ProjectCard({
     >
       {expanded ? (
         <>
-          {/* Where and what, then where it stands. */}
+          {/* Where, then where it stands. */}
           <p className={cn(meta, "gap-1")}>
             <MapPin size={13} className="shrink-0" aria-hidden="true" />
-            <span className="min-w-0 truncate">
-              {projectPlace(project)}
-              {labels.length > 0 && ` · ${labels.join(", ")}`}
-            </span>
+            <span className="min-w-0 truncate">{projectPlace(project)}</span>
             <span className="ml-auto flex shrink-0 pl-2">{status}</span>
           </p>
           {title}
