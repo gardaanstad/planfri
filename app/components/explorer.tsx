@@ -387,6 +387,18 @@ export default memo(function Explorer({
     compactSnapPoint,
   );
   const snapRef = useRef(snapPoint);
+  // A project opened from the full list slides up over it; the list folds
+  // down behind it the frame it starts, at once instead of in an animation
+  // of its own.
+  const foldBehindPost = useRef(false);
+  const [foldInstantly, setFoldInstantly] = useState(false);
+  useLayoutEffect(() => {
+    if (!foldInstantly) return;
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => setFoldInstantly(false));
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [foldInstantly]);
   const drawerContentRef = useRef<HTMLDivElement>(null);
   const drawerHandleRef = useRef<HTMLButtonElement>(null);
   const projectTriggerRef = useRef<HTMLElement | SVGElement | null>(null);
@@ -1111,6 +1123,12 @@ export default memo(function Explorer({
     mapInset.current = postOverMap ? middleMapInset() : compactMapInset;
   }, [postOverMap]);
   const mobileMapInset = useCallback(() => mapInset.current, []);
+  // A project closed before it rose leaves the list folded all the same.
+  useLayoutEffect(() => {
+    if (postId || !foldBehindPost.current) return;
+    foldBehindPost.current = false;
+    setSnapPoint(compactSnapPoint);
+  }, [postId]);
 
   function openPost(
     id: string,
@@ -1125,7 +1143,7 @@ export default memo(function Explorer({
     if (isMobile && overMap) {
       // The list folds down behind it, and the map centers the project
       // above it.
-      setSnapPoint(compactSnapPoint);
+      foldBehindPost.current = snapPoint !== compactSnapPoint;
       mapInset.current = middleMapInset();
       if (project) mapApi.current?.center(projectPoints(project));
     }
@@ -2518,6 +2536,16 @@ export default memo(function Explorer({
         onClosed={() =>
           setExiting((current) => current.filter((item) => item !== layer))
         }
+        onEnter={
+          layer === "project"
+            ? () => {
+                if (!foldBehindPost.current) return;
+                foldBehindPost.current = false;
+                setFoldInstantly(true);
+                setSnapPoint(compactSnapPoint);
+              }
+            : undefined
+        }
         // Resting over the map, the project carries the map controls.
         edge={
           layer === "project" && postSnap?.id === panelPostId ? (
@@ -2893,8 +2921,10 @@ export default memo(function Explorer({
               data-explorer-drawer=""
               data-panel-open={liveLayers.length > 0 || undefined}
               data-map-covered={liveLayers.length > 0 || undefined}
+              viewportClassName={foldInstantly ? "transition-none" : undefined}
               className={cn(
                 explorerDrawerClasses,
+                foldInstantly && "transition-none",
                 // Let Base UI swipe the drawer before its content starts scrolling.
                 snapPoint !== 1 &&
                   "[&_[data-drawer-scroll]]:overflow-y-hidden",

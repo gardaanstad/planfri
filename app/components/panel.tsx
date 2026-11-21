@@ -4,6 +4,8 @@ import {
   createContext,
   use,
   useEffect,
+  useEffectEvent,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
@@ -96,6 +98,7 @@ export function PanelDrawer({
   onDismiss,
   onOpened,
   onClosed,
+  onEnter,
   snap,
   edge,
   onMotion,
@@ -116,6 +119,8 @@ export function PanelDrawer({
   onDismiss: () => void;
   onOpened?: () => void;
   onClosed: () => void;
+  /** When it starts to slide up, or right away if it stands in place. */
+  onEnter?: () => void;
   /**
    * Heights it rests at, as on the explorer's drawer; without them it opens
    * at full height. Below the full height, a swipe on the content moves the
@@ -140,6 +145,23 @@ export function PanelDrawer({
     const frame = requestAnimationFrame(() => setEntered(true));
     return () => cancelAnimationFrame(frame);
   }, [entered]);
+  const popupRef = useRef<HTMLElement | null>(null);
+  const enter = useEffectEvent(() => onEnter?.());
+  useLayoutEffect(() => {
+    if (!open || !entered) return;
+    // Its portal mounts a render later, and Base UI holds it at its closed
+    // place for a frame or two before it lets go.
+    let start: number | undefined;
+    let frames = 0;
+    let frame = requestAnimationFrame(function wait() {
+      const top = popupRef.current?.getBoundingClientRect().top;
+      start ??= top;
+      if (++frames > 12 || (start !== undefined && top! < start - 1))
+        return enter();
+      frame = requestAnimationFrame(wait);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open, entered]);
   return (
     <Drawer
       open={open && entered}
@@ -163,6 +185,7 @@ export function PanelDrawer({
       <DrawerVirtualKeyboardProvider>
         <DrawerContent
           ref={(node) => {
+            popupRef.current = node;
             if (node) onReady();
           }}
           data-panel-drawer={name}
