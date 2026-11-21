@@ -76,7 +76,7 @@
   }
 
   /* Hovering any part of a thread's line darkens all of it. */
-  .thread:has(> .self > .rail:focus-visible) {
+  .thread:has(> .self > .rail:focus-visible:not(:global(:root[data-pointer]) *)) {
     & > .self > .rail,
     & > .replies > .clip > .branch > :is(.through, .elbow) {
       color: color-mix(in srgb, var(--color-ink) 55%, transparent);

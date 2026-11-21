@@ -1533,13 +1533,6 @@ export default function ProjectMap({
       data-drawing={draw ? "true" : undefined}
       data-map-style={layer}
       data-base-tone={darkBase ? "dark" : "light"}
-      // After a pointer press, focus moved by it shows no ring.
-      onPointerDown={(event) =>
-        event.currentTarget.setAttribute("data-pointer", "")
-      }
-      onKeyDown={(event) =>
-        event.currentTarget.removeAttribute("data-pointer")
-      }
     >
       <div
         ref={container}

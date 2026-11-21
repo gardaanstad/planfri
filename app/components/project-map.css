@@ -122,12 +122,12 @@
   outline: none;
 }
 
-[data-project-map]:not([data-pointer]) .leaflet-container:focus-visible {
+:root:not([data-pointer]) [data-project-map] .leaflet-container:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: -2px;
 }
 
-[data-project-map]:not([data-pointer])
+:root:not([data-pointer]) [data-project-map]
   .leaflet-interactive[role="button"]:focus-visible {
   fill-opacity: 0.4;
   stroke: var(--color-accent);
@@ -202,7 +202,7 @@
   transform: scale(1.12);
 }
 
-[data-project-map]:not([data-pointer]) .project-cluster:focus-visible > span {
+:root:not([data-pointer]) [data-project-map] .project-cluster:focus-visible > span {
   box-shadow:
     0 0 0 2px var(--color-surface),
     0 0 0 4px var(--color-focus);

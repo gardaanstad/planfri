@@ -2,6 +2,7 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { LogIn } from "lucide-react";
 import { cn } from "../lib/cn";
+import { keyboardFocused } from "../lib/ui";
 import { useSwipeDismiss } from "./use-swipe-dismiss";
 
 const reduced = () =>
@@ -9,7 +10,7 @@ const reduced = () =>
 
 /** Whether a sheet's trigger was reached by keyboard rather than a tap. */
 export const openedByKeyboard = (trigger: Element | null) =>
-  trigger instanceof HTMLElement && trigger.matches(":focus-visible");
+  trigger instanceof HTMLElement && keyboardFocused(trigger);
 
 export type SheetAction = {
   id: string;

@@ -19,7 +19,7 @@ import {
 import type { ListDensity } from "../lib/explore-state";
 import { type ProjectNews, unreadCount, unreadSummary } from "../lib/unread";
 import { cn } from "../lib/cn";
-import { statusTone } from "../lib/ui";
+import { keyboardFocused, statusTone } from "../lib/ui";
 import ImageGallery from "./image-gallery";
 
 type Section = "discussion" | "updates";
@@ -166,7 +166,7 @@ export default memo(function ProjectCard({
       }}
       // From the keyboard only: a tap focuses the card too.
       onFocus={(event) => {
-        if (event.target.matches(":focus-visible")) onHover?.(project.id, true);
+        if (keyboardFocused(event.target)) onHover?.(project.id, true);
       }}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget))
