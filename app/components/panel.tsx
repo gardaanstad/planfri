@@ -119,7 +119,11 @@ export function PanelDrawer({
   onDismiss: () => void;
   onOpened?: () => void;
   onClosed: () => void;
-  /** When it starts to slide up, or right away if it stands in place. */
+  /**
+   * The render it is let go to slide up in, or stands in place in. Base UI
+   * starts the slide a few frames on, about as long as another drawer takes
+   * to start moving when told to in it.
+   */
   onEnter?: () => void;
   /**
    * Heights it rests at, as on the explorer's drawer; without them it opens
@@ -145,22 +149,9 @@ export function PanelDrawer({
     const frame = requestAnimationFrame(() => setEntered(true));
     return () => cancelAnimationFrame(frame);
   }, [entered]);
-  const popupRef = useRef<HTMLElement | null>(null);
   const enter = useEffectEvent(() => onEnter?.());
   useLayoutEffect(() => {
-    if (!open || !entered) return;
-    // Its portal mounts a render later, and Base UI holds it at its closed
-    // place for a frame or two before it lets go.
-    let start: number | undefined;
-    let frames = 0;
-    let frame = requestAnimationFrame(function wait() {
-      const top = popupRef.current?.getBoundingClientRect().top;
-      start ??= top;
-      if (++frames > 12 || (start !== undefined && top! < start - 1))
-        return enter();
-      frame = requestAnimationFrame(wait);
-    });
-    return () => cancelAnimationFrame(frame);
+    if (open && entered) enter();
   }, [open, entered]);
   return (
     <Drawer
@@ -185,7 +176,6 @@ export function PanelDrawer({
       <DrawerVirtualKeyboardProvider>
         <DrawerContent
           ref={(node) => {
-            popupRef.current = node;
             if (node) onReady();
           }}
           data-panel-drawer={name}

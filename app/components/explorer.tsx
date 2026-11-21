@@ -221,6 +221,14 @@ const middleMapInset = () => Math.round(window.innerHeight * middleSnapPoint);
 const compactMapInset = Number.parseInt(compactSnapPoint);
 // The list is either folded down to its filters or the whole screen.
 const drawerSnapPoints: DrawerSnapPoint[] = [compactSnapPoint, 1];
+// While a project rises over the full list, the list comes down to meet it.
+const meetingSnapPoints: DrawerSnapPoint[] = [
+  compactSnapPoint,
+  middleSnapPoint,
+  1,
+];
+// Both drawers' transition, and a little to spare.
+const meetingTime = 480;
 const projectSnapPoints: DrawerSnapPoint[] = [middleSnapPoint, 1];
 // The map controls ride a drawer's top edge, 14px clear of its border.
 const controlsSlotClasses = cn(
@@ -387,11 +395,22 @@ export default memo(function Explorer({
     compactSnapPoint,
   );
   const snapRef = useRef(snapPoint);
-  // A project opened from the full list slides up over it; the list folds
-  // down behind it the frame it starts, at once instead of in an animation
-  // of its own.
+  // A project opened from the full list rises to the middle height as the
+  // list comes down to meet it there, in step; met, the list folds the rest
+  // of the way behind it at once.
   const foldBehindPost = useRef(false);
+  const meetPending = useRef(false);
+  const [meeting, setMeeting] = useState(false);
   const [foldInstantly, setFoldInstantly] = useState(false);
+  useEffect(() => {
+    if (!meeting || snapPoint !== middleSnapPoint) return;
+    const timer = window.setTimeout(() => {
+      setMeeting(false);
+      setFoldInstantly(true);
+      setSnapPoint(compactSnapPoint);
+    }, meetingTime);
+    return () => window.clearTimeout(timer);
+  }, [meeting, snapPoint]);
   useLayoutEffect(() => {
     if (!foldInstantly) return;
     let frame = requestAnimationFrame(() => {
@@ -1123,12 +1142,16 @@ export default memo(function Explorer({
     mapInset.current = postOverMap ? middleMapInset() : compactMapInset;
   }, [postOverMap]);
   const mobileMapInset = useCallback(() => mapInset.current, []);
-  // A project closed before it rose leaves the list folded all the same.
+  // A project closed before the list met it leaves the list folded all the
+  // same, there being nothing left to hide it behind.
   useLayoutEffect(() => {
-    if (postId || !foldBehindPost.current) return;
+    if (postId || (!foldBehindPost.current && !meetPending.current && !meeting))
+      return;
     foldBehindPost.current = false;
+    meetPending.current = false;
+    setMeeting(false);
     setSnapPoint(compactSnapPoint);
-  }, [postId]);
+  }, [postId, meeting]);
 
   function openPost(
     id: string,
@@ -2541,8 +2564,14 @@ export default memo(function Explorer({
             ? () => {
                 if (!foldBehindPost.current) return;
                 foldBehindPost.current = false;
-                setFoldInstantly(true);
-                setSnapPoint(compactSnapPoint);
+                // A frame on, the two start moving together.
+                requestAnimationFrame(() => {
+                  if (!meetPending.current) return;
+                  meetPending.current = false;
+                  setMeeting(true);
+                  setSnapPoint(middleSnapPoint);
+                });
+                meetPending.current = true;
               }
             : undefined
         }
@@ -2872,7 +2901,7 @@ export default memo(function Explorer({
           open
           modal={false}
           disablePointerDismissal
-          snapPoints={drawerSnapPoints}
+          snapPoints={meeting ? meetingSnapPoints : drawerSnapPoints}
           snapToSequentialPoints
           snapPoint={snapPoint}
           onSnapPointChange={(point, details) => {
