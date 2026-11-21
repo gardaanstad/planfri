@@ -489,7 +489,7 @@ function ProjectMeta({ project }: { project: Project }) {
         <MapPin size={14} aria-hidden="true" />
         {projectPlace(project)}
       </span>
-      <span className="font-medium text-ink">
+      <span>
         <i
           className={cn(
             "size-2 rounded-full",
@@ -497,9 +497,7 @@ function ProjectMeta({ project }: { project: Project }) {
           )}
         />
         {statuses[project.status].label}
-        {project.year && (
-          <span className="font-normal text-muted">· {project.year}</span>
-        )}
+        {project.year && <span>· {project.year}</span>}
       </span>
     </p>
   );

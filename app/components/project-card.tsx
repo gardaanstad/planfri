@@ -122,7 +122,7 @@ export default memo(function ProjectCard({
     </h2>
   );
   const status = (
-    <span className="inline-flex min-w-0 items-center gap-1.5 font-medium whitespace-nowrap text-ink">
+    <span className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap">
       <i
         className={cn(
           "size-2 shrink-0 rounded-full",
@@ -130,9 +130,7 @@ export default memo(function ProjectCard({
         )}
       />
       {statuses[project.status].label}
-      {project.year && (
-        <span className="font-normal text-muted">· {project.year}</span>
-      )}
+      {project.year && <span>· {project.year}</span>}
     </span>
   );
   const commentWord = commentCount === 1 ? "kommentar" : "kommentarer";
