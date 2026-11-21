@@ -439,3 +439,39 @@ test("a reply closes on cancel or a click elsewhere, keeping its draft only for 
   await open.click();
   await expect(field).toHaveValue("");
 });
+
+test("a vote shows at once and goes back if the server refuses it", async ({
+  page,
+  context,
+}) => {
+  await signIn(context, await member({ username: name() }));
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/api/community", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    await held;
+    await route.fulfill({ status: 500, json: { error: "Serveren svarte ikke." } });
+  });
+  await page.goto(path);
+  const votes = page
+    .getByRole("region", { name: "Kommentarer", exact: true })
+    .locator('[data-comment-id="c1"]')
+    .getByRole("group", { name: /^Stem på kommentaren/ })
+    .first();
+  const up = votes.getByRole("button", { name: /^Stem opp/ });
+  const count = votes.locator("[aria-live]");
+  const before = Number(await count.textContent());
+  // The server renders the button, so a click can land before hydration.
+  await expect(async () => {
+    await up.click();
+    await expect(up).toHaveAttribute("aria-pressed", "true", { timeout: 1000 });
+  }).toPass();
+  await expect(count).toHaveText(String(before + 1));
+  await votes.getByRole("button", { name: /^Stem ned/ }).click();
+  await expect(votes).toHaveAttribute("data-vote", "-1");
+  await expect(count).toHaveText(String(before - 1));
+  release();
+  await expect(votes).toHaveAttribute("data-vote", "0");
+  await expect(count).toHaveText(String(before));
+  await expect(page.getByText("Serveren svarte ikke.").first()).toBeVisible();
+});
