@@ -493,12 +493,16 @@ test.describe("account menu", () => {
     const menu = page.getByRole("menu", { name: "Konto" });
     await expect(menu.getByRole("menuitem")).toHaveText([
       new RegExp(`@${person.username}\\s*Din profil`),
-      "Kontoinnstillinger",
+      // Settings are an icon beside the profile.
+      "",
       "Lagret",
       "Logg ut",
     ]);
     // Members have no moderator's view to leave.
     await expect(menu.getByRole("menuitemcheckbox")).toHaveCount(0);
+    await expect(
+      menu.getByRole("menuitem", { name: "Kontoinnstillinger" }),
+    ).toBeVisible();
     await shot(page, "account-menu");
 
     await menu.getByRole("menuitem", { name: "Kontoinnstillinger" }).click();

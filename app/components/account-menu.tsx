@@ -15,8 +15,8 @@ const item = cn(
 const separator = "-mx-1.5 my-1.5 h-px bg-border";
 
 /**
- * The signed-in member's menu from their avatar: their profile and
- * settings, what they saved, then logging out. Moderators can also
+ * The signed-in member's menu from their avatar: their profile, with
+ * settings beside it, what they saved, then logging out. Moderators can also
  * view the app as a member. A dropdown on desktop, a sheet on phones.
  */
 export default function AccountMenu({
@@ -61,12 +61,12 @@ export default function AccountMenu({
         detail: "Din profil",
         icon: <ProfileAvatar name={username} className="size-8 text-xs" />,
         onSelect: onProfile,
-      },
-      {
-        id: "settings",
-        label: "Kontoinnstillinger",
-        icon: <Settings size={20} />,
-        onSelect: onSettings,
+        aside: {
+          id: "settings",
+          label: "Kontoinnstillinger",
+          icon: <Settings size={20} />,
+          onSelect: onSettings,
+        },
       },
       {
         id: "saved",
@@ -144,20 +144,26 @@ export default function AccountMenu({
             aria-label="Konto"
             className="min-w-60 rounded-xl border border-border bg-surface p-1.5 text-ui shadow-popover outline-none motion-safe:animate-menu-enter"
           >
-            <Menu.Item
-              className={cn(item, "gap-3 py-2")}
-              onClick={() => run(onProfile)}
-            >
-              <ProfileAvatar name={username} className="size-8 text-xs" />
-              <span className="flex min-w-0 flex-col">
-                <span className="truncate font-medium">@{username}</span>
-                <span className="text-xs text-muted">Din profil</span>
-              </span>
-            </Menu.Item>
-            <Menu.Item className={item} onClick={() => run(onSettings)}>
-              <Settings size={16} aria-hidden="true" />
-              Kontoinnstillinger
-            </Menu.Item>
+            <div className="flex gap-1">
+              <Menu.Item
+                className={cn(item, "h-13 min-w-0 flex-1 gap-3 py-0")}
+                onClick={() => run(onProfile)}
+              >
+                <ProfileAvatar name={username} className="size-8 text-xs" />
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate font-medium">@{username}</span>
+                  <span className="text-xs text-muted">Din profil</span>
+                </span>
+              </Menu.Item>
+              <Menu.Item
+                className={cn(item, "size-13 justify-center px-0 py-0")}
+                aria-label="Kontoinnstillinger"
+                data-tooltip="Kontoinnstillinger"
+                onClick={() => run(onSettings)}
+              >
+                <Settings size={18} aria-hidden="true" />
+              </Menu.Item>
+            </div>
             <Menu.Separator className={separator} />
             <Menu.Item className={item} onClick={() => run(onSaved)}>
               <Bookmark size={16} aria-hidden="true" />
