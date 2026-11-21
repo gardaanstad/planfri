@@ -31,6 +31,8 @@ type CommunityContext = CommunityData & {
   /** Sends a member's suggestion to the moderation queue. */
   suggest: (suggestion: SuggestionInput) => Promise<void>;
 };
+// Returning to the tab reads again only if the last request is this old.
+const STALE_AFTER = 30_000;
 const Context = createContext<CommunityContext | null>(null);
 // Polling mostly returns what is already shown; keeping unchanged parts by
 // reference spares the explorer and map from rebuilding on every read.
@@ -71,6 +73,9 @@ export function CommunityProvider({
   const revision = useRef(0);
   // Whose data is held: the server's render needs no immediate refetch.
   const loadedFor = useRef(initialUserId);
+  // When the last read or write went out, so returning to the tab reads
+  // once, and only if the data is a while old.
+  const lastRequest = useRef(0);
   useEffect(() => {
     identity.current = user?.id;
   }, [user?.id]);
@@ -81,6 +86,7 @@ export function CommunityProvider({
   const refresh = useCallback(async () => {
     const current = user?.id;
     const version = ++revision.current;
+    lastRequest.current = Date.now();
     const data = await apiRequest<CommunityData>("/api/community");
     if (identity.current === current && revision.current === version)
       receive(data, current);
@@ -92,16 +98,20 @@ export function CommunityProvider({
       });
     };
     if (loadedFor.current !== user?.id) update();
-    const updateVisible = () => {
-      if (!document.hidden) update();
+    else lastRequest.current = Date.now();
+    // Focus and visibilitychange both fire on returning to the tab.
+    const updateIfStale = () => {
+      if (document.hidden) return;
+      if (Date.now() - lastRequest.current < STALE_AFTER) return;
+      update();
     };
-    const timer = window.setInterval(updateVisible, 60_000);
-    window.addEventListener("focus", update);
-    document.addEventListener("visibilitychange", updateVisible);
+    const timer = window.setInterval(updateIfStale, 60_000);
+    window.addEventListener("focus", updateIfStale);
+    document.addEventListener("visibilitychange", updateIfStale);
     return () => {
       window.clearInterval(timer);
-      window.removeEventListener("focus", update);
-      document.removeEventListener("visibilitychange", updateVisible);
+      window.removeEventListener("focus", updateIfStale);
+      document.removeEventListener("visibilitychange", updateIfStale);
     };
   }, [refresh, user?.id]);
   async function mutate(mutation: CommunityMutation) {
@@ -135,6 +145,7 @@ export function CommunityProvider({
   }
   async function send(mutation: CommunityMutation, current?: string) {
     const version = ++revision.current;
+    lastRequest.current = Date.now();
     const data = await apiRequest<CommunityData>("/api/community", {
       method: "POST",
       body: JSON.stringify(mutation),
