@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { seedProjects, type Comment } from "../app/lib/data";
 import { discussionThreads } from "../app/lib/discussion";
-import { member, mutation, signIn } from "./support";
+import { member, mutation, shot, signIn } from "./support";
 
 const project = seedProjects[0];
 const path = `/prosjekt/${project.id}`;
@@ -23,7 +23,9 @@ test("recent activity includes old parent conversations with new nested replies"
     { ...base, id: "quiet", date: "2026-02-01T00:00:00Z" },
   ];
   expect(
-    discussionThreads(comments, "newest", { since: "2026-09-01" }).map((c) => c.id),
+    discussionThreads(comments, "newest", { since: "2026-09-01" }).map(
+      (c) => c.id,
+    ),
   ).toEqual(["new", "old"]);
   expect(discussionThreads(comments, "newest").map((c) => c.id)).toEqual([
     "new",
@@ -374,4 +376,66 @@ test("replies under an update stay in their thread in both sections", async ({
       .locator(`[data-comment-id="${rootId}"]`)
       .getByText(text, { exact: true }),
   ).toBeVisible();
+});
+
+test("on a phone, tapping a comment's name line folds its thread", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(path);
+  const discussion = page.getByRole("region", {
+    name: "Kommentarer",
+    exact: true,
+  });
+  const thread = discussion.locator('[data-comment-id="c1"]');
+  const text = thread.getByText(/^Veldig fint at promenaden/);
+  const reply = thread.locator('[data-comment-id="c2"]');
+  const row = thread.locator("[data-identity-row]").first();
+  await expect(reply).toBeVisible();
+  await shot(page, "comment-thread-open");
+  // The body and the update's tag keep their own taps.
+  await text.click();
+  await expect(reply).toBeVisible();
+  await thread
+    .getByRole("button", { name: "Nye byrom tar form", exact: true })
+    .first()
+    .click();
+  await expect(page.locator("#update-u-byrom")).toBeVisible();
+  await page.getByRole("button", { name: /^Kommentarer/ }).click();
+  await row.locator("time").click();
+  await expect(text).toBeHidden();
+  await expect(reply).toBeHidden();
+  await shot(page, "comment-thread-folded");
+  // Out at the line's far end, past the date.
+  await row.click({
+    position: { x: (await row.boundingBox())!.width - 4, y: 4 },
+  });
+  await expect(text).toBeVisible();
+  await expect(reply).toBeVisible();
+});
+
+test("a reply closes on cancel or a click elsewhere, keeping its draft only for the latter", async ({
+  page,
+  context,
+}) => {
+  await signIn(context, await member({ username: name() }));
+  await page.goto(path);
+  const thread = page
+    .getByRole("region", { name: "Kommentarer", exact: true })
+    .locator('[data-comment-id="c1"]');
+  const open = thread
+    .getByRole("button", { name: "Svar", exact: true })
+    .first();
+  const field = thread.getByRole("textbox", { name: /^Svar til / });
+  await open.click();
+  await field.fill("Et utkast");
+  await thread.getByText(/^Veldig fint at promenaden/).click();
+  await expect(field).toBeHidden();
+  await open.click();
+  await expect(field).toHaveValue("Et utkast");
+  await thread.getByRole("button", { name: "Avbryt", exact: true }).click();
+  await expect(field).toBeHidden();
+  await expect(open).toBeFocused();
+  await open.click();
+  await expect(field).toHaveValue("");
 });

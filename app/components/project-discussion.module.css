@@ -21,10 +21,6 @@
       & & & {
         padding-left: 0;
       }
-
-      &[data-folded] {
-        display: none;
-      }
     }
   }
 
@@ -82,20 +78,57 @@
   /* Hovering any part of a thread's line darkens all of it. */
   .thread:has(> .self > .rail:focus-visible) {
     & > .self > .rail,
-    & > .replies > .branch > :is(.through, .elbow) {
+    & > .replies > .clip > .branch > :is(.through, .elbow) {
       color: color-mix(in srgb, var(--color-ink) 55%, transparent);
     }
   }
 
   @media (hover: hover) and (pointer: fine) {
     .thread:has(
-        > .self > .rail:hover,
-        > .replies > .branch > :is(.through, .elbow):hover
-      ) {
+      > .self > .rail:hover,
+      > .replies > .clip > .branch > :is(.through, .elbow):hover
+    ) {
       & > .self > .rail,
-      & > .replies > .branch > :is(.through, .elbow) {
+      & > .replies > .clip > .branch > :is(.through, .elbow) {
         color: color-mix(in srgb, var(--color-ink) 55%, transparent);
       }
     }
+  }
+
+  /*
+   * A thread tapped shut on a phone: everything under its author's line
+   * eases closed, rows from 1fr to 0fr.
+   */
+  .fold {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition:
+      grid-template-rows 260ms var(--ease-out-soft, ease-out),
+      opacity 200ms,
+      visibility 0s;
+
+    &[inert] {
+      grid-template-rows: 0fr;
+      opacity: 0;
+      visibility: hidden;
+      transition-delay: 0s, 0s, 260ms;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      transition: none;
+    }
+  }
+
+  /*
+   * Wider than its column, so vote buttons pulled into the gutter aren't cut;
+   * the clip margin spares focus rings and the highlight's glow.
+   */
+  .clip {
+    min-height: 0;
+    overflow: hidden;
+    overflow: clip;
+    overflow-clip-margin: 8px;
+    margin-inline: -8px;
+    padding-inline: 8px;
   }
 }

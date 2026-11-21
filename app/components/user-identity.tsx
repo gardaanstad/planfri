@@ -24,13 +24,21 @@ import { openProfile } from "../lib/profile-overlay";
 import ProfileAvatar from "./profile-avatar";
 import { useAuth } from "./auth-provider";
 
-/** Avatar beside two lines: the name, and `children` (such as a date) below. */
+/**
+ * Avatar beside the name, with `meta` (such as a date) after it on the same
+ * line, and `children` on a line below. `onRowClick` hears clicks on the
+ * name's line, which reaches up and out to the edge to be easier to hit.
+ */
 export default function UserIdentity({
   username,
+  meta,
   children,
+  onRowClick,
 }: {
   username: string;
+  meta?: ReactNode;
   children?: ReactNode;
+  onRowClick?: (event: MouseEvent) => void;
 }) {
   const [loaded, setLoaded] = useState<Profile | null>(null);
   const { user } = useAuth();
@@ -141,7 +149,10 @@ export default function UserIdentity({
 
   return (
     <div
-      className="flex min-w-0 max-w-full items-start gap-2.5"
+      className={cn(
+        "flex min-w-0 max-w-full gap-2.5",
+        children ? "items-start" : "items-center",
+      )}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) close();
       }}
@@ -173,7 +184,15 @@ export default function UserIdentity({
         />
       </a>
       <div className="min-w-0 flex-1">
-        <div className="flex min-h-4.5 min-w-0">
+        <div
+          className={cn(
+            "flex min-h-4.5 min-w-0 items-baseline gap-1.5",
+            // Taller only where nothing else is: never over the line below.
+            onRowClick && (children ? "-mt-2 pt-2" : "-my-2 py-2"),
+          )}
+          data-identity-row=""
+          onClick={onRowClick}
+        >
           <a
             ref={triggerRef}
             href={profileHref(username)}
@@ -192,6 +211,14 @@ export default function UserIdentity({
           >
             {username}
           </a>
+          {meta && (
+            <>
+              <span aria-hidden="true" className="text-xs text-muted/70">
+                ·
+              </span>
+              {meta}
+            </>
+          )}
         </div>
         {children && (
           <div className="flex min-w-0 items-baseline gap-2">{children}</div>
