@@ -84,6 +84,16 @@ function ScrollFade({ shown }: { shown: boolean }) {
 }
 
 // Each panel drawer stacks above the one before it.
+/**
+ * Takes the panel's drawer to its full height when it rests lower, so
+ * content that grows on request, like a project's "Les mer", has room.
+ */
+const PanelExpandContext = createContext<(() => void) | null>(null);
+
+export function usePanelExpand() {
+  return use(PanelExpandContext);
+}
+
 const stackLayers = ["z-[51]", "z-[52]", "z-[53]", "z-[54]", "z-[55]", "z-[56]"];
 
 /** Phones: a panel's drawer. It keeps its content while it slides away. */
@@ -219,7 +229,13 @@ export function PanelDrawer({
           <DrawerTitle className="sr-only">{title}</DrawerTitle>
           {ready && (
             <div className="contents" inert={!active}>
-              {children}
+              <PanelExpandContext
+                value={
+                  snap && snap.point !== 1 ? () => snap.onChange(1) : null
+                }
+              >
+                {children}
+              </PanelExpandContext>
             </div>
           )}
         </DrawerContent>
