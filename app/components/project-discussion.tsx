@@ -83,6 +83,26 @@ export default function ProjectDiscussion({
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   // Threads collapsed to their author's line by a tap, on a phone.
   const [minimized, setMinimized] = useState<ReadonlySet<string>>(new Set());
+  // A comment opened from elsewhere isn't left folded away in its thread.
+  const [shownCommentId, setShownCommentId] = useState(initialCommentId);
+  if (initialCommentId !== shownCommentId) {
+    setShownCommentId(initialCommentId);
+    const parents = new Map(comments.map((item) => [item.id, item.parentId]));
+    const ancestors: string[] = [];
+    for (
+      let parent = initialCommentId && parents.get(initialCommentId);
+      parent;
+      parent = parents.get(parent)
+    )
+      ancestors.push(parent);
+    const without = (set: ReadonlySet<string>, ids: string[]) =>
+      ids.some((id) => set.has(id))
+        ? new Set([...set].filter((id) => !ids.includes(id)))
+        : set;
+    setCollapsed(without(collapsed, ancestors));
+    if (initialCommentId)
+      setMinimized(without(minimized, [initialCommentId, ...ancestors]));
+  }
   useEffect(() => {
     if (!initialCommentId) return;
     const frame = requestAnimationFrame(() =>

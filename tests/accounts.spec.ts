@@ -818,3 +818,43 @@ test("account settings contain account actions and deletion can be cancelled", a
     page.getByRole("link", { name: "Tilbake", exact: true }),
   ).toHaveCount(0);
 });
+
+test("a profile's comment opens at its place in the project", async ({
+  page,
+}) => {
+  await page.goto("/profil/arkitekturinteressert");
+  const panel = page.locator("[data-profile-overlay]");
+  await expect(
+    panel.getByRole("heading", { name: "arkitekturinteressert", exact: true }),
+  ).toBeVisible();
+  await expect(
+    panel.getByRole("heading", { name: "Kommentarer", exact: true }),
+  ).toBeVisible();
+  // Until Next.js has taken over history, an entry the explorer writes
+  // lacks its mark, and stepping back to it reloads the page.
+  await expect
+    .poll(() => page.evaluate(() => Boolean(window.history.state?.__NA)))
+    .toBe(true);
+  await panel
+    .getByRole("link", { name: /Enig! Førsteetasjene/ })
+    .click();
+  await expect(page).toHaveURL(/\/prosjekt\/bispevika-sor(\?|$)/);
+  const reply = page.locator('[data-comment-id="c2"] [data-highlighted]');
+  await expect(reply).toBeInViewport();
+
+  // Back into the same project, from a profile opened over it.
+  await page
+    .locator('[data-comment-id="c1"]')
+    .getByRole("link", { name: "byvandrer" })
+    .first()
+    .click();
+  await expect(page).toHaveURL(/\/profil\/byvandrer(\?|$)/);
+  await page
+    .locator("[data-profile-overlay]")
+    .getByRole("link", { name: /Ikke bare restauranter/ })
+    .click();
+  await expect(page).toHaveURL(/\/prosjekt\/bispevika-sor(\?|$)/);
+  await expect(
+    page.locator('[data-comment-id="c4"] [data-highlighted]'),
+  ).toBeInViewport();
+});

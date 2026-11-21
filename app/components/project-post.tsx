@@ -1178,6 +1178,12 @@ export default function ProjectPost({
   const [tab, setTab] = useState<string>(
     initialSection ?? (initialUpdateId ? "updates" : "discussion"),
   );
+  // A comment opened while the project is already open shows its tab.
+  const [shownCommentId, setShownCommentId] = useState(initialCommentId);
+  if (initialCommentId !== shownCommentId) {
+    setShownCommentId(initialCommentId);
+    if (initialCommentId) setTab("discussion");
+  }
   // Updates whose comment section is open; mounted ones stay for the collapse.
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
   const [highlightId, setHighlightId] = useState(initialUpdateId || "");
