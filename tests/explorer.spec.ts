@@ -1164,15 +1164,14 @@ test.describe("desktop explorer", () => {
     await expect(page).toHaveURL(
       new RegExp(`status=construction&kategori=${main},${sub}`),
     );
-    const results = listRegion(page);
-    for (const button of await results
-      .getByRole("heading", { level: 2 })
-      .getByRole("button")
-      .all())
-      await expect(button).toHaveAttribute(
-        "aria-label",
-        new RegExp(` · [^·]*${sub}[^·]* · `),
-      );
+    const cards = listRegion(page).locator("[data-card-id]");
+    await expect(cards.first()).toBeVisible();
+    for (const id of await cards.evaluateAll((items) =>
+      items.map((item) => item.getAttribute("data-card-id")),
+    ))
+      expect(
+        seedProjects.find((seed) => seed.id === id)?.categories,
+      ).toContain(sub);
     // The last subcategory's chip takes its main category along.
     await active
       .getByRole("button", { name: `Fjern filter: ${sub}` })

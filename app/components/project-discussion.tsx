@@ -25,7 +25,7 @@ import styles from "./project-discussion.module.css";
 
 const voteButton = cn(
   "grid size-8 place-items-center rounded-md p-0 text-muted max-sm:size-9",
-  "transition-colors hover:not-aria-pressed:bg-ink/[0.06] hover:not-aria-pressed:text-ink",
+  "transition-colors hover:bg-ink/[0.06] hover:not-aria-pressed:text-ink",
   "[&[aria-pressed=true]>svg]:stroke-[2.8]",
 );
 /** On a phone, where the replies' line is hidden, a tap on the name's line folds a thread. */
@@ -75,7 +75,6 @@ export default function ProjectDiscussion({
   const replyDraftFor = useRef<string | null>(null);
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false);
-  const votingRef = useRef(new Set<string>());
   const replyButtons = useRef(new Map<string, HTMLButtonElement>());
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const idPrefix = useId();
@@ -245,18 +244,12 @@ export default function ProjectDiscussion({
     }
   }
   async function castVote(commentId: string, value: -1 | 0 | 1) {
-    if (
-      !requireLogin("Du må være logget inn for å stemme på kommentarer.") ||
-      votingRef.current.has(commentId)
-    )
+    if (!requireLogin("Du må være logget inn for å stemme på kommentarer."))
       return;
-    votingRef.current.add(commentId);
     try {
       await mutate({ action: "vote", commentId, value });
     } catch (error) {
       onNotify(errorMessage(error, "Kunne ikke lagre stemmen."));
-    } finally {
-      votingRef.current.delete(commentId);
     }
   }
   function renderComment(comment: Comment, depth = 0): React.ReactNode {
@@ -355,10 +348,7 @@ export default function ProjectDiscussion({
                 >
                   <button
                     type="button"
-                    className={cn(
-                      voteButton,
-                      "aria-pressed:bg-accent/10 aria-pressed:text-accent",
-                    )}
+                    className={cn(voteButton, "aria-pressed:text-accent")}
                     aria-label={`Stem opp kommentaren fra ${comment.author}`}
                     aria-pressed={vote === 1}
                     onClick={() =>
@@ -380,10 +370,7 @@ export default function ProjectDiscussion({
                   </span>
                   <button
                     type="button"
-                    className={cn(
-                      voteButton,
-                      "aria-pressed:bg-danger-soft aria-pressed:text-danger",
-                    )}
+                    className={cn(voteButton, "aria-pressed:text-danger")}
                     aria-label={`Stem ned kommentaren fra ${comment.author}`}
                     aria-pressed={vote === -1}
                     onClick={() =>
