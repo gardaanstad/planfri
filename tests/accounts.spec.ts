@@ -830,6 +830,11 @@ test("a profile's comment opens at its place in the project", async ({
   await expect(
     panel.getByRole("heading", { name: "Kommentarer", exact: true }),
   ).toBeVisible();
+  // Until Next.js has taken over history, an entry the explorer writes
+  // lacks its mark, and stepping back to it reloads the page.
+  await expect
+    .poll(() => page.evaluate(() => Boolean(window.history.state?.__NA)))
+    .toBe(true);
   await panel
     .getByRole("link", { name: /Enig! Førsteetasjene/ })
     .click();
