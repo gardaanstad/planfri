@@ -16,6 +16,7 @@ import {
   DrawerContent,
   DrawerTitle,
   DrawerVirtualKeyboardProvider,
+  type DrawerMotion,
   type DrawerSnapPoint,
 } from "./drawer";
 import {
@@ -60,6 +61,26 @@ const gripBar = (
   </div>
 );
 
+/**
+ * Below its full height, a drawer runs past the screen's bottom edge; a fade
+ * along that edge says there is more of it. It sits on the popup, held to
+ * the screen edge against the drawer's offset and drag. Base UI's variables
+ * don't inherit, so the popup copies them into one that does.
+ */
+function ScrollFade({ shown }: { shown: boolean }) {
+  return (
+    <div
+      data-scroll-fade={shown ? "" : undefined}
+      className={cn(
+        "pointer-events-none absolute inset-x-0 z-10 h-16 bg-linear-to-t from-surface to-transparent",
+        "bottom-(--drawer-visible-bottom)",
+        "transition-opacity duration-300 ease-out motion-reduce:transition-none",
+        shown ? "opacity-100" : "opacity-0",
+      )}
+    />
+  );
+}
+
 // Each panel drawer stacks above the one before it.
 const stackLayers = ["z-[51]", "z-[52]", "z-[53]", "z-[54]", "z-[55]", "z-[56]"];
 
@@ -76,6 +97,8 @@ export function PanelDrawer({
   onOpened,
   onClosed,
   snap,
+  edge,
+  onMotion,
   children,
 }: {
   name: string;
@@ -103,6 +126,9 @@ export function PanelDrawer({
     point: DrawerSnapPoint;
     onChange: (point: DrawerSnapPoint) => void;
   };
+  /** Rides the drawer's top edge; see `DrawerContent`. */
+  edge?: ReactNode;
+  onMotion?: (motion: DrawerMotion) => void;
   children: ReactNode;
 }) {
   // Mounted open, Base UI shows a drawer in place. One opened after the page
@@ -142,8 +168,11 @@ export function PanelDrawer({
           data-panel-drawer={name}
           data-project-drawer={name === "project" ? "" : undefined}
           data-snap={snap && snap.point !== 1 ? "partial" : undefined}
+          floating={snap ? snap.point !== 1 : undefined}
           className={cn(
             panelDrawerClasses,
+            snap &&
+              "[--drawer-visible-bottom:calc(var(--drawer-snap-point-offset)+var(--drawer-swipe-movement-y))]",
             snap &&
               snap.point !== 1 &&
               "[&_[data-drawer-scroll]]:overflow-y-hidden",
@@ -166,6 +195,13 @@ export function PanelDrawer({
           initialFocus={false}
           finalFocus={false}
           handle={gripBar}
+          edge={
+            <>
+              {edge}
+              {snap && <ScrollFade shown={snap.point !== 1} />}
+            </>
+          }
+          onMotion={onMotion}
         >
           <DrawerTitle className="sr-only">{title}</DrawerTitle>
           {ready && (

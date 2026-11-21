@@ -234,7 +234,8 @@ test.describe("mobile panels", () => {
     await expect(account).toHaveCount(0);
     expect(await top(page, explorer)).toBe(before);
 
-    // A project, then a profile from it, stack the same way.
+    // A project opened from the list rests over the map instead, the list
+    // folded down to its filters behind it.
     await page
       .getByRole("region", { name: "Prosjektliste", exact: true })
       .getByRole("button", { name: new RegExp(project.title) })
@@ -242,8 +243,9 @@ test.describe("mobile panels", () => {
       .click();
     const projectDrawer = page.locator('[data-panel-drawer="project"]');
     await expect(projectDrawer.locator("[data-project-post]")).toBeVisible();
-    expect(await top(page, explorer)).toBe(before);
-    expect(await scale()).toBe(transform);
+    await expect
+      .poll(() => top(page, explorer))
+      .toBe(page.viewportSize()!.height - 136);
     await page
       .getByRole("button", { name: "Lukk prosjekt", exact: true })
       .click();

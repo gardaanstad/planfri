@@ -183,6 +183,7 @@ function DrawerContent({
   edge,
   viewportClassName,
   restOffset = false,
+  floating,
   onMotion,
   ...props
 }: Omit<DrawerPrimitive.Popup.Props, "className"> & { className?: string } & {
@@ -196,6 +197,12 @@ function DrawerContent({
   viewportClassName?: string;
   /** Size the content to the settled snap point; see `useDrawerMotion`. */
   restOffset?: boolean;
+  /**
+   * True while it rests below full height: it stands clear of the screen's
+   * sides and bottom like a card, and grows into them as it is maximized.
+   * Leave it unset for a drawer that never floats.
+   */
+  floating?: boolean;
   onMotion?: (motion: DrawerMotion) => void;
 }) {
   const { hasSnapPoints, modal, showSwipeHandle, swipeDirection } = useDrawer();
@@ -212,8 +219,14 @@ function DrawerContent({
       <DrawerPrimitive.Viewport
         data-slot="drawer-viewport"
         data-modal={modal}
+        data-floating={floating}
         className={cn(
           "pointer-events-none fixed inset-0 z-50 select-none data-[modal=true]:pointer-events-auto",
+          // Floating: the popup runs past the screen's bottom edge, so the
+          // viewport clips it a gap above it. The clip stays put on screen
+          // while the popup moves, and eases with it as the gap closes.
+          floating !== undefined &&
+            "[--sheet-gap:0px] [--sheet-radius:0px] data-[floating=true]:[--sheet-gap:8px] data-[floating=true]:[--sheet-radius:var(--radius-sheet)] [clip-path:inset(0_var(--sheet-gap)_var(--sheet-gap)_round_0_0_var(--sheet-radius)_var(--sheet-radius))] transition-[clip-path] duration-450 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
           viewportClassName,
         )}
       >
@@ -246,6 +259,9 @@ function DrawerContent({
             "data-[swipe-direction=left]:left-0 data-[swipe-direction=left]:origin-left data-[swipe-direction=left]:[--closed-transform:translate3d(calc(-100%-var(--drawer-inset,0px)-2px),0,0)] data-[swipe-direction=left]:[--translate-x:calc(var(--drawer-swipe-movement-x)+var(--stack-peek-offset)+(var(--stack-shrink)*100%))]",
             // Direction: right.
             "data-[swipe-direction=right]:right-0 data-[swipe-direction=right]:origin-right data-[swipe-direction=right]:[--closed-transform:translate3d(calc(100%+var(--drawer-inset,0px)+2px),0,0)] data-[swipe-direction=right]:[--translate-x:calc(var(--drawer-swipe-movement-x)-var(--stack-peek-offset)-(var(--stack-shrink)*100%))]",
+            // Floating: as narrow as the viewport's clip.
+            floating !== undefined &&
+              "mx-(--sheet-gap) transition-[transform,height,opacity,filter,margin]",
             className,
           )}
           {...props}

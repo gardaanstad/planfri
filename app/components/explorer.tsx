@@ -211,24 +211,35 @@ type PostTarget = {
   commentId?: string;
   section?: "discussion" | "updates";
 };
+// A project opened over the map rests at this height, the map above it.
 const middleSnapPoint = 0.58;
 // The compact drawer shows just the header and filters along the bottom edge.
 const compactSnapPoint = "136px";
-// The map ends this far above the screen's bottom edge, under the drawer.
-const mapBottomGap = 124;
-/** The map the middle-height drawer covers; the list holds what is above it. */
-const mobileMapInset = () =>
-  Math.max(0, Math.round(window.innerHeight * middleSnapPoint - mapBottomGap));
+/** The map a project at the middle height covers. */
+const middleMapInset = () => Math.round(window.innerHeight * middleSnapPoint);
 /** The map the drawer covers at its compact height. */
-const compactMapInset = Number.parseInt(compactSnapPoint) - mapBottomGap;
-const drawerSnapPoints: DrawerSnapPoint[] = [
-  compactSnapPoint,
-  middleSnapPoint,
-  1,
-];
-// A project opened from the map rests at the list's middle height, so the
-// map's inset and controls stay where they were.
+const compactMapInset = Number.parseInt(compactSnapPoint);
+// The list is either folded down to its filters or the whole screen.
+const drawerSnapPoints: DrawerSnapPoint[] = [compactSnapPoint, 1];
 const projectSnapPoints: DrawerSnapPoint[] = [middleSnapPoint, 1];
+// The map controls ride a drawer's top edge, 14px clear of its border.
+const controlsSlotClasses = cn(
+  "absolute inset-x-0 bottom-full h-0",
+  "transition-[opacity,visibility] duration-150 motion-reduce:transition-none",
+  "data-covered:invisible data-covered:opacity-0",
+  "[&_[data-map-controls]]:bottom-[15px]!",
+);
+/** Hides the map controls in a slot while its drawer would cover them. */
+function coverControls(slot: HTMLElement | null, motion: DrawerMotion) {
+  if (!slot) return;
+  const covered = motion.visible > window.innerHeight * middleSnapPoint + 2;
+  if (covered === slot.hasAttribute("data-covered")) return;
+  // A snap up hides them at once, where the drawer would have slid over
+  // them; a snap down shows them as it arrives. A drag fades them.
+  slot.style.transitionDuration = covered && !motion.swiping ? "0ms" : "150ms";
+  slot.style.transitionDelay = covered || motion.swiping ? "0ms" : "200ms";
+  slot.toggleAttribute("data-covered", covered);
+}
 const primaryCta = cn(primaryButton, "rounded-lg px-4 text-xs");
 const secondaryAction = cn(
   secondaryButton,
@@ -322,7 +333,7 @@ const explorerDrawerClasses = cn(
 // `restOffset` on DrawerContent.
 const mobileDrawerInnerClasses = [
   "min-h-0 flex-none overflow-hidden",
-  "h-[calc(100%_-_24px_-_var(--drawer-rest-offset))]",
+  "h-[calc(100%_-_24px_-_var(--drawer-rest-offset)_-_var(--sheet-gap,0px))]",
   "pb-[env(safe-area-inset-bottom)]",
 ].join(" ");
 
@@ -370,10 +381,10 @@ export default memo(function Explorer({
     !initialProjectId && !initialProfile && !initialPanel,
   );
   const panelReady = useCallback(() => setPanelsReady(true), []);
-  // The list opens at the middle height so the map shows. Projects open in
-  // their own drawer above it, so it stays where it was left.
+  // The list opens folded down to its filters, so the map shows. Projects
+  // open in their own drawer above it.
   const [snapPoint, setSnapPoint] = useState<DrawerSnapPoint | null>(
-    middleSnapPoint,
+    compactSnapPoint,
   );
   const snapRef = useRef(snapPoint);
   const drawerContentRef = useRef<HTMLDivElement>(null);
@@ -418,8 +429,8 @@ export default memo(function Explorer({
   // Where in the project to open: an update, or a comment in the discussion.
   const [postTarget, setPostTarget] = useState<PostTarget>({});
   const [postId, setPostId] = useState<string | null>(initialProjectId || null);
-  // Phones: a project tapped on the map opens at the middle height, over the
-  // map centered on it; dragged up, it takes the full height.
+  // Phones: a project opened from the map or the list opens at the middle
+  // height, over the map centered on it; dragged up, it takes the full height.
   const [postSnap, setPostSnap] = useState<{
     id: string;
     point: DrawerSnapPoint;
@@ -939,13 +950,9 @@ export default memo(function Explorer({
     // is passing. Under the full drawer the map is out of sight.
     if ((maximized && !isMobile) || postView.current) return;
     if (isMobile && snapRef.current === 1) return;
-    // On phones, what the drawer leaves open right now, which is more than
-    // the list's bounds while it sits at its compact height.
-    const bounds =
-      isMobile && snapRef.current === compactSnapPoint && mapApi.current
-        ? mapApi.current.boundsAbove(compactMapInset)
-        : view.bounds;
-    const shown = projects.filter((project) => projectInBounds(project, bounds));
+    const shown = projects.filter((project) =>
+      projectInBounds(project, view.bounds),
+    );
     const previousZoom = lastZoom.current ?? view.zoom;
     lastZoom.current = view.zoom;
     const hold = placeHold.current;
@@ -963,13 +970,20 @@ export default memo(function Explorer({
     if (mapViewRef.current) followPlace(mapViewRef.current);
   });
   useEffect(() => placeUnderDrawer(), [snapPoint]);
+  // Folded down, the list shows only its filters: a list left scrolled, as a
+  // wheel that unfolds it can leave it, would show rows there instead and
+  // take the next swipe up from the drawer.
+  useLayoutEffect(() => {
+    if (isMobile && snapPoint === compactSnapPoint)
+      listRef.current?.scrollTo({ top: 0 });
+  }, [isMobile, snapPoint]);
   /** Moves the map to a place, or out to Norway for none. */
   function goToPlace(name: string) {
     setPlace(name);
     const found = findPlace(name);
     placeHold.current = { name: found ? name : "", until: Date.now() + 1500 };
-    if (isMobile) setSnapPoint(middleSnapPoint);
-    // On phones, framed above the middle drawer it steps to.
+    if (isMobile) setSnapPoint(compactSnapPoint);
+    // On phones, framed above the compact drawer it steps to.
     if (found)
       mapApi.current?.fit(extentPoints(found.extent), { maxZoom: 14 });
     else mapApi.current?.showNorway();
@@ -993,7 +1007,7 @@ export default memo(function Explorer({
   }
   function showSearchHits() {
     fitProjects(searchHits);
-    if (isMobile) setSnapPoint(middleSnapPoint);
+    if (isMobile) setSnapPoint(compactSnapPoint);
   }
 
   function showProfile(username: string) {
@@ -1059,9 +1073,11 @@ export default memo(function Explorer({
     enterPostView(id);
   }
 
-  // Mobile: the map controls sit on the drawer's popup, just above its top
-  // edge, so whatever moves the drawer moves them too. Above the middle stop,
-  // where the drawer would cover them, they fade out instead of riding up.
+  // Mobile: the map controls sit on the popup of the drawer over the map,
+  // just above its top edge, so whatever moves the drawer moves them too:
+  // the list's, or a project's resting at the middle height above it. Above
+  // the middle stop, where the drawer would cover them, they fade out
+  // instead of riding up.
   const [controlsSlot, setControlsSlot] = useState<HTMLDivElement | null>(
     null,
   );
@@ -1071,30 +1087,48 @@ export default memo(function Explorer({
     setControlsSlot(node);
   }, []);
   const followDrawer = useCallback((motion: DrawerMotion) => {
-    const slot = controlsSlotRef.current;
-    if (!slot) return;
-    const covered = motion.visible > window.innerHeight * middleSnapPoint + 2;
-    if (covered === slot.hasAttribute("data-covered")) return;
-    // A snap up hides them at once, where the drawer would have slid over
-    // them; a snap down shows them as it arrives. A drag fades them.
-    slot.style.transitionDuration =
-      covered && !motion.swiping ? "0ms" : "150ms";
-    slot.style.transitionDelay = covered || motion.swiping ? "0ms" : "200ms";
-    slot.toggleAttribute("data-covered", covered);
+    coverControls(controlsSlotRef.current, motion);
   }, []);
+  const [postControlsSlot, setPostControlsSlot] =
+    useState<HTMLDivElement | null>(null);
+  const postControlsSlotRef = useRef<HTMLDivElement | null>(null);
+  const postControlsSlotNode = useCallback((node: HTMLDivElement | null) => {
+    postControlsSlotRef.current = node;
+    setPostControlsSlot(node);
+  }, []);
+  const followPostDrawer = useCallback((motion: DrawerMotion) => {
+    coverControls(postControlsSlotRef.current, motion);
+  }, []);
+  // Phones: a project resting at the middle height, the map above it.
+  const postOverMap =
+    isMobile &&
+    topLayer === "project" &&
+    postSnap?.id === postId &&
+    postSnap.point !== 1;
+  // What of the map's bottom a drawer covers, for framing and the list.
+  const mapInset = useRef(compactMapInset);
+  useLayoutEffect(() => {
+    mapInset.current = postOverMap ? middleMapInset() : compactMapInset;
+  }, [postOverMap]);
+  const mobileMapInset = useCallback(() => mapInset.current, []);
 
   function openPost(
     id: string,
     target: PostTarget = {},
-    fromMap = false,
+    overMap = false,
   ) {
     setPostTarget(target);
     setPostSnap(
-      isMobile && fromMap ? { id, point: middleSnapPoint } : null,
+      isMobile && overMap ? { id, point: middleSnapPoint } : null,
     );
     const project = projects.find((item) => item.id === id);
-    if (isMobile && fromMap && project)
-      mapApi.current?.center(projectPoints(project));
+    if (isMobile && overMap) {
+      // The list folds down behind it, and the map centers the project
+      // above it.
+      setSnapPoint(compactSnapPoint);
+      mapInset.current = middleMapInset();
+      if (project) mapApi.current?.center(projectPoints(project));
+    }
     projectTriggerRef.current =
       document.activeElement instanceof HTMLElement ||
       document.activeElement instanceof SVGElement
@@ -1537,7 +1571,7 @@ export default memo(function Explorer({
             closeSearch();
           }
           if (event.key === "Enter" && searched.length === 1)
-            openPost(searched[0].id);
+            openPost(searched[0].id, {}, true);
         }}
       />
       <button
@@ -1897,6 +1931,15 @@ export default memo(function Explorer({
     },
     [],
   );
+  // The list's cards open at the middle height over the map, unless they
+  // open at something further down, which needs the room.
+  const openListCard = useCallback(
+    (id: string, section?: "discussion" | "updates") => {
+      if (section || newsLatest.current.get(id)?.first) openCard(id, section);
+      else openLatest.current(id, {}, true);
+    },
+    [openCard],
+  );
   const saveLatest = useRef(toggleSave);
   useLayoutEffect(() => {
     saveLatest.current = toggleSave;
@@ -1997,7 +2040,7 @@ export default memo(function Explorer({
                 density={density}
                 saved={savedIds.has(project.id)}
                 news={news.get(project.id)}
-                onOpen={openCard}
+                onOpen={openListCard}
                 onSave={saveCard}
                 onHover={hoverCard}
               />
@@ -2428,7 +2471,7 @@ export default memo(function Explorer({
         "fixed inset-x-0 bottom-0 z-[900] flex flex-col",
         snapPoint === 1
           ? "h-[calc(100dvh-12px-env(safe-area-inset-top))]"
-          : "h-[58dvh]",
+          : "inset-x-2 bottom-2 h-[128px] rounded-b-sheet",
       )}
     >
       <div className="flex h-6 shrink-0 items-center justify-center">
@@ -2474,6 +2517,21 @@ export default memo(function Explorer({
         }}
         onClosed={() =>
           setExiting((current) => current.filter((item) => item !== layer))
+        }
+        // Resting over the map, the project carries the map controls.
+        edge={
+          layer === "project" && postSnap?.id === panelPostId ? (
+            <div
+              ref={postControlsSlotNode}
+              data-map-controls-slot=""
+              className={controlsSlotClasses}
+            />
+          ) : undefined
+        }
+        onMotion={
+          layer === "project" && postSnap?.id === panelPostId
+            ? followPostDrawer
+            : undefined
         }
         snap={
           layer === "project" && postSnap?.id === panelPostId
@@ -2720,8 +2778,10 @@ export default memo(function Explorer({
         <section
           className={cn(
             "relative isolate h-full min-h-0 w-full min-w-0 flex-1",
-            "max-md:h-[calc(100%-124px)] max-md:flex-none",
-            isMobile && "[&_.leaflet-control-attribution]:text-[8px]!",
+            // On phones the map runs to the bottom edge, showing through the
+            // floating drawer's gaps; its attribution stays under the drawer.
+            isMobile &&
+              "[&_.leaflet-bottom]:bottom-[124px]! [&_.leaflet-control-attribution]:text-[8px]!",
           )}
           aria-label="Prosjektkart"
         >
@@ -2731,7 +2791,9 @@ export default memo(function Explorer({
             onViewChange={onMapView}
             onReady={onMapReady}
             bottomInset={isMobile ? mobileMapInset : undefined}
-            controlsContainer={isMobile ? controlsSlot : undefined}
+            controlsContainer={
+              isMobile ? (postOverMap ? postControlsSlot : controlsSlot) : undefined
+            }
             selectedId={selectedId}
             highlightedId={hoveredId}
             onSelect={(id) =>
@@ -2797,21 +2859,6 @@ export default memo(function Explorer({
               minimizeDrawer();
               return;
             }
-            if (point === 1 && snapPoint === 1 && details.reason === "swipe") {
-              const drawer = drawerContentRef.current;
-              const movement = Number.parseFloat(
-                drawer?.style.getPropertyValue("--drawer-swipe-movement-y") ||
-                  "0",
-              );
-              const distanceToMiddle =
-                (drawer?.offsetHeight || 0) -
-                window.innerHeight * middleSnapPoint;
-              // Give the middle stop a little more reach than the default halfway threshold.
-              if (distanceToMiddle > 0 && movement >= distanceToMiddle * 0.44) {
-                setSnapPoint(middleSnapPoint);
-                return;
-              }
-            }
             setSnapPoint(point);
           }}
           onOpenChange={(open, details) => {
@@ -2830,34 +2877,22 @@ export default memo(function Explorer({
             <DrawerContent
               ref={drawerPopupRef}
               restOffset
+              floating={snapPoint !== 1}
               onMotion={followDrawer}
               edge={
                 <div
                   ref={controlsSlotNode}
                   data-map-controls-slot=""
                   className={cn(
-                    "absolute inset-x-0 bottom-full h-0",
-                    "transition-[opacity,visibility] duration-150 motion-reduce:transition-none",
-                    "data-covered:invisible data-covered:opacity-0",
-                    // A panel covers the map, all but a sliver, unless it
-                    // rests at the middle height over it.
+                    controlsSlotClasses,
+                    // A panel covers the map, all but a sliver.
                     "group-data-map-covered/drawer-popup:invisible group-data-map-covered/drawer-popup:opacity-0",
-                    // 14px clear of the drawer's top border.
-                    "[&_[data-map-controls]]:bottom-[15px]!",
                   )}
                 />
               }
               data-explorer-drawer=""
               data-panel-open={liveLayers.length > 0 || undefined}
-              data-map-covered={
-                (liveLayers.length > 0 &&
-                  !(
-                    topLayer === "project" &&
-                    postSnap?.id === postId &&
-                    postSnap.point !== 1
-                  )) ||
-                undefined
-              }
+              data-map-covered={liveLayers.length > 0 || undefined}
               className={cn(
                 explorerDrawerClasses,
                 // Let Base UI swipe the drawer before its content starts scrolling.
@@ -2895,7 +2930,7 @@ export default memo(function Explorer({
                       : "Utvid prosjektlisten"
                   }
                   onClick={() =>
-                    setSnapPoint(snapPoint === 1 ? middleSnapPoint : 1)
+                    snapPoint === 1 ? minimizeDrawer() : setSnapPoint(1)
                   }
                 >
                   <DrawerGrip />

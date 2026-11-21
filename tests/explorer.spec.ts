@@ -22,11 +22,16 @@ const projectPath = `/prosjekt/${project.id}`;
 const atProject = new RegExp(`${projectPath}(\\?|$)`);
 const atList = /:\d+\/(\?|$)/;
 
+/** The explorer's drawer folded down to its filters. */
+const compact = "compact";
+
 async function expectDrawerHeight(
   page: Page,
-  fraction: number,
+  fraction: number | typeof compact,
   drawer: "explorer" | "project" | "saved" = "explorer",
 ) {
+  if (fraction === compact)
+    fraction = 136 / (await page.evaluate(() => window.innerHeight));
   // Panels other than projects are drawers named by `data-panel-drawer`.
   const selector =
     drawer === "saved"
@@ -207,12 +212,18 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     userAgent: devices["Pixel 7"].userAgent,
   });
 
-  test("projects open in their own full-height drawer and preserve map, history, and reading space", async ({
+  test("projects open in their own drawer over the map and preserve map, history, and reading space", async ({
     page,
   }) => {
-    // The list opens at the middle height; projects open above it at full height.
+    // The list opens folded down to its filters, and unfolds to full height.
     await page.goto("/");
-    await expectDrawerHeight(page, 0.58);
+    await expectDrawerHeight(page, compact);
+    const expand = page.getByRole("button", {
+      name: "Utvid prosjektlisten",
+      exact: true,
+    });
+    await expand.click();
+    await expectDrawerHeight(page, 1);
     await expect(
       page.getByRole("region", { name: "Prosjektliste", exact: true }),
     ).toBeVisible();
@@ -223,21 +234,30 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     const projectDrawer = page.locator("[data-project-drawer]");
     await result.click();
     await expect(page).toHaveURL(atProject);
-    await expectDrawerHeight(page, 1, "project");
+    // A project opened from the list rests at the middle height over the
+    // map, centered on it, with the list folded down behind it.
+    await expectDrawerHeight(page, 0.58, "project");
+    await expectDrawerHeight(page, compact);
+    await expect(page.locator("[data-map-controls]")).toBeVisible();
+    await expect(
+      page.locator(`path[data-project-id="${project.id}"]`),
+    ).toBeInViewport();
     await expect(projectDrawer.locator("[data-project-post]")).toBeVisible();
     await page
       .getByRole("button", { name: "Lukk prosjekt", exact: true })
       .click();
     await expect(page).toHaveURL(atList);
     await expect(projectDrawer).toBeHidden();
-    await expectDrawerHeight(page, 0.58);
-    await expect(result).toBeFocused();
+    await expectDrawerHeight(page, compact);
+    // The folded list hides the card, so focus returns to its handle.
+    await expect(expand).toBeFocused();
+    await expand.click();
     await result.click();
     await page.goBack();
     await expect(projectDrawer).toBeHidden();
-    await expectDrawerHeight(page, 0.58);
+    await expectDrawerHeight(page, compact);
     await page.goForward();
-    await expectDrawerHeight(page, 1, "project");
+    await expectDrawerHeight(page, 0.58, "project");
     await page.reload();
     await expectDrawerHeight(page, 1, "project");
     // The project's actions sit in a sheet behind one button.
@@ -257,7 +277,8 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     // Opened from the map, it rests at the middle height over it.
     await expectDrawerHeight(page, 0.58, "project");
     // Swiping the project away returns to the map just as it was left.
-    await swipeDown(page, projectDrawer.locator("[aria-hidden]").first());
+    // By its grip: the map controls ride above it.
+    await swipeDown(page, projectDrawer.locator(":scope > [aria-hidden]"));
     await expect(page).toHaveURL(atList);
     await expect(projectDrawer).toBeHidden();
     await expectDrawerHeight(page, 136 / viewport.height);
@@ -299,16 +320,27 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     const controls = page.locator("[data-map-controls]");
     await expect(controls).toBeVisible();
     const drawer = page.locator("[data-project-drawer]");
+    // A fade along the screen's bottom edge says the project goes on below.
+    const fade = drawer.locator("[data-scroll-fade]");
+    await expect
+      .poll(() =>
+        fade.evaluate((element) =>
+          Math.abs(Math.round(window.innerHeight - element.getBoundingClientRect().bottom)),
+        ),
+      )
+      .toBe(0);
+    await shot(page, "mobile-project-fade");
     await drawer.locator("[data-project-scroll]").hover();
     await page.mouse.wheel(0, 300);
     await expectDrawerHeight(page, 1, "project");
     await expect(controls).toBeHidden();
+    await expect(fade).toHaveCount(0);
     await page
       .getByRole("button", { name: "Lukk prosjekt", exact: true })
       .click();
     await expect(page).toHaveURL(atList);
     await expect(drawer).toBeHidden();
-    await expectDrawerHeight(page, 0.58);
+    await expectDrawerHeight(page, compact);
   });
 
   test("wheel and touch expand the map drawer before scrolling list, project, and account content", async ({
@@ -327,19 +359,19 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await page
       .getByRole("button", { name: "Lukk prosjekt", exact: true })
       .click();
-    await expectDrawerHeight(page, 0.58);
-    const list = page.getByRole("region", {
-      name: "Prosjektliste",
+    await expectDrawerHeight(page, compact);
+    const filters = page.getByRole("region", {
+      name: "Filtrer prosjekter",
       exact: true,
     });
-    await list.hover();
+    await filters.hover();
     await page.mouse.wheel(0, 200);
     await expectDrawerHeight(page, 1);
     await page
       .getByRole("button", { name: "Vis mer av kartet", exact: true })
       .click();
-    await expectDrawerHeight(page, 0.58);
-    await swipeUp(page, list);
+    await expectDrawerHeight(page, compact);
+    await swipeUp(page, filters);
     await expectDrawerHeight(page, 1);
     // Logging in asks in a sheet over the drawer, which stays put.
     await page.getByRole("button", { name: "Logg inn", exact: true }).click();
@@ -703,7 +735,9 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await search.fill(project.title);
     await search.press("Enter");
     await expect(page).toHaveURL(atProject);
-    await expectDrawerHeight(page, 1, "project");
+    // Over the map, the list folded down behind it.
+    await expectDrawerHeight(page, 0.58, "project");
+    await expectDrawerHeight(page, compact);
     await page
       .getByRole("button", { name: "Lukk prosjekt", exact: true })
       .click();
@@ -794,7 +828,7 @@ test("saved projects keep their collection and full reading height", async ({
   await openSaved(page);
   // Panels open in drawers of their own, over the explorer where it was.
   await expectDrawerHeight(page, 1, "saved");
-  await expectDrawerHeight(page, 0.58);
+  await expectDrawerHeight(page, compact);
   await page
     .getByRole("region", { name: "Lagret", exact: true })
     .getByRole("button", { name: new RegExp(project.title) })
@@ -1940,8 +1974,8 @@ test.describe("the place follows the map", () => {
       const options = page.getByRole("listbox", { name: "Sted", exact: true });
       await options.getByRole("option", { name: /^Bergen/ }).click();
       await expect(place("Bergen")).toBeVisible();
-      await expectDrawerHeight(page, 0.58);
-      await expect(listed(page, "Bybanen til Åsane")).toBeVisible();
+      await expectDrawerHeight(page, compact);
+      await expect(listed(page, "Bybanen til Åsane")).toHaveCount(1);
       // Bergen's centre lies in the map the drawer leaves open.
       const top = await page
         .locator("[data-explorer-drawer]")
@@ -1962,23 +1996,17 @@ test.describe("the place follows the map", () => {
       await expect.poll(() => zoomOf(page)).toBeLessThan(7);
     });
 
-    test("the compact drawer names the place the map shows below the middle height", async ({
+    test("the compact drawer names the place the map shows above it", async ({
       page,
     }) => {
-      // Bergen's projects sit low on the map, under the middle drawer.
+      // Bergen's projects sit low on the map, just above the compact drawer.
       await page.goto("/?kart=60.4400,5.3200,12");
       const filters = page
         .locator("[data-explorer-drawer]")
         .getByRole("region", { name: "Filtrer prosjekter", exact: true });
       const place = (name: string) =>
         filters.getByRole("button", { name: `Sted: ${name}`, exact: true });
-      await expectDrawerHeight(page, 0.58);
-      await expect(place("Hele Norge")).toHaveText("Velg sted");
-      await swipeDown(
-        page,
-        page.getByRole("button", { name: "Utvid prosjektlisten", exact: true }),
-      );
-      await expectDrawerHeight(page, 136 / 844);
+      await expectDrawerHeight(page, compact);
       await expect(place("Bergen")).toBeVisible();
     });
   });
@@ -2166,7 +2194,7 @@ test.describe("the list holds what the uncovered map shows", () => {
       page,
     }) => {
       await page.goto("/?kart=59.8000,10.7500,9.5");
-      await expectDrawerHeight(page, 0.58);
+      await expectDrawerHeight(page, compact);
       const group = page.locator(`.project-cluster[data-cluster~="${area.id}"]`);
       const members = (await group.getAttribute("data-cluster"))!.split(" ");
       const before = new URL(page.url()).searchParams.get("kart");
@@ -2188,7 +2216,7 @@ test.describe("the list holds what the uncovered map shows", () => {
     test("under the drawer is out; just above it is in", async ({ page }) => {
       await page.goto("/");
       const drawer = page.locator("[data-explorer-drawer]");
-      await expectDrawerHeight(page, 0.58);
+      await expectDrawerHeight(page, compact);
       const top = await drawer.evaluate(
         (element) => element.getBoundingClientRect().top,
       );
