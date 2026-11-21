@@ -100,6 +100,83 @@ function useDrawerMotion(
   }, [content, tracking, restOffset]);
 }
 
+/**
+ * A floating drawer stands clear of the screen's edges by `--sheet-gap`. While
+ * it is dragged, the gap follows it: whole at the height it rested at, none
+ * at full height, in step in between. Let go, the gap eases on to its rest.
+ */
+function useFloatingGap(content: HTMLElement | null, floating?: boolean) {
+  const floatingRef = React.useRef(floating);
+  React.useLayoutEffect(() => {
+    floatingRef.current = floating;
+  });
+  const tracking = floating !== undefined;
+  React.useEffect(() => {
+    const popup = content?.closest<HTMLElement>("[data-slot=drawer-popup]");
+    const viewport = popup?.parentElement;
+    if (!popup || !viewport || !tracking) return;
+    // What of it showed when it last rested floating.
+    let rest = -1;
+    let dragging = false;
+    let frame = 0;
+    const release = () => {
+      viewport.style.removeProperty("--sheet-gap");
+      viewport.style.removeProperty("--sheet-radius");
+      viewport.removeAttribute("data-sheet-dragging");
+    };
+    const read = () => {
+      const style = popup.style;
+      const offset =
+        Number.parseFloat(style.getPropertyValue("--drawer-snap-point-offset")) ||
+        0;
+      const movement =
+        Number.parseFloat(style.getPropertyValue("--drawer-swipe-movement-y")) ||
+        0;
+      const height = popup.offsetHeight;
+      if (!popup.hasAttribute("data-swiping")) {
+        if (floatingRef.current) rest = height - offset;
+        if (dragging) {
+          dragging = false;
+          // Held until the drawer has re-rendered at the point it snaps to,
+          // so the gap eases from here to there and not by way of the old.
+          cancelAnimationFrame(frame);
+          frame = requestAnimationFrame(() => {
+            frame = requestAnimationFrame(release);
+          });
+        }
+        return;
+      }
+      if (!dragging) {
+        dragging = true;
+        cancelAnimationFrame(frame);
+        viewport.setAttribute("data-sheet-dragging", "");
+      }
+      // Opened at full height, it has not rested floating yet.
+      const from = rest > 0 && rest < height ? rest : height * 0.42;
+      const share = Math.min(
+        1,
+        Math.max(0, (offset + movement) / (height - from)),
+      );
+      viewport.style.setProperty("--sheet-gap", `${8 * share}px`);
+      viewport.style.setProperty(
+        "--sheet-radius",
+        `calc(var(--radius-sheet) * ${share})`,
+      );
+    };
+    const mutations = new MutationObserver(read);
+    mutations.observe(popup, {
+      attributes: true,
+      attributeFilter: ["style", "data-swiping"],
+    });
+    read();
+    return () => {
+      mutations.disconnect();
+      cancelAnimationFrame(frame);
+      release();
+    };
+  }, [content, tracking]);
+}
+
 function useDrawer() {
   const context = React.useContext(DrawerContext);
 
@@ -208,6 +285,7 @@ function DrawerContent({
   const { hasSnapPoints, modal, showSwipeHandle, swipeDirection } = useDrawer();
   const [content, setContent] = React.useState<HTMLDivElement | null>(null);
   useDrawerMotion(content, restOffset, onMotion);
+  useFloatingGap(content, floating);
   const swipeAxis =
     swipeDirection === "down" || swipeDirection === "up" ? "y" : "x";
 
@@ -226,7 +304,7 @@ function DrawerContent({
           // viewport clips it a gap above it. The clip stays put on screen
           // while the popup moves, and eases with it as the gap closes.
           floating !== undefined &&
-            "[--sheet-gap:0px] [--sheet-radius:0px] data-[floating=true]:[--sheet-gap:8px] data-[floating=true]:[--sheet-radius:var(--radius-sheet)] [clip-path:inset(0_var(--sheet-gap)_var(--sheet-gap)_round_0_0_var(--sheet-radius)_var(--sheet-radius))] transition-[clip-path] duration-450 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+            "[--sheet-gap:0px] [--sheet-radius:0px] data-[floating=true]:[--sheet-gap:8px] data-[floating=true]:[--sheet-radius:var(--radius-sheet)] [clip-path:inset(0_var(--sheet-gap)_var(--sheet-gap)_round_0_0_var(--sheet-radius)_var(--sheet-radius))] transition-[clip-path] duration-450 ease-[cubic-bezier(0.22,1,0.36,1)] data-sheet-dragging:transition-none motion-reduce:transition-none",
           viewportClassName,
         )}
       >
@@ -273,7 +351,11 @@ function DrawerContent({
             ref={setContent}
             data-slot="drawer-content"
             className={cn(
-              "flex min-h-0 flex-1 flex-col overflow-hidden overscroll-contain rounded-[inherit] transition-opacity duration-300 ease-[cubic-bezier(0.45,1.005,0,1.005)] select-text motion-reduce:transition-none group-data-nested-drawer-open/drawer-popup:opacity-0 group-data-nested-drawer-swiping/drawer-popup:opacity-100 group-data-swiping/drawer-popup:select-none",
+              "flex min-h-0 flex-1 flex-col overflow-hidden overscroll-contain transition-opacity duration-300 ease-[cubic-bezier(0.45,1.005,0,1.005)] select-text motion-reduce:transition-none group-data-nested-drawer-open/drawer-popup:opacity-0 group-data-nested-drawer-swiping/drawer-popup:opacity-100 group-data-swiping/drawer-popup:select-none",
+              // Under a handle it starts below the popup's rounded corners.
+              // Rounding it anyway costs a mask that Chrome can misdraw under
+              // the floating clip, as in the theme's cross-fade.
+              !(handle && swipeDirection === "down") && "rounded-[inherit]",
               contentClassName,
             )}
           >
