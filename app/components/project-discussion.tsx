@@ -88,6 +88,20 @@ export default function ProjectDiscussion({
   const idPrefix = useId();
   const [sort, setSort] = useState<DiscussionSort>("relevant");
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  // A comment opened from elsewhere isn't left folded away in its thread.
+  const [shownCommentId, setShownCommentId] = useState(initialCommentId);
+  if (initialCommentId !== shownCommentId) {
+    setShownCommentId(initialCommentId);
+    const parents = new Map(comments.map((item) => [item.id, item.parentId]));
+    const next = new Set(collapsed);
+    for (
+      let parent = initialCommentId && parents.get(initialCommentId);
+      parent;
+      parent = parents.get(parent)
+    )
+      next.delete(parent);
+    if (next.size !== collapsed.size) setCollapsed(next);
+  }
   useEffect(() => {
     if (!initialCommentId) return;
     const frame = requestAnimationFrame(() =>
