@@ -917,6 +917,7 @@ test.describe("desktop explorer", () => {
       page.getByRole("button", { name: /^Kommentarer/ }),
     ).toBeInViewport();
     await page.goBack();
+    const titleTop = await first.getByRole("heading").boundingBox();
 
     // The switch acts as the mouse button goes down.
     await compact.hover();
@@ -930,6 +931,10 @@ test.describe("desktop explorer", () => {
       items.slice(0, 6).map((item) => item.getBoundingClientRect().height),
     );
     expect(new Set(heights).size).toBe(1);
+    // The place and title stay where they were.
+    expect((await first.getByRole("heading").boundingBox())!.y).toBe(
+      titleTop!.y,
+    );
     await expect(list.getByRole("group", { name: /^Bilder av / })).toHaveCount(0);
     await shot(page, "list-compact");
     await cards.nth(1).hover();

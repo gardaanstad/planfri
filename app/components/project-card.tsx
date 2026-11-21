@@ -38,16 +38,8 @@ const action = cn(
 );
 // The hover wash and the card link reach 12px past the text sideways and
 // 8px past the padding's content vertically.
-const reach = {
-  compact: {
-    wash: "before:inset-y-2 max-md:before:inset-y-1.5",
-    link: "after:inset-y-2 max-md:after:inset-y-1.5",
-  },
-  expanded: {
-    wash: "before:inset-y-3 max-md:before:inset-y-2",
-    link: "after:inset-y-3 max-md:after:inset-y-2",
-  },
-};
+const wash = "before:inset-y-2 max-md:before:inset-y-1.5";
+const reach = "after:inset-y-2 max-md:after:inset-y-1.5";
 
 /**
  * What is new since the user last opened the project: a dot and a count in
@@ -118,7 +110,7 @@ export default memo(function ProjectCard({
         className={cn(
           "text-left outline-none",
           "after:absolute after:inset-x-[-12px] after:rounded-xl max-md:after:inset-x-[-8px]",
-          reach[density].link,
+          reach,
           "focus-visible:after:outline-2 focus-visible:after:outline-focus",
         )}
         aria-label={`${project.title} · ${labels.join(", ")} · ${project.city}${fresh ? ` · ${unreadSummary(fresh)}` : ""}`}
@@ -153,14 +145,14 @@ export default memo(function ProjectCard({
   return (
     <li
       className={cn(
-        "relative isolate border-b border-border",
-        expanded
-          ? "py-5 max-md:py-4"
-          : "flex items-center gap-4 py-4 max-md:gap-3 max-md:py-3.5",
+        // The same padding in both densities, so the place and title stay
+        // put when switching.
+        "relative isolate border-b border-border py-4 max-md:py-3.5",
+        !expanded && "flex items-center gap-4 max-md:gap-3",
         // Hover wash bleeds slightly past the text edge, like a list row.
         // Instant, so moving down the list reads as a pointer, not a fade.
         "before:absolute before:inset-x-[-12px] before:-z-1 before:rounded-xl max-md:before:inset-x-[-8px]",
-        reach[density].wash,
+        wash,
         "hover:before:bg-surface-muted/65",
       )}
       data-card-id={project.id}
