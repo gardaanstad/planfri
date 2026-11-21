@@ -57,7 +57,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       lang="nb"
       data-theme={theme}
       className={`${geistSans.variable} ${geistMono.variable} h-full bg-canvas font-sans text-ink antialiased`}
-      // The script below sets a variable on it before hydration.
+      // The scripts below set a variable and an attribute on it before hydration.
       suppressHydrationWarning
     >
       <head>
@@ -69,6 +69,18 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <script
           dangerouslySetInnerHTML={{
             __html: `(()=>{const d=document.createElement("div");d.style.cssText="position:absolute;top:-200px;width:100px;height:100px;overflow-y:scroll;scrollbar-width:thin;scrollbar-gutter:stable";document.documentElement.append(d);document.documentElement.style.setProperty("--scrollbar-thin",d.offsetWidth-d.clientWidth+"px");d.remove()})()`,
+          }}
+        />
+        {/*
+          Whether the last input was a press (`data-pointer`) or the
+          keyboard, so focus rings show for the keyboard only. Browsers
+          count focus a script moves as visible after a tap, or after a
+          click on something that doesn't take focus itself. Shortcuts
+          (and a held Cmd for Cmd-click) don't count as the keyboard.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(()=>{const r=document.documentElement;addEventListener("pointerdown",()=>r.setAttribute("data-pointer",""),true);addEventListener("keydown",e=>{if(!e.metaKey&&!e.ctrlKey&&!e.altKey)r.removeAttribute("data-pointer")},true)})()`,
           }}
         />
       </head>

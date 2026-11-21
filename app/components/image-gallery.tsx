@@ -162,8 +162,8 @@ export default function ImageGallery({
   sizes: string;
   /** Sizes the frame, e.g. its aspect ratio. */
   className?: string;
-  /** Takes a press instead of the lightbox when it returns true. */
-  onPress?: () => boolean;
+  /** Takes a press instead of the lightbox. */
+  onPress?: () => void;
 }) {
   const { ref, index, go, scroll } = useSlides(images.length);
   const [open, setOpen] = useState<number | null>(null);
@@ -196,7 +196,8 @@ export default function ImageGallery({
               type="button"
               className={cn(
                 slide,
-                "cursor-zoom-in focus-visible:-outline-offset-3",
+                !onPress && "cursor-zoom-in",
+                "focus-visible:-outline-offset-3",
               )}
               aria-label={
                 [image.alt, many && `${i + 1} av ${images.length}`]
@@ -205,7 +206,8 @@ export default function ImageGallery({
               }
               tabIndex={i === index ? undefined : -1}
               onClick={() => {
-                if (!onPress?.()) setOpen(i);
+                if (onPress) onPress();
+                else setOpen(i);
               }}
             >
               <Image

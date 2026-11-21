@@ -274,6 +274,25 @@ test.describe("mobile panels", () => {
     const less = drawer.getByRole("button", { name: "Vis mindre", exact: true });
     await expect(less).toHaveAttribute("data-stuck", "true");
   });
+
+  test("Vis mindre turns into the floating pill as it slides there", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto(projectPath);
+    const drawer = page.locator('[data-panel-drawer="project"]');
+    const toggle = drawer.locator('[aria-controls^="intro-"]');
+    await toggle.click();
+    // Stuck while it still slides, not once it lands.
+    await expect(toggle).toHaveAttribute("data-moving", "true");
+    expect(await toggle.getAttribute("data-stuck")).toBe("true");
+    await expect(toggle).not.toHaveAttribute("data-moving");
+    await expect(toggle).toHaveAttribute("data-stuck", "true");
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("data-stuck", "false");
+    await expect(toggle).not.toHaveAttribute("data-moving");
+    await expect(toggle).toHaveAccessibleName("Les mer");
+  });
 });
 
 test.describe("desktop headers", () => {
@@ -474,12 +493,16 @@ test.describe("account menu", () => {
     const menu = page.getByRole("menu", { name: "Konto" });
     await expect(menu.getByRole("menuitem")).toHaveText([
       new RegExp(`@${person.username}\\s*Din profil`),
-      "Kontoinnstillinger",
+      // Settings are an icon beside the profile.
+      "",
       "Lagret",
       "Logg ut",
     ]);
     // Members have no moderator's view to leave.
     await expect(menu.getByRole("menuitemcheckbox")).toHaveCount(0);
+    await expect(
+      menu.getByRole("menuitem", { name: "Kontoinnstillinger" }),
+    ).toBeVisible();
     await shot(page, "account-menu");
 
     await menu.getByRole("menuitem", { name: "Kontoinnstillinger" }).click();
