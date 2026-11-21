@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { keyboardFocused } from "../lib/ui";
 
 const showDelay = 200;
 // Explanatory tooltips (`data-tooltip-delay="long"`) wait until the pointer
@@ -87,7 +88,7 @@ export default function TooltipLayer() {
     };
     const focus = (event: FocusEvent) => {
       const element = tooltipped(event.target);
-      if (element?.matches(":focus-visible")) show(element);
+      if (element && keyboardFocused(element)) show(element);
     };
     const key = (event: KeyboardEvent) => {
       if (event.key === "Escape") hide();

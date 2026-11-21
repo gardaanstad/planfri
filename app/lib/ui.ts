@@ -143,3 +143,10 @@ export const panelTitle = "text-display max-md:text-[1.5rem]";
  * under the grip, the line is centred on the 40px buttons.
  */
 export const panelTitleTop = { desktop: "pt-2.5", mobile: "pt-1.5" };
+
+/**
+ * Whether an element's focus came from the keyboard: visible to the browser,
+ * and not just after a press (`data-pointer`, see layout.tsx).
+ */
+export const keyboardFocused = (element: Element | null) =>
+  !!element?.matches(":focus-visible:not(:root[data-pointer] *)");

@@ -1360,6 +1360,25 @@ test.describe("desktop explorer", () => {
     expect((await stroke())[0]).toBe("none");
   });
 
+  test("a dropdown opened by pointer shows no focus ring; the keyboard's does", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const focusOutline = () =>
+      page.evaluate(() => {
+        const element = document.activeElement;
+        return element && element !== document.body
+          ? getComputedStyle(element).outlineStyle
+          : null;
+      });
+    await page.getByRole("button", { name: "Kategori", exact: true }).click();
+    const list = page.getByRole("listbox", { name: "Kategori", exact: true });
+    await expect(list).toBeVisible();
+    expect(await focusOutline()).not.toBe("solid");
+    await page.keyboard.press("ArrowDown");
+    await expect.poll(focusOutline).toBe("solid");
+  });
+
   test("zoomed out, an alignment becomes a dot that still opens it", async ({
     page,
   }) => {

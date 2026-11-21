@@ -11,6 +11,7 @@ import {
 } from "react";
 import { MapPin } from "lucide-react";
 import { cn } from "../lib/cn";
+import { keyboardFocused } from "../lib/ui";
 import {
   getProfile,
   getSeedProfile,
@@ -183,7 +184,7 @@ export default function UserIdentity({
             )}
             aria-describedby={open ? id : undefined}
             onFocus={(event) => {
-              if (!skipFocus.current && event.target.matches(":focus-visible"))
+              if (!skipFocus.current && keyboardFocused(event.target))
                 show();
             }}
             data-press=""
