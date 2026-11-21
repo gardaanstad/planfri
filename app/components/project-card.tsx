@@ -7,7 +7,6 @@ import {
   MessageCircle,
 } from "lucide-react";
 import {
-  categoryLabels,
   formatDate,
   getProjectUpdates,
   hasPhoto,
@@ -19,7 +18,7 @@ import {
 import type { ListDensity } from "../lib/explore-state";
 import { type ProjectNews, unreadCount, unreadSummary } from "../lib/unread";
 import { cn } from "../lib/cn";
-import { statusTone } from "../lib/ui";
+import { keyboardFocused, statusTone } from "../lib/ui";
 import ImageGallery from "./image-gallery";
 
 type Section = "discussion" | "updates";
@@ -95,7 +94,6 @@ export default memo(function ProjectCard({
 }) {
   const updates = getProjectUpdates(project);
   const expanded = density === "expanded";
-  const labels = categoryLabels(project.categories);
   const fresh = news && unreadCount(news) > 0 ? news : undefined;
   const title = (
     <h2
@@ -113,7 +111,7 @@ export default memo(function ProjectCard({
           reach,
           "focus-visible:after:outline-2 focus-visible:after:outline-focus",
         )}
-        aria-label={`${project.title} · ${labels.join(", ")} · ${project.city}${fresh ? ` · ${unreadSummary(fresh)}` : ""}`}
+        aria-label={`${project.title} · ${project.city}${fresh ? ` · ${unreadSummary(fresh)}` : ""}`}
         data-press=""
         onClick={() => onOpen(project.id)}
       >
@@ -122,7 +120,7 @@ export default memo(function ProjectCard({
     </h2>
   );
   const status = (
-    <span className="inline-flex min-w-0 items-center gap-1.5 font-medium whitespace-nowrap text-ink">
+    <span className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap">
       <i
         className={cn(
           "size-2 shrink-0 rounded-full",
@@ -130,9 +128,7 @@ export default memo(function ProjectCard({
         )}
       />
       {statuses[project.status].label}
-      {project.year && (
-        <span className="font-normal text-muted">· {project.year}</span>
-      )}
+      {project.year && <span>· {project.year}</span>}
     </span>
   );
   const commentWord = commentCount === 1 ? "kommentar" : "kommentarer";
@@ -166,7 +162,7 @@ export default memo(function ProjectCard({
       }}
       // From the keyboard only: a tap focuses the card too.
       onFocus={(event) => {
-        if (event.target.matches(":focus-visible")) onHover?.(project.id, true);
+        if (keyboardFocused(event.target)) onHover?.(project.id, true);
       }}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget))
@@ -175,13 +171,10 @@ export default memo(function ProjectCard({
     >
       {expanded ? (
         <>
-          {/* Where and what, then where it stands. */}
+          {/* Where, then where it stands. */}
           <p className={cn(meta, "gap-1")}>
             <MapPin size={13} className="shrink-0" aria-hidden="true" />
-            <span className="min-w-0 truncate">
-              {projectPlace(project)}
-              {labels.length > 0 && ` · ${labels.join(", ")}`}
-            </span>
+            <span className="min-w-0 truncate">{projectPlace(project)}</span>
             <span className="ml-auto flex shrink-0 pl-2">{status}</span>
           </p>
           {title}
@@ -303,8 +296,6 @@ export default memo(function ProjectCard({
   );
 });
 
-const phoneQuery = "(width < 48rem)";
-
 /** Expanded: every photo, full width; nothing when the project has none. */
 function Photos({
   project,
@@ -316,8 +307,7 @@ function Photos({
   const photos = projectPhotos(project);
   if (photos.length === 0) return null;
   return (
-    // Above the card link: the photos page and open the lightbox, or on a
-    // phone, the project.
+    // Above the card link, so the photos page; a press opens the project.
     <div className="relative z-1 mt-3">
       <ImageGallery
         images={photos}
@@ -325,11 +315,7 @@ function Photos({
         // As in the project's own gallery, so opening it reuses the file.
         sizes="(max-width: 768px) 100vw, 560px"
         className="aspect-3/2 rounded-lg"
-        onPress={() => {
-          if (!window.matchMedia(phoneQuery).matches) return false;
-          onOpen(project.id);
-          return true;
-        }}
+        onPress={() => onOpen(project.id)}
       />
     </div>
   );

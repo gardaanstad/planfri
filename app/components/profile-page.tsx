@@ -38,15 +38,18 @@ export function ProfileEditDialog({ onClose }: { onClose: () => void }) {
 
 export function ProfileContent({
   profile: initialProfile,
+  header = true,
   onEdit,
   editRef,
-  onOpenProject,
+  onOpenComment,
 }: {
   profile: Profile;
+  /** False when the panel's header already shows the avatar and name. */
+  header?: boolean;
   onEdit?: () => void;
   editRef?: Ref<HTMLButtonElement>;
-  /** Opens a contribution's project in place instead of navigating. */
-  onOpenProject?: (projectId: string) => void;
+  /** Opens a comment in its project in place instead of navigating. */
+  onOpenComment?: (projectId: string, commentId: string) => void;
 }) {
   const id = useId();
   const { comments, projects } = useCommunity();
@@ -63,45 +66,52 @@ export function ProfileContent({
     month: "long",
     year: "numeric",
   }).format(new Date(profile.joined));
+  const meta = (
+    <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs leading-4.5 text-muted [&>span]:inline-flex [&>span]:min-w-0 [&>span]:items-center [&>span]:gap-1 [&_svg]:shrink-0">
+      {profile.location && (
+        <span className="wrap-anywhere">
+          <MapPin size={14} aria-hidden="true" />
+          {profile.location}
+        </span>
+      )}
+      <span>
+        <CalendarDays size={14} aria-hidden="true" />
+        Medlem siden {joined}
+      </span>
+      {profile.example && <span>Eksempelprofil</span>}
+    </p>
+  );
 
   return (
     <div data-public-profile>
-      <header className="flex items-center gap-3">
-        <ProfileAvatar
-          name={profile.username}
-          tone={profile.tone}
-          className="size-12 text-lg"
-        />
-        <div className="min-w-0 flex-1">
-          <h3 className="text-heading wrap-anywhere">{profile.username}</h3>
-          <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs leading-4.5 text-muted [&>span]:inline-flex [&>span]:min-w-0 [&>span]:items-center [&>span]:gap-1 [&_svg]:shrink-0">
-            {profile.location && (
-              <span className="wrap-anywhere">
-                <MapPin size={14} aria-hidden="true" />
-                {profile.location}
-              </span>
-            )}
-            <span>
-              <CalendarDays size={14} aria-hidden="true" />
-              Medlem siden {joined}
-            </span>
-            {profile.example && <span>Eksempelprofil</span>}
-          </p>
-        </div>
-        {ownProfile && onEdit && (
-          <button
-            ref={editRef}
-            type="button"
-            onClick={onEdit}
-            className={cn(iconButton, "-mr-2.5 size-10 rounded-lg")}
-            aria-label="Rediger profil"
-            data-tooltip="Rediger profil"
-            data-press=""
-          >
-            <Pencil size={17} aria-hidden="true" />
-          </button>
-        )}
-      </header>
+      {header ? (
+        <header className="flex items-center gap-3">
+          <ProfileAvatar
+            name={profile.username}
+            tone={profile.tone}
+            className="size-12 text-lg"
+          />
+          <div className="min-w-0 flex-1">
+            <h3 className="text-heading wrap-anywhere">{profile.username}</h3>
+            {meta}
+          </div>
+          {ownProfile && onEdit && (
+            <button
+              ref={editRef}
+              type="button"
+              onClick={onEdit}
+              className={cn(iconButton, "-mr-2.5 size-10 rounded-lg")}
+              aria-label="Rediger profil"
+              data-tooltip="Rediger profil"
+              data-press=""
+            >
+              <Pencil size={17} aria-hidden="true" />
+            </button>
+          )}
+        </header>
+      ) : (
+        meta
+      )}
       {profile.bio && (
         <p className="mt-3 text-body leading-[1.65] whitespace-pre-wrap wrap-anywhere text-ink-soft">
           {profile.bio}
@@ -111,14 +121,9 @@ export function ProfileContent({
       <section className="mt-5" aria-labelledby={`${id}-contributions`}>
         <h2
           id={`${id}-contributions`}
-          className="flex items-center gap-2 border-b border-border pb-2 text-body font-semibold"
+          className="border-b border-border pb-2 text-body font-semibold"
         >
           Kommentarer
-          {contributions.length > 0 && (
-            <span className="text-ui font-normal text-muted tabular-nums">
-              {contributions.length}
-            </span>
-          )}
         </h2>
         {contributions.length ? (
           <ol>
@@ -127,43 +132,46 @@ export function ProfileContent({
               return (
                 <li
                   key={comment.id}
-                  className="border-b border-border py-3 last:border-b-0"
+                  className="border-b border-border last:border-b-0"
                 >
-                  <div className="flex min-w-0 items-baseline gap-2">
-                    <Link
-                      href={projectHref(comment.projectId)}
-                      data-press=""
-                      onClick={(event) => {
-                        if (
-                          !onOpenProject ||
-                          event.metaKey ||
-                          event.ctrlKey ||
-                          event.shiftKey
-                        )
-                          return;
-                        event.preventDefault();
-                        onOpenProject(comment.projectId);
-                      }}
-                      className={cn(
-                        "min-w-0 truncate rounded-sm text-ui font-semibold text-ink",
-                        "decoration-border-strong underline-offset-3 hover:underline",
-                      )}
-                    >
-                      {title || "Se prosjektet"}
-                    </Link>
-                    <RelativeTime
-                      date={comment.date}
-                      className="shrink-0 text-xs text-muted"
-                    />
-                  </div>
-                  <p className="mt-0.5 text-sm leading-normal whitespace-pre-wrap wrap-anywhere text-ink-soft">
-                    {comment.text}
-                  </p>
-                  {comment.parentId && (
-                    <span className="mt-1 block text-xs text-muted">
-                      Svar på kommentar
+                  <Link
+                    href={projectHref(comment.projectId)}
+                    data-press=""
+                    data-profile-comment=""
+                    onClick={(event) => {
+                      if (
+                        !onOpenComment ||
+                        event.metaKey ||
+                        event.ctrlKey ||
+                        event.shiftKey
+                      )
+                        return;
+                      event.preventDefault();
+                      onOpenComment(comment.projectId, comment.id);
+                    }}
+                    className={cn(
+                      "-mx-2.5 my-1 block rounded-lg px-2.5 py-2",
+                      "transition-colors duration-150 hover:bg-ink/[0.04] motion-reduce:transition-none",
+                    )}
+                  >
+                    <span className="flex min-w-0 items-baseline gap-2">
+                      <span className="min-w-0 truncate text-ui font-semibold text-ink">
+                        {title || "Se prosjektet"}
+                      </span>
+                      <RelativeTime
+                        date={comment.date}
+                        className="shrink-0 text-xs text-muted"
+                      />
                     </span>
-                  )}
+                    <span className="mt-0.5 block text-sm leading-normal whitespace-pre-wrap wrap-anywhere text-ink-soft">
+                      {comment.text}
+                    </span>
+                    {comment.parentId && (
+                      <span className="mt-1 block text-xs text-muted">
+                        Svar på kommentar
+                      </span>
+                    )}
+                  </Link>
                 </li>
               );
             })}

@@ -2,6 +2,7 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { LogIn } from "lucide-react";
 import { cn } from "../lib/cn";
+import { keyboardFocused } from "../lib/ui";
 import { useSwipeDismiss } from "./use-swipe-dismiss";
 
 const reduced = () =>
@@ -9,7 +10,7 @@ const reduced = () =>
 
 /** Whether a sheet's trigger was reached by keyboard rather than a tap. */
 export const openedByKeyboard = (trigger: Element | null) =>
-  trigger instanceof HTMLElement && trigger.matches(":focus-visible");
+  trigger instanceof HTMLElement && keyboardFocused(trigger);
 
 export type SheetAction = {
   id: string;
@@ -27,6 +28,8 @@ export type SheetAction = {
   trailing?: ReactNode;
   /** Starts a new group, divided from the actions above. */
   divided?: boolean;
+  /** A square icon button beside the row, for a related action. */
+  aside?: { id: string; label: string; icon: ReactNode; onSelect: () => void };
 };
 
 /** The track and knob of an on/off switch, for a row that is one. */
@@ -147,6 +150,7 @@ export default function ActionSheet({
             <li
               key={action.id}
               className={cn(
+                action.aside && "flex items-center gap-1",
                 action.divided && "mt-1.5 border-t border-border pt-1.5",
               )}
             >
@@ -183,6 +187,20 @@ export default function ActionSheet({
                 )}
                 {action.locked && <LogIn size={16} aria-hidden="true" />}
               </button>
+              {action.aside && (
+                <button
+                  type="button"
+                  data-sheet-action={action.aside.id}
+                  aria-label={action.aside.label}
+                  className={cn(
+                    "flex size-12 shrink-0 items-center justify-center rounded-lg text-muted -outline-offset-2",
+                    "transition-colors duration-150 active:bg-surface-muted motion-reduce:transition-none",
+                  )}
+                  onClick={() => close(action.aside!.onSelect)}
+                >
+                  {action.aside.icon}
+                </button>
+              )}
             </li>
           ))}
         </ul>

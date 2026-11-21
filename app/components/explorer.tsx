@@ -1080,17 +1080,20 @@ export default memo(function Explorer({
       );
   }
 
-  /** A profile's contribution opens in the profile's place in history. */
-  function openFromProfile(id: string) {
+  /** A profile's comment opens in the profile's place in history. */
+  function openFromProfile(id: string, commentId: string) {
     const overlay = Boolean(window.history.state?.profileOverlay);
     setProfileName(null);
-    if (id === postId && overlay) return stepBack();
+    if (id === postId && overlay) {
+      setPostTarget({ commentId });
+      return stepBack();
+    }
     window.history.replaceState(
       { projectOverlay: overlay, suggestionsBelow: suggestionsOpen },
       "",
       withSearch(projectHref(id)),
     );
-    setPostTarget({});
+    setPostTarget({ commentId });
     setPostSnap(null);
     setPostId(id);
     setSelectedId(id);
@@ -2385,12 +2388,11 @@ export default memo(function Explorer({
     switch (layer) {
       case "profile":
         return (
-          <Panel {...frame} closeLabel="Lukk profil">
+          <Panel {...frame} closeLabel="Lukk profil" titled>
             <ProfileOverlay
               key={panelProfileName}
               username={panelProfileName!}
-              embedded
-              onOpenProject={openFromProfile}
+              onOpenComment={openFromProfile}
             />
           </Panel>
         );

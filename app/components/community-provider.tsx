@@ -7,7 +7,9 @@ import {
   useMemo,
   useRef,
   useState,
+  type Dispatch,
   type ReactNode,
+  type SetStateAction,
 } from "react";
 import { useAuth } from "./auth-provider";
 import { apiRequest } from "../lib/api-client";
@@ -63,12 +65,17 @@ export function CommunityProvider({
     data: initialData,
     userId: initialUserId,
   });
-  // Saves shown before the server confirms them, by project.
+  // Saves and votes shown before the server confirms them, by project and
+  // by comment.
   const [pendingSaves, setPendingSaves] = useState<Record<string, boolean>>(
     {},
   );
-  // Each project's saves reach the server in the order they were made.
-  const saveQueue = useRef(new Map<string, Promise<unknown>>());
+  const [pendingVotes, setPendingVotes] = useState<Record<string, number>>(
+    {},
+  );
+  // Each project's saves, and each comment's votes, reach the server in the
+  // order they were made.
+  const queues = useRef(new Map<string, Promise<unknown>>());
   const identity = useRef(user?.id);
   const revision = useRef(0);
   // Whose data is held: the server's render needs no immediate refetch.
@@ -116,28 +123,51 @@ export function CommunityProvider({
   }, [refresh, user?.id]);
   async function mutate(mutation: CommunityMutation) {
     const current = user?.id;
-    // A save shows at once and falls back if the server refuses it.
-    const save = mutation.action === "save" ? mutation : null;
-    if (!save) return send(mutation, current);
-    setPendingSaves((pending) => ({
-      ...pending,
-      [save.projectId]: save.saved,
-    }));
-    const queue = saveQueue.current;
-    const previous = queue.get(save.projectId);
+    // A save or a vote shows at once and falls back if the server refuses it.
+    if (mutation.action === "save")
+      return sendInOrder<boolean>(
+        `save:${mutation.projectId}`,
+        mutation,
+        current,
+        setPendingSaves,
+        mutation.projectId,
+        mutation.saved,
+      );
+    if (mutation.action === "vote")
+      return sendInOrder<number>(
+        `vote:${mutation.commentId}`,
+        mutation,
+        current,
+        setPendingVotes,
+        mutation.commentId,
+        mutation.value,
+      );
+    return send(mutation, current);
+  }
+  async function sendInOrder<T>(
+    key: string,
+    mutation: CommunityMutation,
+    current: string | undefined,
+    setPending: Dispatch<SetStateAction<Record<string, T>>>,
+    id: string,
+    value: T,
+  ) {
+    setPending((pending) => ({ ...pending, [id]: value }));
+    const queue = queues.current;
+    const previous = queue.get(key);
     const request = (previous ?? Promise.resolve())
       .catch(() => {})
       .then(() => send(mutation, current));
-    queue.set(save.projectId, request);
+    queue.set(key, request);
     try {
       await request;
     } finally {
-      // A later save of the same project keeps showing until it lands.
-      if (queue.get(save.projectId) === request) {
-        queue.delete(save.projectId);
-        setPendingSaves((pending) => {
+      // A later change of the same item keeps showing until it lands.
+      if (queue.get(key) === request) {
+        queue.delete(key);
+        setPending((pending) => {
           const rest = { ...pending };
-          delete rest[save.projectId];
+          delete rest[id];
           return rest;
         });
       }
@@ -164,6 +194,21 @@ export function CommunityProvider({
     }
     return [...ids];
   }, [pendingSaves, state.data.saved]);
+  const votes = useMemo(() => {
+    if (!Object.keys(pendingVotes).length) return state.data.votes;
+    return { ...state.data.votes, ...pendingVotes };
+  }, [pendingVotes, state.data.votes]);
+  // A pending vote moves the comment's count by its difference from the
+  // member's last confirmed vote.
+  const comments = useMemo(() => {
+    if (!Object.keys(pendingVotes).length) return state.data.comments;
+    return state.data.comments.map((comment) => {
+      if (!(comment.id in pendingVotes)) return comment;
+      const change =
+        pendingVotes[comment.id] - (state.data.votes[comment.id] || 0);
+      return change ? { ...comment, votes: comment.votes + change } : comment;
+    });
+  }, [pendingVotes, state.data.comments, state.data.votes]);
   async function suggest(suggestion: SuggestionInput) {
     await apiRequest("/api/suggestions", {
       method: "POST",
@@ -180,8 +225,9 @@ export function CommunityProvider({
     <Context.Provider
       value={{
         ...state.data,
+        comments: personal ? comments : state.data.comments,
         saved: personal ? saved : [],
-        votes: personal ? state.data.votes : {},
+        votes: personal ? votes : {},
         suggestions: personal ? state.data.suggestions : 0,
         reviewed: personal ? state.data.reviewed : 0,
         mutate,

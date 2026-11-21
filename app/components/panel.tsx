@@ -8,6 +8,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type ComponentProps,
   type ReactNode,
 } from "react";
 import { ArrowLeft, X } from "lucide-react";
@@ -89,6 +90,16 @@ export function ScrollFade({ shown }: { shown: boolean }) {
 }
 
 // Each panel drawer stacks above the one before it.
+/**
+ * Takes the panel's drawer to its full height when it rests lower, so
+ * content that grows on request, like a project's "Les mer", has room.
+ */
+const PanelExpandContext = createContext<(() => void) | null>(null);
+
+export function usePanelExpand() {
+  return use(PanelExpandContext);
+}
+
 const stackLayers = ["z-[51]", "z-[52]", "z-[53]", "z-[54]", "z-[55]", "z-[56]"];
 
 /** Phones: a panel's drawer. It keeps its content while it slides away. */
@@ -223,7 +234,13 @@ export function PanelDrawer({
           <DrawerTitle className="sr-only">{title}</DrawerTitle>
           {ready && (
             <div className="contents" inert={!active}>
-              {children}
+              <PanelExpandContext
+                value={
+                  snap && snap.point !== 1 ? () => snap.onChange(1) : null
+                }
+              >
+                {children}
+              </PanelExpandContext>
             </div>
           )}
         </DrawerContent>
@@ -277,9 +294,12 @@ const PanelFrameContext = createContext<PanelFrame | null>(null);
 export function PanelHeader({
   title,
   id,
+  icon,
   actions,
 }: {
   title: ReactNode;
+  /** Before the title, such as a profile's avatar. */
+  icon?: ReactNode;
   /** The heading's id, for `aria-labelledby`. */
   id?: string;
   /** Before the panel's own controls, such as a sort menu. */
@@ -320,6 +340,7 @@ export function PanelHeader({
           mobile ? panelTitleTop.mobile : panelTitleTop.desktop,
         )}
       >
+        {icon}
         <h1
           id={id}
           className={cn("m-0 min-w-0 truncate text-ink", panelTitle)}
@@ -353,6 +374,26 @@ export function PanelHeader({
         </button>
       </div>
     </header>
+  );
+}
+
+/** A button among a `PanelHeader`'s actions, sized like its controls. */
+export function PanelHeaderButton({
+  className,
+  ...props
+}: ComponentProps<"button">) {
+  const frame = use(PanelFrameContext);
+  return (
+    <button
+      type="button"
+      className={cn(
+        frame?.mobile
+          ? cn(mobileControl, "size-10 active:scale-100")
+          : controlButton,
+        className,
+      )}
+      {...props}
+    />
   );
 }
 

@@ -316,6 +316,22 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expect(page.getByRole("dialog", { name: /^Bilder av / })).toHaveCount(0);
   });
 
+  test("Les mer takes a project at the middle height to the full height", async ({
+    page,
+  }) => {
+    await page.goto("/?kart=59.9100,10.7500,13");
+    const shape = page.locator(`path[data-project-id="${project.id}"]`);
+    await shape.dispatchEvent("pointerdown");
+    await shape.dispatchEvent("click");
+    await expect(page).toHaveURL(atProject);
+    await expectDrawerHeight(page, 0.58, "project");
+    await page
+      .locator("[data-project-drawer]")
+      .getByRole("button", { name: "Les mer", exact: true })
+      .click();
+    await expectDrawerHeight(page, 1, "project");
+  });
+
   test("a project tapped on the map opens at the middle height, centered above it", async ({
     page,
   }) => {
@@ -1020,6 +1036,12 @@ test.describe("desktop explorer", () => {
       page.getByRole("button", { name: /^Kommentarer/ }),
     ).toBeInViewport();
     await page.goBack();
+    // A photo opens the project too, not the lightbox.
+    const id = await first.getAttribute("data-card-id");
+    await gallery.getByRole("button").first().click();
+    await expect(page).toHaveURL(new RegExp(`/prosjekt/${id}`));
+    await expect(page.getByRole("dialog", { name: /^Bilder av / })).toHaveCount(0);
+    await page.goBack();
     const titleTop = await first.getByRole("heading").boundingBox();
 
     // The switch acts as the mouse button goes down.
@@ -1189,15 +1211,14 @@ test.describe("desktop explorer", () => {
     await expect(page).toHaveURL(
       new RegExp(`status=construction&kategori=${main},${sub}`),
     );
-    const results = listRegion(page);
-    for (const button of await results
-      .getByRole("heading", { level: 2 })
-      .getByRole("button")
-      .all())
-      await expect(button).toHaveAttribute(
-        "aria-label",
-        new RegExp(` · [^·]*${sub}[^·]* · `),
-      );
+    const cards = listRegion(page).locator("[data-card-id]");
+    await expect(cards.first()).toBeVisible();
+    for (const id of await cards.evaluateAll((items) =>
+      items.map((item) => item.getAttribute("data-card-id")),
+    ))
+      expect(
+        seedProjects.find((seed) => seed.id === id)?.categories,
+      ).toContain(sub);
     // The last subcategory's chip takes its main category along.
     await active
       .getByRole("button", { name: `Fjern filter: ${sub}` })
@@ -1427,6 +1448,25 @@ test.describe("desktop explorer", () => {
     await page.keyboard.press("Shift");
     await expect.poll(async () => (await stroke())[1]).toBe("rgb(31, 90, 67)");
     expect((await stroke())[0]).toBe("none");
+  });
+
+  test("a dropdown opened by pointer shows no focus ring; the keyboard's does", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const focusOutline = () =>
+      page.evaluate(() => {
+        const element = document.activeElement;
+        return element && element !== document.body
+          ? getComputedStyle(element).outlineStyle
+          : null;
+      });
+    await page.getByRole("button", { name: "Kategori", exact: true }).click();
+    const list = page.getByRole("listbox", { name: "Kategori", exact: true });
+    await expect(list).toBeVisible();
+    expect(await focusOutline()).not.toBe("solid");
+    await page.keyboard.press("ArrowDown");
+    await expect.poll(focusOutline).toBe("solid");
   });
 
   test("zoomed out, an alignment becomes a dot that still opens it", async ({
