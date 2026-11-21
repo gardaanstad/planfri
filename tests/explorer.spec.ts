@@ -989,6 +989,12 @@ test.describe("desktop explorer", () => {
       page.getByRole("button", { name: /^Kommentarer/ }),
     ).toBeInViewport();
     await page.goBack();
+    // A photo opens the project too, not the lightbox.
+    const id = await first.getAttribute("data-card-id");
+    await gallery.getByRole("button").first().click();
+    await expect(page).toHaveURL(new RegExp(`/prosjekt/${id}`));
+    await expect(page.getByRole("dialog", { name: /^Bilder av / })).toHaveCount(0);
+    await page.goBack();
     const titleTop = await first.getByRole("heading").boundingBox();
 
     // The switch acts as the mouse button goes down.
