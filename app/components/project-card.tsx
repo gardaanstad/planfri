@@ -1,11 +1,6 @@
-import { memo } from "react";
+import { Fragment, memo } from "react";
 import Image from "next/image";
-import {
-  Bookmark,
-  MapPin,
-  Megaphone,
-  MessageCircle,
-} from "lucide-react";
+import { Bookmark, MapPin, Megaphone, MessageCircle } from "lucide-react";
 import {
   formatDate,
   getProjectUpdates,
@@ -169,8 +164,10 @@ export default memo(function ProjectCard({
           onHover?.(project.id, false);
       }}
     >
-      {expanded ? (
-        <>
+      {/* The photos of both views stay mounted, hidden in the other, so
+          switching shows them as they were rather than loading them anew. */}
+      {expanded && (
+        <Fragment key="head">
           {/* Where, then where it stands. */}
           <p className={cn(meta, "gap-1")}>
             <MapPin size={13} className="shrink-0" aria-hidden="true" />
@@ -183,116 +180,123 @@ export default memo(function ProjectCard({
               {project.description.split("\n")[0]}
             </p>
           )}
-          <Photos project={project} onOpen={onOpen} />
-          <div className="mt-3 flex items-center gap-4">
+        </Fragment>
+      )}
+      {!expanded && (
+        <div key="text" className="min-w-0 flex-1">
+          <p className={cn(meta, "gap-1")}>
+            <MapPin size={13} className="shrink-0" aria-hidden="true" />
+            <span className="min-w-0 truncate">{projectPlace(project)}</span>
+            {/* The place gives way, so this fits at any width. */}
+            {fresh && <UnreadMark news={fresh} className="ml-auto pl-2" />}
+          </p>
+          {title}
+          {/* Stats sit above the card link for their tooltips; forward clicks. */}
+          <div
+            className={cn(meta, "mt-1 cursor-pointer gap-x-3.5 max-md:gap-x-3")}
+            data-press=""
+            onClick={() => onOpen(project.id)}
+          >
+            {status}
+            <span className={cardStat} data-tooltip={commentLabel}>
+              <MessageCircle size={13} aria-hidden="true" />
+              {commentCount}
+              <span className="sr-only">{` ${commentWord}`}</span>
+            </span>
+            {updates.length > 0 && (
+              <span className={cardStat} data-tooltip={updatesTooltip}>
+                <Megaphone size={13} aria-hidden="true" />
+                {updates.length}
+                <span className="sr-only"> oppdateringer</span>
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+      <Photos
+        key="photos"
+        project={project}
+        onOpen={onOpen}
+        hidden={!expanded}
+      />
+      {expanded && (
+        <div key="actions" className="mt-3 flex items-center gap-4">
+          <button
+            type="button"
+            className={action}
+            aria-label={commentLabel}
+            data-press=""
+            onClick={() => onOpen(project.id, "discussion")}
+          >
+            <MessageCircle size={15} aria-hidden="true" />
+            <span>
+              {commentCount}
+              <span className="max-[359px]:hidden">{` ${commentWord}`}</span>
+            </span>
+          </button>
+          {updates.length > 0 && (
             <button
               type="button"
               className={action}
-              aria-label={commentLabel}
+              aria-label={updatesTooltip}
+              data-tooltip={updatesTooltip}
               data-press=""
-              onClick={() => onOpen(project.id, "discussion")}
+              onClick={() => onOpen(project.id, "updates")}
             >
-              <MessageCircle size={15} aria-hidden="true" />
+              <Megaphone size={15} aria-hidden="true" />
               <span>
-                {commentCount}
+                {updates.length}
                 <span className="max-[359px]:hidden">
-                  {` ${commentWord}`}
+                  {updates.length === 1 ? " oppdatering" : " oppdateringer"}
                 </span>
               </span>
             </button>
-            {updates.length > 0 && (
-              <button
-                type="button"
-                className={action}
-                aria-label={updatesTooltip}
-                data-tooltip={updatesTooltip}
-                data-press=""
-                onClick={() => onOpen(project.id, "updates")}
-              >
-                <Megaphone size={15} aria-hidden="true" />
-                <span>
-                  {updates.length}
-                  <span className="max-[359px]:hidden">
-                    {updates.length === 1 ? " oppdatering" : " oppdateringer"}
-                  </span>
-                </span>
-              </button>
-            )}
-            {fresh && <UnreadMark news={fresh} className="text-ui" />}
-            <button
-              type="button"
-              className={cn(
-                action,
-                "ml-auto",
-                saved && "text-accent hover:text-accent-strong",
-              )}
-              aria-pressed={saved}
-              data-save=""
-              data-tooltip={saved ? "Fjern fra lagrede" : undefined}
-              onClick={() => onSave(project.id)}
-            >
-              <Bookmark
-                size={15}
-                fill={saved ? "currentColor" : "none"}
-                aria-hidden="true"
-              />
-              {saved ? "Lagret" : "Lagre"}
-            </button>
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="min-w-0 flex-1">
-            <p className={cn(meta, "gap-1")}>
-              <MapPin size={13} className="shrink-0" aria-hidden="true" />
-              <span className="min-w-0 truncate">{projectPlace(project)}</span>
-              {/* The place gives way, so this fits at any width. */}
-              {fresh && <UnreadMark news={fresh} className="ml-auto pl-2" />}
-            </p>
-            {title}
-            {/* Stats sit above the card link for their tooltips; forward clicks. */}
-            <div
-              className={cn(
-                meta,
-                "mt-1 cursor-pointer gap-x-3.5 max-md:gap-x-3",
-              )}
-              data-press=""
-              onClick={() => onOpen(project.id)}
-            >
-              {status}
-              <span
-                className={cardStat}
-                data-tooltip={commentLabel}
-              >
-                <MessageCircle size={13} aria-hidden="true" />
-                {commentCount}
-                <span className="sr-only">
-                  {` ${commentWord}`}
-                </span>
-              </span>
-              {updates.length > 0 && (
-                <span className={cardStat} data-tooltip={updatesTooltip}>
-                  <Megaphone size={13} aria-hidden="true" />
-                  {updates.length}
-                  <span className="sr-only"> oppdateringer</span>
-                </span>
-              )}
-            </div>
-          </div>
-          {/* As tall as the text beside it, at 4:3. */}
-          {hasPhoto(project) && (
-            // A narrow sidebar gives the text the room.
-            <div className="relative h-16.5 w-22 shrink-0 overflow-hidden rounded-lg bg-surface-muted md:@max-[340px]/list:hidden">
-              <Image
-                src={project.image}
-                alt=""
-                fill
-                sizes="88px"
-                className="object-cover"
-              />
-            </div>
           )}
-        </>
+          {fresh && <UnreadMark news={fresh} className="text-ui" />}
+          <button
+            type="button"
+            className={cn(
+              action,
+              "ml-auto",
+              saved && "text-accent hover:text-accent-strong",
+            )}
+            aria-pressed={saved}
+            data-save=""
+            data-tooltip={saved ? "Fjern fra lagrede" : undefined}
+            onClick={() => onSave(project.id)}
+          >
+            <Bookmark
+              size={15}
+              fill={saved ? "currentColor" : "none"}
+              aria-hidden="true"
+            />
+            {saved ? "Lagret" : "Lagre"}
+          </button>
+        </div>
+      )}
+      {/* As tall as the text beside it, at 4:3. */}
+      {hasPhoto(project) && (
+        <div
+          key="thumb"
+          className={cn(
+            "relative h-16.5 w-22 shrink-0 overflow-hidden rounded-lg bg-surface-muted",
+            // A narrow sidebar gives the text the room.
+            expanded ? "hidden" : "md:@max-[340px]/list:hidden",
+          )}
+        >
+          <Image
+            src={project.image}
+            alt=""
+            fill
+            sizes="88px"
+            // Small, so loaded while hidden too, ready for the compact view;
+            // painted with the frame it shows in, not a frame after.
+            loading="eager"
+            fetchPriority="low"
+            decoding="sync"
+            className="object-cover"
+          />
+        </div>
       )}
     </li>
   );
@@ -302,21 +306,25 @@ export default memo(function ProjectCard({
 function Photos({
   project,
   onOpen,
+  hidden,
 }: {
   project: Project;
   onOpen: (id: string) => void;
+  /** Kept mounted in the compact view, so expanding shows them at once. */
+  hidden: boolean;
 }) {
   const photos = projectPhotos(project);
   if (photos.length === 0) return null;
   return (
     // Above the card link, so the photos page; a press opens the project.
-    <div className="relative z-1 mt-3">
+    <div className="relative z-1 mt-3" hidden={hidden}>
       <ImageGallery
         images={photos}
         label={`Bilder av ${project.title}`}
         // As in the project's own gallery, so opening it reuses the file.
         sizes="(max-width: 768px) 100vw, 560px"
         className="aspect-3/2 rounded-lg"
+        decoding="sync"
         onPress={() => onOpen(project.id)}
       />
     </div>

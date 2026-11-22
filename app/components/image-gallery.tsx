@@ -154,11 +154,14 @@ export default function ImageGallery({
   label,
   sizes,
   className,
+  decoding,
   onPress,
 }: {
   images: ProjectImage[];
   label: string;
   sizes: string;
+  /** "sync" paints a loaded photo in the frame it appears in. */
+  decoding?: "sync" | "async";
   /** Sizes the frame, e.g. its aspect ratio. */
   className?: string;
   /** Takes a press instead of the lightbox. */
@@ -214,6 +217,7 @@ export default function ImageGallery({
                 alt={image.alt || ""}
                 fill
                 sizes={sizes}
+                decoding={decoding}
                 className="object-cover"
               />
             </button>

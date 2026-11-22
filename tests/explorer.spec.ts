@@ -971,6 +971,11 @@ test.describe("desktop explorer", () => {
     await page.goBack();
     const titleTop = await first.getByRole("heading").boundingBox();
 
+    // Tag the photo, to tell whether it outlives the switches.
+    await first.locator("img").first().evaluate((img) => {
+      img.dataset.kept = "";
+    });
+
     // The switch acts as the mouse button goes down, and shows it at once.
     await page.emulateMedia({ reducedMotion: "no-preference" });
     expect(
@@ -995,6 +1000,15 @@ test.describe("desktop explorer", () => {
     await shot(page, "list-compact");
     await cards.nth(1).hover();
     await shot(page, "list-compact-hover");
+
+    // Back to expanded, the photos are the ones already shown, not loaded
+    // anew with a blank frame.
+    await expanded.click();
+    await expect(cards.first()).toHaveAttribute("data-density", "expanded");
+    await expect(
+      first.getByRole("group", { name: /^Bilder av / }).locator("img[data-kept]"),
+    ).toBeVisible();
+    await compact.click();
 
     // The choice is kept in this browser.
     await page.reload();
