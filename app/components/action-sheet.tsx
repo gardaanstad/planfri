@@ -1,6 +1,6 @@
 "use client";
 import { useLayoutEffect, useRef, type ReactNode } from "react";
-import { LogIn } from "lucide-react";
+import { Check, LogIn } from "lucide-react";
 import { cn } from "../lib/cn";
 import { reducedMotion, sheetLeave } from "../lib/media";
 import { keyboardFocused } from "../lib/ui";
@@ -19,6 +19,8 @@ export type SheetAction = {
   /** Greyed out for guests; choosing it asks them to log in. */
   locked?: boolean;
   pressed?: boolean;
+  /** One choice of several, such as a map layer: checked on the right. */
+  selected?: boolean;
   /** Destructive, such as deleting: in the danger colour. */
   danger?: boolean;
   /** A switch: on or off, shown on the right. */
@@ -60,10 +62,13 @@ export function SwitchTrack({ on }: { on: boolean }) {
  */
 export default function ActionSheet({
   label,
+  title,
   actions,
   onClose,
 }: {
   label: string;
+  /** Shown above the actions, as the filter sheets name theirs. */
+  title?: string;
   actions: SheetAction[];
   onClose: () => void;
 }) {
@@ -142,8 +147,16 @@ export default function ActionSheet({
         ref={sheet}
         className="rounded-t-sheet border-t border-border bg-surface px-2 pb-[calc(10px+env(safe-area-inset-bottom))] shadow-bar motion-safe:animate-sheet-in"
       >
-        <div aria-hidden="true" className="flex justify-center pt-2 pb-3">
+        <div
+          aria-hidden="true"
+          className="flex flex-col items-center px-1 pt-2 pb-3"
+        >
           <span className="h-1 w-9 rounded-full bg-ink/15" />
+          {title && (
+            <span className="mt-3 self-start px-2 text-heading text-ink">
+              {title}
+            </span>
+          )}
         </div>
         <ul ref={list} className="flex flex-col gap-0.5">
           {actions.map((action) => (
@@ -163,7 +176,7 @@ export default function ActionSheet({
                     ? `${action.label}, krever innlogging`
                     : undefined
                 }
-                aria-pressed={action.pressed}
+                aria-pressed={action.pressed ?? action.selected}
                 role={action.checked !== undefined ? "switch" : undefined}
                 aria-checked={action.checked}
                 className={cn(
@@ -172,6 +185,7 @@ export default function ActionSheet({
                   "[&>svg]:shrink-0 [&>svg]:text-muted",
                   action.locked && "text-muted [&>svg]:text-muted/60",
                   action.danger && "text-danger [&>svg]:text-danger",
+                  action.selected && "font-medium",
                 )}
                 onClick={() => close(action.onSelect)}
               >
@@ -185,6 +199,14 @@ export default function ActionSheet({
                 {action.trailing}
                 {action.checked !== undefined && (
                   <SwitchTrack on={action.checked} />
+                )}
+                {action.selected && (
+                  <Check
+                    size={18}
+                    strokeWidth={2.25}
+                    className="text-ink!"
+                    aria-hidden="true"
+                  />
                 )}
                 {action.locked && <LogIn size={16} aria-hidden="true" />}
               </button>
