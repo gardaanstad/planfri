@@ -221,6 +221,34 @@ function useFloatingGap(content: HTMLElement | null, floating?: boolean) {
   }, [content, tracking]);
 }
 
+/**
+ * Marks each of the content's scrollers (`data-drawer-scroll`) that is
+ * scrolled away from its top with `data-scrolled`. Below full height a
+ * drawer's scroller doesn't scroll, so a swipe moves the drawer; one already
+ * scrolled stays scrollable, so a swipe down takes it back to its top before
+ * it moves the drawer.
+ */
+function useScrolledMark(content: HTMLElement | null, enabled: boolean) {
+  React.useEffect(() => {
+    if (!content || !enabled) return;
+    // Scroll doesn't bubble, but it does pass ancestors on the way down.
+    const onScroll = (event: Event) => {
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        target.hasAttribute("data-drawer-scroll")
+      )
+        target.toggleAttribute("data-scrolled", target.scrollTop > 0);
+    };
+    content.addEventListener("scroll", onScroll, {
+      capture: true,
+      passive: true,
+    });
+    return () =>
+      content.removeEventListener("scroll", onScroll, { capture: true });
+  }, [content, enabled]);
+}
+
 function useDrawer() {
   const context = React.useContext(DrawerContext);
 
@@ -330,6 +358,7 @@ function DrawerContent({
   const [content, setContent] = React.useState<HTMLDivElement | null>(null);
   useDrawerMotion(content, restOffset, onMotion);
   useFloatingGap(content, floating);
+  useScrolledMark(content, hasSnapPoints);
   const swipeAxis =
     swipeDirection === "down" || swipeDirection === "up" ? "y" : "x";
   const layer = React.useContext(SheetLayerContext);

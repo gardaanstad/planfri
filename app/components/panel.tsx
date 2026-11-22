@@ -144,7 +144,7 @@ export function PanelDrawer({
   /**
    * Heights it rests at, as on the explorer's drawer; without them it opens
    * at full height. Below the full height, a swipe on the content moves the
-   * drawer instead of scrolling it.
+   * drawer instead of scrolling it, unless the content is scrolled already.
    */
   snap?: {
     points: DrawerSnapPoint[];
@@ -216,7 +216,7 @@ export function PanelDrawer({
             snap && visibleBottomClasses,
             snap &&
               snap.point !== 1 &&
-              "[&_[data-drawer-scroll]]:overflow-y-hidden",
+              "[&_[data-drawer-scroll]:not([data-scrolled])]:overflow-y-hidden",
           )}
           onWheel={(event) => {
             if (

@@ -227,10 +227,8 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await page
       .getByRole("button", { name: "Utvid prosjektlisten", exact: true })
       .click();
-    await page
-      .getByRole("group", { name: "Visning" })
-      .getByRole("button", { name: "Utvidet" })
-      .click();
+    await page.getByRole("button", { name: /^Visning/ }).click();
+    await page.getByRole("option", { name: "Utvidet" }).click();
     const card = page
       .getByRole("region", { name: "Prosjektliste", exact: true })
       .locator("[data-card-id]")
@@ -244,6 +242,72 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       .tap();
     await expect(page).toHaveURL(new RegExp(`/prosjekt/${id}`));
     await expect(page.getByRole("dialog", { name: /^Bilder av / })).toHaveCount(0);
+  });
+
+  test("the views are chosen from a sheet, beside a count that wraps on its own", async ({
+    page,
+  }) => {
+    // Zoomed in on central Oslo: the count names the view, Oslo and all.
+    await page.goto("/?kart=59.9100,10.7500,14");
+    await page
+      .getByRole("button", { name: "Utvid prosjektlisten", exact: true })
+      .click();
+    const list = page.getByRole("region", { name: "Prosjektliste", exact: true });
+    const inOslo = list.getByRole("button", { name: /^\d+ i Oslo, vis Oslo/ });
+    await expect(inOslo).toBeVisible();
+    await expect(page.getByRole("group", { name: "Visning" })).toHaveCount(0);
+    const views = page.getByRole("button", { name: /^Visning/ });
+    await expect(views).toHaveText("Visning");
+    const sort = page.getByRole("button", { name: /^Sorter prosjekter:/ });
+
+    // The count, the order and the views share a row; the count wraps
+    // within its own room, and no line of it starts with a dot.
+    const [viewsBox, sortBox, rowBox] = await Promise.all([
+      views.boundingBox(),
+      sort.boundingBox(),
+      inOslo.locator("xpath=ancestor::span[contains(@class,'overflow-hidden')][1]").boundingBox(),
+    ]);
+    expect(Math.abs(viewsBox!.y - sortBox!.y)).toBeLessThan(1);
+    expect(rowBox!.x + rowBox!.width).toBeLessThanOrEqual(sortBox!.x);
+    const lineStarts = await inOslo.evaluate((link) => {
+      const clip = link.closest(".overflow-hidden")!.getBoundingClientRect();
+      return [...link.closest(".flex-wrap")!.querySelectorAll("[aria-hidden]")]
+        .filter((dot) => dot.textContent?.trim() === "·")
+        .filter((dot) => Math.abs(dot.getBoundingClientRect().left - clip.left) < 1)
+        .length;
+    });
+    expect(lineStarts).toBe(0);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(320);
+
+    // The sheet lists the card layouts, then "Nytt".
+    await expect(async () => {
+      await views.click();
+      await expect(
+        page.getByRole("listbox", { name: "Visning", exact: true }),
+      ).toBeVisible({ timeout: 1000 });
+    }).toPass();
+    const sheet = page.getByRole("listbox", { name: "Visning", exact: true });
+    await expect(sheet.getByRole("option")).toHaveText([
+      "Kompakt",
+      "Utvidet",
+      "Nytt",
+    ]);
+    await expect(sheet.getByRole("option", { name: "Kompakt" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await shot(page, "mobile-views-sheet");
+
+    // Choosing "Nytt" closes the sheet; the order goes, the button stays.
+    await sheet.getByRole("option", { name: "Nytt" }).click();
+    await expect(sheet).toBeHidden();
+    await expect(list.locator("[data-feed-id]").first()).toBeVisible();
+    await expect(sort).toHaveCount(0);
+    await expect(views).toHaveText("Visning");
+    await expect(views).toHaveAccessibleName("Visning: Nytt");
+    await shot(page, "mobile-views-feed");
   });
 
   test("Les mer takes a project at the middle height to the full height", async ({
@@ -441,6 +505,39 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expectDrawerHeight(page, 1);
   });
 
+  test("a scrolled list at the middle height scrolls back to its top before the drawer folds", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await swipeUp(
+      page,
+      page.getByRole("button", { name: "Utvid prosjektlisten", exact: true }),
+    );
+    await expectDrawerHeight(page, 0.58);
+    const list = page.locator("[data-explorer-drawer] [data-drawer-scroll]");
+    // As if scrolled at the full height and brought back down.
+    await list.evaluate((element) => {
+      element.scrollTop = 120;
+    });
+    await expect(list).toHaveAttribute("data-scrolled", "");
+    const box = (await list.boundingBox())!;
+    const x = box.x + box.width / 2;
+    const y = box.y + 40;
+    // A short swipe down scrolls the list, not the drawer.
+    await touchMove(page, { x, y }, { x, y: y + 80 }, { steps: 12 });
+    await expectDrawerHeight(page, 0.58);
+    await expect
+      .poll(() => list.evaluate((element) => element.scrollTop))
+      .toBeLessThan(120);
+    // Back at the top, the next swipe down folds it.
+    await list.evaluate((element) => {
+      element.scrollTop = 0;
+    });
+    await expect(list).not.toHaveAttribute("data-scrolled");
+    await touchMove(page, { x, y }, { x, y: y + 200 }, { steps: 12 });
+    await expectDrawerHeight(page, compact);
+  });
+
   test("panning the map folds the list down from the middle height", async ({
     page,
   }) => {
@@ -551,15 +648,20 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       name: "Filtrer prosjekter",
       exact: true,
     });
-    const offset = (menu: Locator) =>
-      menu.evaluate(
-        (element) => element.parentElement!.getBoundingClientRect().top,
-      );
     // A tap still chooses.
-    await filters.getByRole("button", { name: /^Prosjektstatus:/ }).click();
-    const status = page.getByRole("listbox", { name: "Prosjektstatus", exact: true });
+    await filters.getByRole("button", { name: "Filtre", exact: true }).click();
+    const sheet = page.getByRole("dialog", { name: "Filtre", exact: true });
+    await sheet.getByRole("button", { name: /^Status/ }).click();
+    const status = sheet.getByRole("listbox", {
+      name: "Prosjektstatus",
+      exact: true,
+    });
     await expect(status).toBeVisible();
-    const rest = await offset(status);
+    const sheetTop = () =>
+      sheet.evaluate(
+        (element) => element.firstElementChild!.getBoundingClientRect().top,
+      );
+    const rest = await sheetTop();
     await status.getByRole("option", { name: /^Ferdigstilt/ }).tap();
     await expect(status.getByRole("option", { selected: true })).toHaveCount(4);
     // A short, slow drag follows the finger, then springs back.
@@ -568,25 +670,25 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       steps: 20,
       stepMs: 40,
       before: async () => {
-        dragged = (await offset(status)) - rest;
+        dragged = (await sheetTop()) - rest;
       },
     });
     expect(dragged).toBeGreaterThan(30);
     await expect(status).toBeVisible();
-    await expect.poll(() => offset(status)).toBeCloseTo(rest, 0);
+    await expect.poll(sheetTop).toBeCloseTo(rest, 0);
     // Up never moves it up.
     await drag(page, status.getByRole("option").first(), -80, {
       before: async () => {
-        expect(await offset(status)).toBeCloseTo(rest, 0);
+        expect(await sheetTop()).toBeCloseTo(rest, 0);
       },
     });
     await expect(status).toBeVisible();
     // A quick drag down closes it, from a list that doesn't scroll.
     await drag(page, status.getByRole("option").nth(1), 160);
-    await expect(status).toBeHidden();
+    await expect(sheet).toBeHidden();
     await expect(
-      filters.getByRole("button", { name: "Prosjektstatus: Foreslått, Planlagt, Under bygging, Ferdigstilt", exact: true }),
-    ).toBeVisible();
+      filters.getByRole("button", { name: "Filtre", exact: true }),
+    ).toHaveAttribute("data-active");
     // A list that scrolls closes from its top.
     await filters.getByRole("button", { name: /^Sted/ }).click();
     const place = page.getByRole("listbox", { name: "Sted", exact: true });
@@ -631,12 +733,6 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
           ).opacity,
         ),
       );
-    // Everything fits: no fade.
-    await filters.getByRole("button", { name: /^Prosjektstatus:/ }).click();
-    const status = page.getByRole("listbox", { name: "Prosjektstatus", exact: true });
-    await expect(status).toBeVisible();
-    await expect.poll(() => opacity(status)).toBe(0);
-    await page.keyboard.press("Escape");
     // More below: a whole fade at the top, part of it near the end, none there.
     await filters.getByRole("button", { name: /^Sted/ }).click();
     const place = page.getByRole("listbox", { name: "Sted", exact: true });
@@ -702,9 +798,17 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     const map = page.locator("[data-project-map]");
     await expect(map).toHaveAttribute("data-map-style", "standard");
     await page.getByRole("button", { name: "Kartlag", exact: true }).tap();
-    await page.getByRole("button", { name: "Gatekart", exact: true }).tap();
+    // Phones choose from a sheet, not the desktop menu.
+    const sheet = page.getByRole("dialog", { name: "Kartlag" });
+    await expect(sheet).toBeVisible();
+    await expect(page.getByRole("group", { name: "Kartlag" })).toHaveCount(0);
+    await sheet.getByRole("button", { name: "Gatekart", exact: true }).tap();
     await expect(map).toHaveAttribute("data-map-style", "streets");
-    await expect(page.getByRole("group", { name: "Kartlag" })).toBeHidden();
+    await expect(sheet).toBeHidden();
+    await page.getByRole("button", { name: "Kartlag", exact: true }).tap();
+    await expect(
+      sheet.getByRole("button", { name: "Gatekart", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 
   test("review screenshots at 390px", async ({ page }) => {
@@ -717,23 +821,27 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     });
     await expect(filters).toBeVisible();
     await shot(page, "mobile-390");
-    await filters.getByRole("button", { name: /^Prosjektstatus:/ }).click();
+    await filters.getByRole("button", { name: "Filtre", exact: true }).click();
+    const sheet = page.getByRole("dialog", { name: "Filtre", exact: true });
+    await expect(sheet).toBeVisible();
+    await shot(page, "mobile-390-filter-sheet");
+    await sheet.getByRole("button", { name: /^Status/ }).click();
     await expect(
-      page.getByRole("listbox", { name: "Prosjektstatus", exact: true }),
+      sheet.getByRole("listbox", { name: "Prosjektstatus", exact: true }),
     ).toBeVisible();
     await shot(page, "mobile-390-status-sheet");
-    await page.keyboard.press("Escape");
-    await filters.getByRole("button", { name: "Kategori", exact: true }).click();
-    await expect(
-      page.getByRole("listbox", { name: "Kategori", exact: true }),
-    ).toBeVisible();
+    await sheet.getByRole("button", { name: /^Status/ }).click();
+    await sheet.getByRole("button", { name: /^Kategori/ }).click();
+    const categories = sheet.getByRole("listbox", {
+      name: "Kategori",
+      exact: true,
+    });
+    await expect(categories).toBeVisible();
     await shot(page, "mobile-390-category-sheet");
-    await page
-      .getByRole("listbox", { name: "Kategori", exact: true })
-      .getByRole("button", { name: "Vis flere" })
-      .click();
+    await categories.getByRole("button", { name: "Vis flere" }).click();
     await shot(page, "mobile-390-category-sheet-more");
     await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
     await filters.getByRole("button", { name: /^Sted/ }).click();
     const placeSheet = page.getByRole("listbox", { name: "Sted", exact: true });
     await expect(placeSheet).toBeVisible();
@@ -763,32 +871,31 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       name: "Filtrer prosjekter",
       exact: true,
     });
-    await filters
-      .getByRole("button", {
-        name: "Prosjektstatus: Foreslått, Planlagt, Under bygging",
-        exact: true,
-      })
-      .click();
-    const status = page.getByRole("listbox", { name: "Prosjektstatus", exact: true });
+    // Category and status share one sheet, behind one button.
+    const filterButton = filters.getByRole("button", {
+      name: "Filtre",
+      exact: true,
+    });
+    await expect(filterButton).not.toHaveAttribute("data-active");
+    await filterButton.click();
+    const sheet = page.getByRole("dialog", { name: "Filtre", exact: true });
+    await expectMenuFits(sheet.locator(":scope > div"));
+    const categoryRow = sheet.getByRole("button", { name: /^Kategori/ });
+    const statusRow = sheet.getByRole("button", { name: /^Status/ });
+    await expect(categoryRow).toHaveAttribute("aria-expanded", "false");
+    await expect(statusRow).toHaveAttribute("aria-expanded", "false");
+    // A row opens its options and puts the other away.
+    await statusRow.click();
+    const status = sheet.getByRole("listbox", {
+      name: "Prosjektstatus",
+      exact: true,
+    });
     await expectMenuFits(status);
+    await expect(statusRow).toHaveAttribute("aria-expanded", "true");
+    await expect(categoryRow).toBeHidden();
     await expect(status.getByRole("option", { selected: true })).toHaveCount(
       3,
     );
-    // The sheet opens over a trigger that keeps still: no turned chevron, no
-    // open highlight.
-    const statusTrigger = filters.getByRole("button", { name: /^Prosjektstatus:/ });
-    await expect(statusTrigger.locator("svg.lucide-chevron-down")).toHaveCSS(
-      "transform",
-      "none",
-    );
-    await expect(statusTrigger).toHaveCSS(
-      "background-color",
-      "rgba(0, 0, 0, 0)",
-    );
-    // The sheet's title reads above its options.
-    const title = status.locator("[data-slot=choice-title]");
-    await expect(title).toHaveCSS("font-weight", "600");
-    await expect(title).toHaveCSS("font-size", "18px");
     await shot(page, "mobile-status-sheet");
     await status
       .getByRole("option", { name: "Ferdigstilt", exact: true })
@@ -796,14 +903,20 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expect(status.getByRole("option", { selected: true })).toHaveCount(
       4,
     );
-    await page.keyboard.press("Escape");
-    await filters
-      .getByRole("button", { name: "Kategori", exact: true })
-      .click();
-    await page
+    // Chosen again, it folds back to both rows.
+    await statusRow.click();
+    await expect(status).toBeHidden();
+    await expect(categoryRow).toBeVisible();
+    await categoryRow.click();
+    await expect(statusRow).toBeHidden();
+    await sheet
       .getByRole("option", { name: project.categories[0], exact: true })
       .click();
+    await expect(categoryRow).toContainText(project.categories[0]);
     await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
+    await expect(filterButton).toBeFocused();
+    await expect(filterButton).toHaveAttribute("data-active");
     await page
       .getByRole("button", { name: "Nullstill filtre", exact: true })
       .click();
@@ -1511,6 +1624,22 @@ test.describe("desktop explorer", () => {
     await expect
       .poll(() => mapParam(page))
       .toMatch(/^59\.9\d+,10\.7[45]\d+,13$/);
+  });
+
+  test("the list follows the map while it pans, before it settles", async ({
+    page,
+  }) => {
+    await page.goto(oslo);
+    await expect(card(page, project.title)).toBeVisible();
+    const view = (await page.locator(".leaflet-container").boundingBox())!;
+    const y = view.y + view.height / 2;
+    await page.mouse.move(view.x + view.width - 40, y);
+    await page.mouse.down();
+    await page.mouse.move(view.x + view.width - 760, y - 300, { steps: 12 });
+    // Still held, and the list has already moved on.
+    await expect(card(page, project.title)).toHaveCount(0);
+    await page.mouse.up();
+    await expect(card(page, project.title)).toHaveCount(0);
   });
 
   test("hovering a card highlights its shape, not the other way round", async ({

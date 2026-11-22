@@ -6,6 +6,7 @@ import {
   useId,
   useRef,
   useState,
+  type KeyboardEvent,
   type ReactNode,
 } from "react";
 import { flushSync } from "react-dom";
@@ -48,6 +49,11 @@ type ChoiceSelectBase = {
    * row follows along rather than jumping.
    */
   smoothWidth?: boolean;
+  /**
+   * Just the options, in place and always shown, styled as on a phone's
+   * sheet: for a sheet of filters holding several of them.
+   */
+  inline?: boolean;
 };
 
 type ChoiceSelectProps =
@@ -74,6 +80,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
     triggerLabel,
     menuTitle = false,
     smoothWidth = false,
+    inline = false,
   } = props;
   const multiple = props.multiple === true;
   const selectedValues = new Set(
@@ -100,10 +107,10 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
   const extra = options.filter((option) => option.more);
   const extraChosen = extra.some((option) => selectedValues.has(option.value));
   // Opens expanded when something under it is chosen.
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(inline && extraChosen);
   // Grouped menus get room for their subcategories to sit side by side.
   const grouped = options.some((option) => option.children?.length);
-  const [sheet, setSheet] = useState(false);
+  const [sheet, setSheet] = useState(inline);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   // The width it last rested at, for `smoothWidth`.
@@ -401,7 +408,8 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
         data-label={option.label}
         role="option"
         aria-selected={chosen}
-        tabIndex={-1}
+        // Inline, the first option is where Tab lands; arrows do the rest.
+        tabIndex={inline && option.value === primary[0]?.value ? 0 : -1}
         className={cn(
           "flex w-full shrink-0 items-center rounded-lg border border-transparent text-left -outline-offset-2",
           // Hover and focus tint at once; only colour changes ease.
@@ -541,6 +549,116 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
     );
   }
 
+  /** Arrows, Home, End and type-ahead move between the options shown. */
+  function navigate(event: KeyboardEvent<HTMLDivElement>) {
+    // Options under a closed group are out of reach.
+    const items = [
+      ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
+        '[role="option"], [data-slot="choice-more"]',
+      ),
+    ].filter((item) => !item.closest("[inert]"));
+    const current = items.indexOf(
+      document.activeElement as HTMLButtonElement,
+    );
+    let next = current;
+    if (event.key === "ArrowDown")
+      next = (current + 1) % items.length;
+    else if (event.key === "ArrowUp")
+      next = (current - 1 + items.length) % items.length;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = items.length - 1;
+    else if (event.key.length === 1 && event.key !== " ") {
+      // Type-ahead: the next option starting with the key, wrapping around.
+      const key = event.key.toLocaleLowerCase("nb");
+      const starts = (item: HTMLButtonElement) =>
+        (item.dataset.label ?? "")
+          .toLocaleLowerCase("nb")
+          .startsWith(key);
+      const match = items.findIndex(
+        (item, i) => i > current && starts(item),
+      );
+      next = match < 0 ? items.findIndex(starts) : match;
+    } else return;
+    event.preventDefault();
+    items[next]?.focus();
+  }
+
+  const optionList = (
+    <div
+      ref={content}
+      className={cn("flex flex-col", sheet ? "gap-0.5" : "gap-1")}
+    >
+      {primary.map(renderEntry)}
+      {extra.length > 0 && (
+        <>
+          <button
+            type="button"
+            data-slot="choice-more"
+            tabIndex={-1}
+            aria-expanded={expanded}
+            className={cn(
+              "flex w-full shrink-0 items-center rounded-lg border border-transparent text-left text-muted -outline-offset-2",
+              "transition-colors duration-150 motion-reduce:transition-none",
+              "hover:text-ink focus-visible:bg-surface-muted focus-visible:text-ink",
+              sheet
+                ? "min-h-12 gap-3 px-3 text-body active:bg-surface-muted"
+                : "min-h-9 gap-2 px-2.5 py-1.5 text-ui hover:bg-surface-muted",
+            )}
+            onClick={() => setExpanded(!expanded)}
+          >
+            <ChevronDown
+              size={16}
+              aria-hidden="true"
+              className={cn(
+                "shrink-0 transition-transform duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+                expanded && "rotate-180",
+              )}
+            />
+            <span>{expanded ? "Vis færre" : "Vis flere"}</span>
+          </button>
+          {/* Eases open like a group's subcategories. */}
+          <div
+            data-slot="choice-extra"
+            className={cn(
+              "grid transition-[grid-template-rows,opacity,visibility] duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+              expanded
+                ? "grid-rows-[1fr] opacity-100"
+                : "invisible grid-rows-[0fr] opacity-0",
+            )}
+            inert={!expanded}
+          >
+            <div className="min-h-0 overflow-hidden">
+              <div
+                className={cn(
+                  "flex flex-col",
+                  sheet ? "gap-0.5" : "gap-1",
+                )}
+              >
+                {extra.map(renderEntry)}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  if (inline)
+    return (
+      <div
+        ref={list}
+        id={id}
+        role="listbox"
+        aria-multiselectable={multiple || undefined}
+        aria-label={label}
+        data-slot="choice-list"
+        className={cn("flex flex-col px-2", className)}
+        onKeyDown={navigate}
+      >
+        {optionList}
+      </div>
+    );
+
   return (
     <div
       ref={root}
@@ -670,38 +788,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
                 : "gap-1 rounded-xl border border-border bg-surface p-1.5 shadow-[0_12px_40px_rgb(20_28_24/0.14),0_2px_6px_rgb(20_28_24/0.04)]",
             )}
             onScroll={sheet ? updateFade : undefined}
-            onKeyDown={(event) => {
-              // Options under a closed group are out of reach.
-              const items = [
-                ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
-                  '[role="option"], [data-slot="choice-more"]',
-                ),
-              ].filter((item) => !item.closest("[inert]"));
-              const current = items.indexOf(
-                document.activeElement as HTMLButtonElement,
-              );
-              let next = current;
-              if (event.key === "ArrowDown")
-                next = (current + 1) % items.length;
-              else if (event.key === "ArrowUp")
-                next = (current - 1 + items.length) % items.length;
-              else if (event.key === "Home") next = 0;
-              else if (event.key === "End") next = items.length - 1;
-              else if (event.key.length === 1 && event.key !== " ") {
-                // Type-ahead: the next option starting with the key, wrapping around.
-                const key = event.key.toLocaleLowerCase("nb");
-                const starts = (item: HTMLButtonElement) =>
-                  (item.dataset.label ?? "")
-                    .toLocaleLowerCase("nb")
-                    .startsWith(key);
-                const match = items.findIndex(
-                  (item, i) => i > current && starts(item),
-                );
-                next = match < 0 ? items.findIndex(starts) : match;
-              } else return;
-              event.preventDefault();
-              items[next]?.focus();
-            }}
+            onKeyDown={navigate}
           >
             {sheet && (
               <div
@@ -735,63 +822,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
                 {label}
               </span>
             )}
-            <div
-              ref={content}
-              className={cn("flex flex-col", sheet ? "gap-0.5" : "gap-1")}
-            >
-              {primary.map(renderEntry)}
-              {extra.length > 0 && (
-                <>
-                  <button
-                    type="button"
-                    data-slot="choice-more"
-                    tabIndex={-1}
-                    aria-expanded={expanded}
-                    className={cn(
-                      "flex w-full shrink-0 items-center rounded-lg border border-transparent text-left text-muted -outline-offset-2",
-                      "transition-colors duration-150 motion-reduce:transition-none",
-                      "hover:text-ink focus-visible:bg-surface-muted focus-visible:text-ink",
-                      sheet
-                        ? "min-h-12 gap-3 px-3 text-body active:bg-surface-muted"
-                        : "min-h-9 gap-2 px-2.5 py-1.5 text-ui hover:bg-surface-muted",
-                    )}
-                    onClick={() => setExpanded(!expanded)}
-                  >
-                    <ChevronDown
-                      size={16}
-                      aria-hidden="true"
-                      className={cn(
-                        "shrink-0 transition-transform duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-                        expanded && "rotate-180",
-                      )}
-                    />
-                    <span>{expanded ? "Vis færre" : "Vis flere"}</span>
-                  </button>
-                  {/* Eases open like a group's subcategories. */}
-                  <div
-                    data-slot="choice-extra"
-                    className={cn(
-                      "grid transition-[grid-template-rows,opacity,visibility] duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-                      expanded
-                        ? "grid-rows-[1fr] opacity-100"
-                        : "invisible grid-rows-[0fr] opacity-0",
-                    )}
-                    inert={!expanded}
-                  >
-                    <div className="min-h-0 overflow-hidden">
-                      <div
-                        className={cn(
-                          "flex flex-col",
-                          sheet ? "gap-0.5" : "gap-1",
-                        )}
-                      >
-                        {extra.map(renderEntry)}
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
+            {optionList}
           </div>
           {sheet && (
             // More below: fades out over the last stretch of scrolling. Over

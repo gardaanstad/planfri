@@ -34,6 +34,7 @@ import {
   Plus,
   Moon,
   Search,
+  SlidersHorizontal,
   User,
   X,
   ZoomOut,
@@ -78,6 +79,7 @@ import AccountMenu from "./account-menu";
 import { authClient } from "../lib/auth-client";
 import ProfileAvatar from "./profile-avatar";
 import ChoiceSelect from "./choice-select";
+import FilterSheet from "./filter-sheet";
 import StatusDots from "./status-dots";
 import CategoryIcon from "./category-icon";
 import ProjectEditor from "./project-editor";
@@ -395,6 +397,7 @@ export default memo(function Explorer({
   );
   const [query, setQuery] = useState(initial.query);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [status, setStatus] = useState<string[]>(initial.status);
   const [category, setCategory] = useState<string[]>(initial.category);
   const [sort, setSort] = useState(initial.sort);
@@ -487,8 +490,9 @@ export default memo(function Explorer({
 
   // The map is the place filter: the list holds what its view covers.
   const mapApi = useRef<MapApi | null>(null);
-  // Every view lands in this ref; React only hears of it when the projects
-  // in view change, so panning about doesn't re-render the explorer.
+  // Every settled view lands in this ref. React only hears of a view, settled
+  // or mid-pan, when the projects in it change, so panning about doesn't
+  // re-render the explorer.
   const mapViewRef = useRef<MapViewChange | null>(null);
   const [viewBounds, setViewBounds] = useState<Bounds | null>(null);
   const inViewKey = useRef("");
@@ -760,15 +764,17 @@ export default memo(function Explorer({
     return projects.filter((project) => projectInBounds(project, view.bounds));
   }
   function onMapView(view: MapViewChange) {
-    mapViewRef.current = view;
+    // The URL and the view to return to take only views the map rests on.
+    if (!view.moving) mapViewRef.current = view;
     const shown = projectsInView(view);
     const key = shown.map((project) => project.id).join();
     if (key !== inViewKey.current) {
       inViewKey.current = key;
       setViewBounds(view.bounds);
     }
-    if (!postView.current) setFrozenBounds(null);
     followPlace(view, shown);
+    if (view.moving) return;
+    if (!postView.current) setFrozenBounds(null);
     syncSoon();
   }
   /** Beside the map, "Velg sted" names the place the view shows. */
@@ -1342,6 +1348,31 @@ export default memo(function Explorer({
       <Search size={isMobile ? 19 : 16} aria-hidden="true" />
     </button>
   );
+  // Phones gather category and status in one sheet, behind this button.
+  const filtersSet = statusChanged || category.length > 0;
+  const filterButton = (
+    <button
+      type="button"
+      className={cn(
+        "relative flex size-11 shrink-0 items-center justify-center rounded-full text-muted",
+        "transition-colors duration-150 [-webkit-tap-highlight-color:transparent] motion-reduce:transition-none",
+        filtersSet && "text-ink",
+      )}
+      aria-label="Filtre"
+      aria-haspopup="dialog"
+      aria-expanded={filterSheetOpen}
+      data-active={filtersSet || undefined}
+      onClick={() => setFilterSheetOpen(true)}
+    >
+      <SlidersHorizontal size={19} aria-hidden="true" />
+      {filtersSet && (
+        <span
+          aria-hidden="true"
+          className="absolute top-2.5 right-2 size-2 rounded-full border-[1.5px] border-surface bg-accent box-content"
+        />
+      )}
+    </button>
+  );
   // The filters fade as the field opens out of the button at their end.
   const filterBar = (filters: ReactNode) => (
     <section
@@ -1387,6 +1418,7 @@ export default memo(function Explorer({
               Nullstill filtre
             </button>
           )}
+          {isMobile && filterButton}
           {searchButton}
         </div>
       </div>
@@ -1463,57 +1495,79 @@ export default memo(function Explorer({
       multiple
       value={statusValue}
       onChange={pickStatus}
-      triggerLabel={isMobile ? "Prosjektstatus" : "Status"}
+      triggerLabel="Status"
       icon={<StatusDots values={status} />}
       className={cn(
-        isMobile
-          ? [
-              inlineChoiceClasses,
-              "[&_[data-slot=choice-trigger]>span]:sr-only [&_[data-slot=choice-trigger]]:gap-1 [&_[data-slot=choice-menu]]:min-w-[200px]",
-            ]
-          : [
-              panelChoiceClasses,
-              "shrink-0",
-              // Narrow, its dots alone; the menu carries the name.
-              // The dots already count what is shown.
-              "[&_[data-slot=choice-trigger]>span:nth-of-type(2)]:hidden",
-              "@max-[360px]:[&_[data-slot=choice-trigger]>span]:sr-only [&_[data-slot=choice-menu]]:min-w-[200px]",
-            ],
+        panelChoiceClasses,
+        "shrink-0",
+        // Narrow, its dots alone; the menu carries the name.
+        // The dots already count what is shown.
+        "[&_[data-slot=choice-trigger]>span:nth-of-type(2)]:hidden",
+        "@max-[360px]:[&_[data-slot=choice-trigger]>span]:sr-only [&_[data-slot=choice-menu]]:min-w-[200px]",
       )}
       options={statusOptions}
     />
   );
   const mobileFilters = filterBar(
-    <>
-      <ChoiceSelect
-        label="Sted"
-        smoothWidth
-        value={place}
-        onChange={pickPlace}
-        triggerLabel={place || placeFallback}
-        className={cn(
-          inlineChoiceClasses,
-          "[&_[data-slot=choice-trigger]>span:nth-of-type(2)]:hidden",
-          !place && "[&_[data-slot=choice-trigger]]:font-medium",
-        )}
-        options={placeOptions}
-      />
-      <ChoiceSelect
-        label="Kategori"
-        smoothWidth
-        multiple
-        value={category}
-        onChange={setCategory}
-        triggerLabel={categorySummary(category)}
-        className={cn(
-          inlineChoiceClasses,
-          "[&_[data-slot=choice-trigger]>span:nth-of-type(2)]:hidden",
-          category.length === 0 && "[&_[data-slot=choice-trigger]]:font-medium",
-        )}
-        options={categoryOptions}
-      />
-      {statusFilter}
-    </>,
+    <ChoiceSelect
+      label="Sted"
+      smoothWidth
+      value={place}
+      onChange={pickPlace}
+      triggerLabel={place || placeFallback}
+      className={cn(
+        inlineChoiceClasses,
+        "[&_[data-slot=choice-trigger]>span:nth-of-type(2)]:hidden",
+        !place && "[&_[data-slot=choice-trigger]]:font-medium",
+      )}
+      options={placeOptions}
+    />,
+  );
+  const shownStatuses = statusOrder.filter((value) =>
+    statusValue.includes(value),
+  );
+  const filterSheet = filterSheetOpen && (
+    <FilterSheet
+      label="Filtre"
+      onClose={() => setFilterSheetOpen(false)}
+      sections={[
+        {
+          id: "category",
+          label: "Kategori",
+          summary: category.length ? categorySummary(category) : "Alle",
+          content: (
+            <ChoiceSelect
+              inline
+              label="Kategori"
+              multiple
+              value={category}
+              onChange={setCategory}
+              options={categoryOptions}
+            />
+          ),
+        },
+        {
+          id: "status",
+          label: "Status",
+          summary:
+            shownStatuses.length === statusOrder.length
+              ? "Alle"
+              : shownStatuses.length === 1
+                ? statuses[shownStatuses[0]].label
+                : `${shownStatuses.length} av ${statusOrder.length}`,
+          content: (
+            <ChoiceSelect
+              inline
+              label="Prosjektstatus"
+              multiple
+              value={statusValue}
+              onChange={pickStatus}
+              options={statusOptions}
+            />
+          ),
+        },
+      ]}
+    />
   );
 
   const sortFilter = (
@@ -1526,6 +1580,8 @@ export default memo(function Explorer({
         // Beside the view switch, not at the edge: no overhang.
         "mr-0",
         "md:@max-[320px]/list:[&_[data-slot=choice-trigger]>span]:sr-only",
+        // Phones: beside "Visning", a narrow list keeps the icon alone.
+        "max-md:@max-[360px]/list:[&_[data-slot=choice-trigger]>span]:sr-only",
         // Beside the longer count, a narrow list keeps its icon alone too.
         outsideHits > 0 &&
           "@max-[560px]/list:[&_[data-slot=choice-trigger]>span]:sr-only",
@@ -1533,6 +1589,21 @@ export default memo(function Explorer({
       icon={<ArrowDownUp size={14} />}
       onChange={setSort}
       options={sortOptions}
+    />
+  );
+  // Phones: one button, its views in a sheet.
+  const densityMenu = (
+    <ChoiceSelect
+      label="Visning"
+      triggerLabel="Visning"
+      value={density}
+      onChange={(value) => storeDensity(value as ListDensity)}
+      className={sortChoice}
+      options={densityOptions.map(({ value, label, Icon }) => ({
+        value,
+        label,
+        icon: <Icon size={18} aria-hidden="true" />,
+      }))}
     />
   );
   const densitySwitch = (
@@ -1661,55 +1732,68 @@ export default memo(function Explorer({
   // past the line, as tall as a finger needs.
   const countLink =
     "relative text-ink-soft underline decoration-border-strong underline-offset-3 transition-[text-decoration-color,color] duration-120 hover:text-ink hover:decoration-current after:absolute after:-inset-x-1 after:-inset-y-1.5 pointer-coarse:after:-inset-y-3";
+  // Every part leads with a dot, clipped where the part starts a line: the
+  // first, and any wrapped onto a new one, so no line starts with a dot.
+  const countSeparator = (
+    <span aria-hidden="true" className="w-4 shrink-0 text-center">
+      ·
+    </span>
+  );
   // With matches outside the map: what's in view, in the place the view is
-  // on, then all of them; a press on either of the last frames them.
+  // on, then all of them; a press on either of the last frames them. The
+  // padding keeps the links' press areas clear of the clip.
   const listCount =
     outsideHits > 0 ? (
-      <span className="text-ui inline-flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-muted tabular-nums">
-        {density === "feed" ? (
-          feedCount
-        ) : (
-          <span
-            className="whitespace-nowrap"
-            role="status"
-            aria-label={`${shown} ${shown === 1 ? "synlig prosjekt" : "synlige prosjekter"}`}
-          >
-            {shown} {shown === 1 ? "synlig" : "synlige"}
-            {/* A narrow list keeps the line whole with the shorter words. */}
-            <span className="@max-[560px]/list:hidden">
-              {shown === 1 ? " prosjekt" : " prosjekter"}
-            </span>
-          </span>
-        )}
-        {showInPlace && (
-          <span className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap">
-            <span aria-hidden="true">·</span>
-            <button
-              type="button"
-              className={cn(countLink, "flex min-w-0")}
-              aria-label={`${inPlace} i ${countPlace}, vis ${countPlace} på kartet`}
-              onClick={() => goToPlace(countPlace)}
-            >
-              {/* A long name gives way; the press area stays whole. */}
-              <span className="max-w-[12rem] truncate">
-                {inPlace} i {countPlace}
+      <span className="-my-3 min-w-0 overflow-hidden py-3">
+        <span className="text-ui -ml-4 flex min-w-0 flex-wrap items-center gap-y-1 text-muted tabular-nums">
+          <span className="inline-flex min-w-0 items-center">
+            {countSeparator}
+            {density === "feed" ? (
+              feedCount
+            ) : (
+              <span
+                className="whitespace-nowrap"
+                role="status"
+                aria-label={`${shown} ${shown === 1 ? "synlig prosjekt" : "synlige prosjekter"}`}
+              >
+                {shown} {shown === 1 ? "synlig" : "synlige"}
+                {/* A narrow list keeps the line whole with the shorter words. */}
+                <span className="@max-[560px]/list:hidden">
+                  {shown === 1 ? " prosjekt" : " prosjekter"}
+                </span>
               </span>
-            </button>
+            )}
           </span>
-        )}
-        {showTotal && (
-          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-            <span aria-hidden="true">·</span>
-            <button
-              type="button"
-              className={countLink}
-              aria-label={`${total} totalt, vis alle på kartet`}
-              onClick={showSearchHits}
-            >
-              {total} totalt
-            </button>
-          </span>
-        )}
+          {showInPlace && (
+            <span className="inline-flex min-w-0 items-center whitespace-nowrap">
+              {countSeparator}
+              <button
+                type="button"
+                className={cn(countLink, "flex min-w-0")}
+                aria-label={`${inPlace} i ${countPlace}, vis ${countPlace} på kartet`}
+                onClick={() => goToPlace(countPlace)}
+              >
+                {/* A long name gives way; the press area stays whole. */}
+                <span className="max-w-[12rem] truncate">
+                  {inPlace} i {countPlace}
+                </span>
+              </button>
+            </span>
+          )}
+          {showTotal && (
+            <span className="inline-flex items-center whitespace-nowrap">
+              {countSeparator}
+              <button
+                type="button"
+                className={countLink}
+                aria-label={`${total} totalt, vis alle på kartet`}
+                onClick={showSearchHits}
+              >
+                {total} totalt
+              </button>
+            </span>
+          )}
+        </span>
       </span>
     ) : density === "feed" ? (
       <span className="text-ui text-muted tabular-nums">{feedCount}</span>
@@ -1828,17 +1912,19 @@ export default memo(function Explorer({
         )}
       >
         {isMobile ? mobileFilters : desktopFilters}
-        {/* Too narrow for both, the views and order go under the count. */}
-        <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border py-1.5">
+        {isMobile && filterSheet}
+        {/* Too narrow for both, the views and order go under the count;
+            on phones they stay beside it, and the count wraps instead. */}
+        <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border py-1.5 max-md:flex-nowrap">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
             <h1 className="sr-only">Prosjekter</h1>
             {listCount}
           </div>
-          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          <div className="ml-auto flex shrink-0 items-center gap-1.5 max-md:gap-0">
             {/* The switch at the edge, so the order coming and going, or a
                 longer name for it, never moves it. "Nytt" has its own order. */}
             {density !== "feed" && sortFilter}
-            {densitySwitch}
+            {isMobile ? densityMenu : densitySwitch}
           </div>
         </div>
         {density === "feed" && listedProjects.length > 0 && (
@@ -2789,9 +2875,10 @@ export default memo(function Explorer({
                   visibleBottomClasses,
                   snapInstantly && "transition-none",
                   meetQuickly && "duration-340",
-                  // Let Base UI swipe the drawer before its content starts scrolling.
+                  // Let Base UI swipe the drawer before its content starts scrolling,
+                  // unless the content is scrolled already (`useScrolledMark`).
                   snapPoint !== 1 &&
-                    "[&_[data-drawer-scroll]]:overflow-y-hidden",
+                    "[&_[data-drawer-scroll]:not([data-scrolled])]:overflow-y-hidden",
                 )}
                 contentClassName={mobileDrawerInnerClasses}
                 initialFocus={false}
