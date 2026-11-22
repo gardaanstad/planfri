@@ -33,6 +33,7 @@ import {
   Plus,
   Moon,
   Search,
+  SlidersHorizontal,
   User,
   X,
   ZoomOut,
@@ -77,6 +78,7 @@ import AccountMenu from "./account-menu";
 import { authClient } from "../lib/auth-client";
 import ProfileAvatar from "./profile-avatar";
 import ChoiceSelect from "./choice-select";
+import FilterSheet from "./filter-sheet";
 import StatusDots from "./status-dots";
 import CategoryIcon from "./category-icon";
 import ProjectEditor from "./project-editor";
@@ -354,6 +356,7 @@ export default memo(function Explorer({
   );
   const [query, setQuery] = useState(initial.query);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [status, setStatus] = useState<string[]>(initial.status);
   const [category, setCategory] = useState<string[]>(initial.category);
   const [sort, setSort] = useState(initial.sort);
@@ -1236,6 +1239,31 @@ export default memo(function Explorer({
       <Search size={isMobile ? 19 : 16} aria-hidden="true" />
     </button>
   );
+  // Phones gather category and status in one sheet, behind this button.
+  const filtersSet = statusChanged || category.length > 0;
+  const filterButton = (
+    <button
+      type="button"
+      className={cn(
+        "relative flex size-11 shrink-0 items-center justify-center rounded-full text-muted",
+        "transition-colors duration-150 [-webkit-tap-highlight-color:transparent] motion-reduce:transition-none",
+        filtersSet && "text-ink",
+      )}
+      aria-label="Filtre"
+      aria-haspopup="dialog"
+      aria-expanded={filterSheetOpen}
+      data-active={filtersSet || undefined}
+      onClick={() => setFilterSheetOpen(true)}
+    >
+      <SlidersHorizontal size={19} aria-hidden="true" />
+      {filtersSet && (
+        <span
+          aria-hidden="true"
+          className="absolute top-2.5 right-2 size-2 rounded-full border-[1.5px] border-surface bg-accent box-content"
+        />
+      )}
+    </button>
+  );
   // The filters fade as the field opens out of the button at their end.
   const filterBar = (filters: ReactNode) => (
     <section
@@ -1281,6 +1309,7 @@ export default memo(function Explorer({
               Nullstill filtre
             </button>
           )}
+          {isMobile && filterButton}
           {searchButton}
         </div>
       </div>
@@ -1357,57 +1386,79 @@ export default memo(function Explorer({
       multiple
       value={statusValue}
       onChange={pickStatus}
-      triggerLabel={isMobile ? "Prosjektstatus" : "Status"}
+      triggerLabel="Status"
       icon={<StatusDots values={status} />}
       className={cn(
-        isMobile
-          ? [
-              inlineChoiceClasses,
-              "[&_[data-slot=choice-trigger]>span]:sr-only [&_[data-slot=choice-trigger]]:gap-1 [&_[data-slot=choice-menu]]:min-w-[200px]",
-            ]
-          : [
-              panelChoiceClasses,
-              "shrink-0",
-              // Narrow, its dots alone; the menu carries the name.
-              // The dots already count what is shown.
-              "[&_[data-slot=choice-trigger]>span:nth-of-type(2)]:hidden",
-              "@max-[360px]:[&_[data-slot=choice-trigger]>span]:sr-only [&_[data-slot=choice-menu]]:min-w-[200px]",
-            ],
+        panelChoiceClasses,
+        "shrink-0",
+        // Narrow, its dots alone; the menu carries the name.
+        // The dots already count what is shown.
+        "[&_[data-slot=choice-trigger]>span:nth-of-type(2)]:hidden",
+        "@max-[360px]:[&_[data-slot=choice-trigger]>span]:sr-only [&_[data-slot=choice-menu]]:min-w-[200px]",
       )}
       options={statusOptions}
     />
   );
   const mobileFilters = filterBar(
-    <>
-      <ChoiceSelect
-        label="Sted"
-        smoothWidth
-        value={place}
-        onChange={pickPlace}
-        triggerLabel={place || placeFallback}
-        className={cn(
-          inlineChoiceClasses,
-          "[&_[data-slot=choice-trigger]>span:nth-of-type(2)]:hidden",
-          !place && "[&_[data-slot=choice-trigger]]:font-medium",
-        )}
-        options={placeOptions}
-      />
-      <ChoiceSelect
-        label="Kategori"
-        smoothWidth
-        multiple
-        value={category}
-        onChange={setCategory}
-        triggerLabel={categorySummary(category)}
-        className={cn(
-          inlineChoiceClasses,
-          "[&_[data-slot=choice-trigger]>span:nth-of-type(2)]:hidden",
-          category.length === 0 && "[&_[data-slot=choice-trigger]]:font-medium",
-        )}
-        options={categoryOptions}
-      />
-      {statusFilter}
-    </>,
+    <ChoiceSelect
+      label="Sted"
+      smoothWidth
+      value={place}
+      onChange={pickPlace}
+      triggerLabel={place || placeFallback}
+      className={cn(
+        inlineChoiceClasses,
+        "[&_[data-slot=choice-trigger]>span:nth-of-type(2)]:hidden",
+        !place && "[&_[data-slot=choice-trigger]]:font-medium",
+      )}
+      options={placeOptions}
+    />,
+  );
+  const shownStatuses = statusOrder.filter((value) =>
+    statusValue.includes(value),
+  );
+  const filterSheet = filterSheetOpen && (
+    <FilterSheet
+      label="Filtre"
+      onClose={() => setFilterSheetOpen(false)}
+      sections={[
+        {
+          id: "category",
+          label: "Kategori",
+          summary: category.length ? categorySummary(category) : "Alle",
+          content: (
+            <ChoiceSelect
+              inline
+              label="Kategori"
+              multiple
+              value={category}
+              onChange={setCategory}
+              options={categoryOptions}
+            />
+          ),
+        },
+        {
+          id: "status",
+          label: "Status",
+          summary:
+            shownStatuses.length === statusOrder.length
+              ? "Alle"
+              : shownStatuses.length === 1
+                ? statuses[shownStatuses[0]].label
+                : `${shownStatuses.length} av ${statusOrder.length}`,
+          content: (
+            <ChoiceSelect
+              inline
+              label="Prosjektstatus"
+              multiple
+              value={statusValue}
+              onChange={pickStatus}
+              options={statusOptions}
+            />
+          ),
+        },
+      ]}
+    />
   );
 
   const sortFilter = (
@@ -1722,6 +1773,7 @@ export default memo(function Explorer({
         )}
       >
         {isMobile ? mobileFilters : desktopFilters}
+        {isMobile && filterSheet}
         {/* Too narrow for both, the views and order go under the count. */}
         <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border py-1.5">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
