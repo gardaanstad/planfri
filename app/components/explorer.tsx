@@ -558,8 +558,8 @@ export default memo(function Explorer({
     postView.current = null;
     // Back to where the project was opened from; the list follows when the
     // map settles. Opened by link, the list takes the area around it.
-    // Phones: the list holds what is in sight above the drawer, which may
-    // have grown since, so all of that area comes back into sight.
+    // Phones: the list may rest higher than it did, so the middle of what
+    // was in sight comes back above it, at the zoom it had.
     if (view.before)
       mapApi.current?.show(
         view.before,
