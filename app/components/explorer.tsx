@@ -2532,13 +2532,9 @@ export default memo(function Explorer({
                         "group-data-map-covered/drawer-popup:invisible group-data-map-covered/drawer-popup:opacity-0",
                       )}
                     />
-                    {/* For the list's own rows: hidden while a panel is over it,
-                      so none slides down into it. */}
-                  <ScrollFade
-                    shown={
-                      snapPoint === middleSnapPoint && mobileLayers.length === 0
-                    }
-                  />
+                    {/* For the list's own rows. It stays while a panel is over
+                      it, so it is already there as a closing panel leaves. */}
+                    <ScrollFade shown={snapPoint === middleSnapPoint} />
                   </>
                 }
                 data-explorer-drawer=""
