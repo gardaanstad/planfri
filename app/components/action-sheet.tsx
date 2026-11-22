@@ -2,7 +2,7 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { LogIn } from "lucide-react";
 import { cn } from "../lib/cn";
-import { reducedMotion } from "../lib/media";
+import { reducedMotion, sheetLeave } from "../lib/media";
 import { keyboardFocused } from "../lib/ui";
 import { useSwipeDismiss } from "./use-swipe-dismiss";
 
@@ -107,13 +107,12 @@ export default function ActionSheet({
       then?.();
     };
     if (!dialog || !panel || !animate || reducedMotion()) return done();
-    const options = { duration: 200, easing: "ease-in", fill: "forwards" as const };
     const out = panel.animate(
       [{ transform: "none" }, { transform: "translateY(100%)" }],
-      options,
+      sheetLeave,
     );
     dialog.animate([{ opacity: 1 }, { opacity: 0 }], {
-      ...options,
+      ...sheetLeave,
       pseudoElement: "::backdrop",
     });
     out.finished.then(done, done);

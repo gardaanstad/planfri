@@ -10,7 +10,7 @@ import {
 } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { cn } from "../lib/cn";
-import { mobileQuery, reducedMotion } from "../lib/media";
+import { mobileQuery, reducedMotion, sheetLeave } from "../lib/media";
 import { useSwipeDismiss } from "./use-swipe-dismiss";
 
 type Option = {
@@ -222,17 +222,44 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
     return () => observer.disconnect();
   }, [open, sheet]);
 
-  function close() {
-    setOpen(false);
+  // A sheet sliding away; its animations are let go once it has closed.
+  const leaving = useRef<Animation[] | null>(null);
+  function close(animate = true) {
     trigger.current?.focus({ preventScroll: true });
+    const panel = sheetPanel.current;
+    const scrim = menu.current;
+    if (leaving.current) return;
+    if (!sheet || !animate || !panel || !scrim || reducedMotion()) {
+      setOpen(false);
+      return;
+    }
+    const out = panel.animate(
+      [{ transform: "none" }, { transform: "translateY(100%)" }],
+      sheetLeave,
+    );
+    const fade = scrim.animate(
+      [{ "--sheet-progress": 0 }, { "--sheet-progress": 1 }],
+      sheetLeave,
+    );
+    leaving.current = [out, fade];
+    const done = () => {
+      setOpen(false);
+      // Hidden by the next frame; it opens again from rest.
+      requestAnimationFrame(() => {
+        leaving.current?.forEach((animation) => animation.cancel());
+        leaving.current = null;
+      });
+    };
+    out.finished.then(done, done);
   }
-  // Dragged down like the drawers, from its handle or a list at its top.
+  // Dragged down like the drawers, from its handle or a list at its top;
+  // it has already slid away by then.
   useSwipeDismiss({
     enabled: open && sheet,
     sheet: sheetPanel,
     scroller: list,
     backdrop: menu,
-    onDismiss: close,
+    onDismiss: () => close(false),
   });
 
   /** A parent narrowed to some of its children, rather than all of it. */
