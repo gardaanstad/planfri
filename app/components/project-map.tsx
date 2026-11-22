@@ -317,7 +317,11 @@ export type MapApi = {
    */
   highlight: (id: string | null) => void;
 };
-export type MapViewChange = MapView & { bounds: ViewBounds };
+export type MapViewChange = MapView & {
+  bounds: ViewBounds;
+  /** Mid-pan or mid-zoom: the map hasn't settled on this view. */
+  moving?: boolean;
+};
 // Vector maps from OpenFreeMap: free, without keys or limits, and drawn
 // by the browser, so labels and lines are sharp at any pixel density and at
 // half zoom steps. Positron is a quiet grey base for the projects, and Dark
@@ -803,18 +807,36 @@ export default function ProjectMap({
         zoom: map.getZoom(),
       };
     };
-    const report = () => {
+    const report = (moving = false) => {
       if (resizing.current || syncing.current) return;
       const center = map.getCenter();
       const view: MapView = {
         center: [center.lat, center.lng],
         zoom: map.getZoom(),
       };
-      storeMapView(view);
-      handlers.current.onViewChange?.({ ...view, bounds: boundsAbove(inset()) });
+      if (!moving) storeMapView(view);
+      handlers.current.onViewChange?.({
+        ...view,
+        bounds: boundsAbove(inset()),
+        moving,
+      });
+    };
+    const settle = () => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      report();
+    };
+    // While it moves too, so the list follows the map, at most once a frame.
+    let frame = 0;
+    const move = () => {
+      frame ||= requestAnimationFrame(() => {
+        frame = 0;
+        report(true);
+      });
     };
     report();
-    map.on("moveend", report);
+    map.on("moveend", settle);
+    map.on("move", move);
     const syncSize = () => syncRef.current();
     // Leaflet drops new views while a zoom animates, so they wait for its end.
     const settled = (move: () => void) => {
@@ -904,7 +926,9 @@ export default function ProjectMap({
       },
     });
     return () => {
-      map.off("moveend", report);
+      cancelAnimationFrame(frame);
+      map.off("moveend", settle);
+      map.off("move", move);
       map.off("zoomend", pending);
     };
   }, [ready, draw]);

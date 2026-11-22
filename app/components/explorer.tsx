@@ -446,8 +446,9 @@ export default memo(function Explorer({
 
   // The map is the place filter: the list holds what its view covers.
   const mapApi = useRef<MapApi | null>(null);
-  // Every view lands in this ref; React only hears of it when the projects
-  // in view change, so panning about doesn't re-render the explorer.
+  // Every settled view lands in this ref. React only hears of a view, settled
+  // or mid-pan, when the projects in it change, so panning about doesn't
+  // re-render the explorer.
   const mapViewRef = useRef<MapViewChange | null>(null);
   const [viewBounds, setViewBounds] = useState<Bounds | null>(null);
   const inViewKey = useRef("");
@@ -719,15 +720,17 @@ export default memo(function Explorer({
     return projects.filter((project) => projectInBounds(project, view.bounds));
   }
   function onMapView(view: MapViewChange) {
-    mapViewRef.current = view;
+    // The URL and the view to return to take only views the map rests on.
+    if (!view.moving) mapViewRef.current = view;
     const shown = projectsInView(view);
     const key = shown.map((project) => project.id).join();
     if (key !== inViewKey.current) {
       inViewKey.current = key;
       setViewBounds(view.bounds);
     }
-    if (!postView.current) setFrozenBounds(null);
     followPlace(view, shown);
+    if (view.moving) return;
+    if (!postView.current) setFrozenBounds(null);
     syncSoon();
   }
   /** Beside the map, "Velg sted" names the place the view shows. */
