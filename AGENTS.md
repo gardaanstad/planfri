@@ -28,3 +28,9 @@ Each worktree gets its own test port, database, and build directory, so runs in 
 Specs run with reduced motion, so they don't wait out animations; a spec about motion itself starts with `await page.emulateMedia({ reducedMotion: "no-preference" })`. No traces are recorded: rerun a failing spec with `--trace on` to get one. Set `TEST_SCREENSHOTS=<dir>` to save the review screenshots specs take with `shot()`.
 
 Pages are server-rendered, so a test can click before the page is interactive. Don't paper over that with retries or timeouts. Make sure listeners that a click depends on exist by the time the page hydrates (register them in a layout effect, not a passive effect), or wait for a visible sign that the page is ready. To check a fix for a flaky test, run it under load: `--repeat-each 60 --workers 12`.
+
+# Landing
+
+To get your branch onto main, commit, then run `scripts/land.sh` from your worktree. Never push to main yourself, and don't merge main into your branch. The script rebases on `origin/main`, waits its turn if another agent is landing, and pushes. It reruns lint and typecheck only when main has moved; specs aren't rerun, so run yours before landing.
+
+Exit 0 means landed. On exit 1, do what its last lines say, then run it again. The common case is a conflict: resolve the listed files, `git add` them, `GIT_EDITOR=true git rebase --continue`, rerun. Git remembers conflict resolutions (rerere), so you won't have to resolve the same conflict twice.
