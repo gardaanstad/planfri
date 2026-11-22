@@ -622,7 +622,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
                 {/* Above the options' 15px: larger, heavier and in full ink. */}
                 <span
                   data-slot="choice-title"
-                  className="mt-4 self-start px-1 text-heading text-ink"
+                  className="mt-3 self-start px-1 text-heading text-ink"
                 >
                   {label}
                 </span>

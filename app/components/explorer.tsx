@@ -2097,7 +2097,7 @@ export default memo(function Explorer({
           : "inset-x-2 bottom-2 h-[128px] rounded-b-sheet",
       )}
     >
-      <div className="flex h-6 shrink-0 items-center justify-center">
+      <div className="flex h-5 shrink-0 items-center justify-center">
         <DrawerGrip />
       </div>
       <div
@@ -2577,7 +2577,7 @@ export default memo(function Explorer({
                   <button
                     ref={drawerHandleRef}
                     className={cn(
-                      "group/handle flex h-6 w-full shrink-0 touch-none cursor-grab items-center justify-center p-0 active:cursor-grabbing",
+                      "group/handle flex h-5 w-full shrink-0 touch-none cursor-grab items-center justify-center p-0 active:cursor-grabbing",
                       "transition-[color,opacity] duration-150 hover:text-accent active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100",
                       "group-data-panel-open/drawer-popup:opacity-0",
                     )}

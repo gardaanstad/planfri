@@ -63,7 +63,7 @@ export function DrawerGrip() {
 const gripBar = (
   <div
     aria-hidden="true"
-    className="flex h-6 w-full shrink-0 touch-none cursor-grab items-center justify-center active:cursor-grabbing"
+    className="flex h-5 w-full shrink-0 touch-none cursor-grab items-center justify-center active:cursor-grabbing"
   >
     <DrawerGrip />
   </div>
@@ -318,7 +318,7 @@ export function PanelHeader({
         "z-20 flex shrink-0 items-start gap-2 border-b bg-surface",
         "transition-[border-color] duration-200 motion-reduce:transition-none",
         frame.scrolled ? "border-border" : "border-transparent",
-        mobile ? "px-4.5 pt-1 pb-1" : "pt-2.5 pr-3 pb-1 pl-6",
+        mobile ? "px-4.5 pt-0 pb-1" : "pt-2.5 pr-3 pb-1 pl-6",
       )}
       data-panel-header=""
     >
@@ -348,11 +348,11 @@ export function PanelHeader({
           {title}
         </h1>
       </div>
-      {/* Offsets put the icon glyphs, not the hit areas, on the content edge. */}
+      {/* The close glyph sits a little inside the content edge, clear of the corner. */}
       <div
         className={cn(
           "flex shrink-0 items-center",
-          mobile ? "-mr-[15px]" : "gap-0.5",
+          mobile ? "-mr-3" : "gap-0.5",
         )}
       >
         {actions && (

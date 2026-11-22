@@ -358,14 +358,14 @@ export default function ProjectPostHeader({
     return (
       <header
         className={cn(
-          "z-20 flex shrink-0 items-start gap-2 border-b bg-surface px-4.5 pt-1 pb-1",
+          "z-20 flex shrink-0 items-start gap-2 border-b bg-surface px-4.5 pt-0 pb-1",
           border,
         )}
         data-compact={compact}
       >
         {title}
-        {/* Offsets put the icon glyphs, not the hit areas, on the content edges. */}
-        <div className="-mr-[15px] flex shrink-0 items-center">
+        {/* The close glyph sits a little inside the content edge, clear of the corner. */}
+        <div className="-mr-3 flex shrink-0 items-center">
           {!edit && <MobileActions {...actions} />}
           {close}
         </div>
