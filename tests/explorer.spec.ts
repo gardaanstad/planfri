@@ -1245,6 +1245,29 @@ test.describe("desktop explorer", () => {
     expect(await list.evaluate((element) => element.scrollTop)).toBe(top);
   });
 
+  test("hovering a card shows its tooltip over the middle of its shape", async ({
+    page,
+  }) => {
+    await page.goto(oslo);
+    const tooltip = page.locator(".project-tooltip");
+    await card(page, project.title).hover();
+    await expect(tooltip).toHaveCount(1);
+    await expect(tooltip).toContainText(project.title);
+    const shape = (await page
+      .locator(`path[data-project-id="${project.id}"]`)
+      .boundingBox())!;
+    const box = (await tooltip.boundingBox())!;
+    // Centred just above the shape, pointing down at it.
+    expect(
+      Math.abs(box.x + box.width / 2 - (shape.x + shape.width / 2)),
+    ).toBeLessThan(2);
+    expect(box.y + box.height).toBeLessThanOrEqual(shape.y);
+    expect(box.y + box.height).toBeGreaterThan(shape.y - 16);
+    await shot(page, "card-hover-tooltip");
+    await page.mouse.move(1000, 790);
+    await expect(tooltip).toHaveCount(0);
+  });
+
   test("filtering draws only the shapes that come and go", async ({ page }) => {
     await page.goto(oslo);
     const kept = page.locator(`path[data-project-id="${project.id}"]`);
@@ -1291,6 +1314,15 @@ test.describe("desktop explorer", () => {
     // The project stays in its group instead of being pulled out of it.
     await expect(page.locator(`path[data-project-id="${project.id}"]`)).toBeHidden();
     await expect(page.locator(".project-cluster.is-highlighted")).toHaveCount(1);
+    // Its tooltip points at the group.
+    const tooltip = page.locator(".project-tooltip");
+    await expect(tooltip).toContainText(project.title);
+    const marker = (await group.boundingBox())!;
+    const box = (await tooltip.boundingBox())!;
+    expect(
+      Math.abs(box.x + box.width / 2 - (marker.x + marker.width / 2)),
+    ).toBeLessThan(2);
+    expect(box.y + box.height).toBeLessThanOrEqual(marker.y);
     await page.mouse.move(1000, 790);
     await expect(group).not.toHaveClass(/is-highlighted/);
     expect(

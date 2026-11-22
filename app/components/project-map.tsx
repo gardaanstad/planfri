@@ -1130,6 +1130,50 @@ export default function ProjectMap({
         element.focus({ preventScroll: true });
       shape.closeTooltip();
     };
+    // A hovered card's project shows its tooltip centred over it: over the
+    // group it sits in, its dot, the midpoint of its line or the top of its
+    // area, kept on the map for an area larger than the view.
+    const hint = L.tooltip({
+      ...tooltipOptions,
+      sticky: false,
+      interactive: false,
+    });
+    let hintId: string | null = null;
+    const placeHint = () => {
+      const id = highlightedRef.current;
+      const entry = id ? drawn.get(id) : undefined;
+      if (!id || !entry || id === selectedRef.current) {
+        hint.remove();
+        hintId = null;
+        return;
+      }
+      const { project, shape, dot } = entry;
+      const group = groupOf.get(id);
+      const line = project.geometryType === "line";
+      const area = !group && !line && !dots.hasLayer(dot);
+      const bounds = area ? shape.getBounds() : undefined;
+      const at = group
+        ? group.getLatLng()
+        : bounds
+          ? L.latLng(
+              Math.min(bounds.getNorth(), map.getBounds().getNorth()),
+              bounds.getCenter().lng,
+            )
+          : dot.getLatLng();
+      // Clear of the marker or line the tooltip points at.
+      const lift = group
+        ? (group.getElement()?.offsetHeight ?? 32) / 2
+        : dots.hasLayer(dot)
+          ? dotRadius(true) + 1
+          : line
+            ? lineWeight(true) / 2
+            : 2;
+      hint.options.offset = [0, -(lift + 4)];
+      if (hintId !== id) hint.setContent(projectTooltip(project));
+      hintId = id;
+      hint.setLatLng(at);
+      if (!map.hasLayer(hint)) hint.addTo(map);
+    };
     // Projects that stay keep their layers; changed ones are drawn afresh.
     const drawProjects = (projects: Project[]) => {
       const wanted = new Map(projects.map((project) => [project.id, project]));
@@ -1164,13 +1208,22 @@ export default function ProjectMap({
       }
       cluster();
       style(highlightedRef.current);
+      placeHint();
     };
-    styleRef.current = style;
-    clusterRef.current = cluster;
+    styleRef.current = (id) => {
+      style(id);
+      placeHint();
+    };
+    clusterRef.current = () => {
+      cluster();
+      placeHint();
+    };
     drawProjectsRef.current = drawProjects;
-    map.on("zoomend", cluster);
+    const regroup = clusterRef.current;
+    map.on("zoomend", regroup);
     return () => {
-      map.off("zoomend", cluster);
+      map.off("zoomend", regroup);
+      hint.remove();
       clusterRef.current = () => {};
       styleRef.current = () => {};
       drawProjectsRef.current = () => {};
