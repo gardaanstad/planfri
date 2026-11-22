@@ -3,6 +3,7 @@
 import {
   type CSSProperties,
   Fragment,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
   memo,
   useCallback,
@@ -173,7 +174,44 @@ const drawerSnapPoints: DrawerSnapPoint[] = [
 // How long the full list takes to come down to meet a project; the drawers'
 // own 450ms otherwise.
 const meetTime = 340;
+// A project over the map rests at the middle height or the full one. A touch
+// on the map folds it down to its header and phase timeline (a height in
+// pixels, measured; see `foldHeight`), over the folded list. The folded
+// height is a stop only while it rests there: a swipe down from the middle
+// height closes the project in one go.
 const projectSnapPoints: DrawerSnapPoint[] = [middleSnapPoint, 1];
+/** Folded, a project's snap point is its height in pixels. */
+const isFolded = (point: DrawerSnapPoint) => typeof point === "string";
+/** Below the phase timeline's labels, as below the folded list's filters. */
+const foldPadding = 14;
+/** The floating drawer's gap below it; see `useFloatingGap`. */
+const sheetGap = 8;
+/**
+ * How much of the open project's drawer shows folded: down to the end of
+ * its phase timeline, scrolled to its top. Never lower than the folded list,
+ * which it covers, nor near the middle height.
+ */
+function foldHeight(): DrawerSnapPoint {
+  const drawer = [
+    ...document.querySelectorAll<HTMLElement>(
+      "[data-project-drawer]:not([data-ending-style])",
+    ),
+  ].at(-1);
+  drawer
+    ?.querySelector("[data-project-scroll]")
+    ?.scrollTo({ top: 0, behavior: "instant" });
+  const strip = drawer?.querySelector("[data-phase-strip]");
+  if (!drawer || !strip) return compactSnapPoint;
+  const popup = drawer.closest("[data-slot=drawer-popup]") ?? drawer;
+  const height = Math.round(
+    strip.getBoundingClientRect().bottom -
+      popup.getBoundingClientRect().top +
+      foldPadding +
+      sheetGap,
+  );
+  const most = Math.round(window.innerHeight * middleSnapPoint) - 48;
+  return `${Math.max(compactMapInset, Math.min(height, most))}px`;
+}
 // The map controls ride a drawer's top edge, 14px clear of its border.
 const controlsSlotClasses = cn(
   "absolute inset-x-0 bottom-full h-0",
@@ -311,6 +349,9 @@ export default memo(function Explorer({
   const meetPost = useRef(false);
   const meetPending = useRef(false);
   const raiseBehindPost = useRef(false);
+  // A project folded over the map has the list folded under it; the list
+  // comes back up to the middle height as the project closes.
+  const listUnderFolded = useRef(false);
   const [snapInstantly, setSnapInstantly] = useState(false);
   // Coming down to meet a project, the list moves a little quicker than the
   // project rises, so it is out from under it first.
@@ -786,8 +827,56 @@ export default memo(function Explorer({
     // A project link frames its project, unless the URL already places the map.
     if (initialProjectId) enterPostView(initialProjectId, !initial.view);
   }
+  /**
+   * On phones, a touch on the map folds a project resting over it down to
+   * its header, and the list behind it with it. A tap on a project opens
+   * that one instead (a drag from it still folds; see `onMapPan`).
+   */
+  function onMapTouch(event: ReactPointerEvent) {
+    const target = event.target;
+    if (
+      !(target instanceof Element) ||
+      !target.closest("[data-project-map]") ||
+      target.closest("[data-project-id], [data-project-dot]")
+    )
+      return;
+    foldPost();
+  }
+  function foldPost() {
+    if (postOverMap && postSnap?.point === middleSnapPoint)
+      movePost(foldHeight());
+  }
+  /**
+   * Moves a project resting over the map between its heights. Folded, the
+   * list folds down behind it; unfolded, it comes back up behind it, so
+   * closing the project leaves it where it was.
+   */
+  function movePost(point: DrawerSnapPoint) {
+    const from = postSnap?.point;
+    setPostSnap((current) => current && { ...current, point });
+    if (isFolded(point)) {
+      // Folded before the list was up behind it: it stays down, under the
+      // project, and comes up as the project closes.
+      meetPost.current = false;
+      meetPending.current = false;
+      raiseBehindPost.current = false;
+      listUnderFolded.current = true;
+      setSnapPoint(compactSnapPoint);
+    } else if (from !== undefined && isFolded(from)) {
+      listUnderFolded.current = false;
+      setSnapPoint(middleSnapPoint);
+    }
+  }
+  /**
+   * Moved by hand while a project is open, the map stays where it was taken:
+   * closing the project no longer returns it to where it was opened from.
+   */
+  function onMapMove() {
+    if (postView.current) postView.current.before = null;
+  }
   /** On phones, panning the map folds the list down out of its way. */
   function onMapPan() {
+    if (isMobile) foldPost();
     if (isMobile && !topLayer && snapPoint === middleSnapPoint)
       setSnapPoint(compactSnapPoint);
   }
@@ -890,26 +979,42 @@ export default memo(function Explorer({
   // What of the map's bottom a drawer covers, for framing and the list.
   const mapInset = useRef(compactMapInset);
   const listAtMiddle = isMobile && snapPoint === middleSnapPoint;
+  const postFolded =
+    postOverMap && postSnap && isFolded(postSnap.point)
+      ? Number.parseInt(String(postSnap.point))
+      : 0;
   useLayoutEffect(() => {
-    mapInset.current =
-      postOverMap || listAtMiddle ? middleMapInset() : compactMapInset;
-  }, [postOverMap, listAtMiddle]);
+    mapInset.current = postFolded
+      ? postFolded
+      : postOverMap || listAtMiddle
+        ? middleMapInset()
+        : compactMapInset;
+  }, [postOverMap, postFolded, listAtMiddle]);
   const mobileMapInset = useCallback(() => mapInset.current, []);
-  // A project closed before the list reached it leaves the list at the
-  // middle height all the same.
+  // A project closed before the list reached it, or while folded over it,
+  // leaves the list at the middle height all the same.
   useLayoutEffect(() => {
     if (
       postId ||
-      (!meetPost.current && !meetPending.current && !raiseBehindPost.current)
+      (!meetPost.current &&
+        !meetPending.current &&
+        !raiseBehindPost.current &&
+        !listUnderFolded.current)
     )
       return;
     meetPost.current = false;
     meetPending.current = false;
     raiseBehindPost.current = false;
+    listUnderFolded.current = false;
     setSnapPoint(middleSnapPoint);
   }, [postId]);
 
   function openPost(id: string, target: PostTarget = {}, overMap = false) {
+    // The project folded over the map, tapped on it: it unfolds.
+    if (isMobile && overMap && id === postId && postSnap?.id === id) {
+      if (isFolded(postSnap.point)) movePost(middleSnapPoint);
+      return;
+    }
     setPostTarget(target);
     setPostSnap(isMobile && overMap ? { id, point: middleSnapPoint } : null);
     // Before the map moves, so closing returns to where it was.
@@ -1027,6 +1132,7 @@ export default memo(function Explorer({
     const fit = () => mapApi.current?.fit(projectPoints(project));
     // The project is framed instead of the view it was opened from.
     if (postView.current) postView.current.before = null;
+    listUnderFolded.current = false;
     const below = suggestionsOpen;
     closePost(false, () => {
       if (below) closeSuggestions();
@@ -2299,10 +2405,12 @@ export default memo(function Explorer({
         snap={
           layer === "project" && postSnap?.id === panelPostId
             ? {
-                points: projectSnapPoints,
+                points: isFolded(postSnap.point)
+                  ? [postSnap.point, ...projectSnapPoints]
+                  : projectSnapPoints,
                 point: postSnap.point,
-                onChange: (point) =>
-                  setPostSnap((current) => current && { ...current, point }),
+                onChange: movePost,
+                folded: isFolded(postSnap.point),
               }
             : undefined
         }
@@ -2548,6 +2656,7 @@ export default memo(function Explorer({
               "[&_.leaflet-bottom]:bottom-[124px]! [&_.leaflet-control-attribution]:text-[8px]!",
           )}
           aria-label="Prosjektkart"
+          onPointerDownCapture={isMobile ? onMapTouch : undefined}
         >
           <ProjectMap
             projects={osm.on && osm.hideProjects ? noProjects : mapProjects}
@@ -2555,6 +2664,7 @@ export default memo(function Explorer({
             onViewChange={onMapView}
             onReady={onMapReady}
             onPanStart={onMapPan}
+            onUserMove={onMapMove}
             bottomInset={isMobile ? mobileMapInset : undefined}
             controlsContainer={
               isMobile

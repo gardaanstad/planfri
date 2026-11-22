@@ -150,6 +150,11 @@ export function PanelDrawer({
     points: DrawerSnapPoint[];
     point: DrawerSnapPoint;
     onChange: (point: DrawerSnapPoint) => void;
+    /**
+     * Folded down to its header, out of the map's way: no fade along the
+     * bottom, and a tap on it (not on a control) unfolds it a step.
+     */
+    folded?: boolean;
   };
   /** Rides the drawer's top edge; see `DrawerContent`. */
   edge?: ReactNode;
@@ -166,6 +171,12 @@ export function PanelDrawer({
     return () => cancelAnimationFrame(frame);
   }, [entered]);
   const enter = useEffectEvent(() => onEnter?.());
+  // The point a wheel or a tap unfolds it to: the next one up.
+  const unfold = snap
+    ? (snap.points[snap.points.indexOf(snap.point) + 1] ?? 1)
+    : null;
+  // Where a press on the folded drawer began, to tell a tap from a drag.
+  const press = useRef<{ x: number; y: number } | null>(null);
   useLayoutEffect(() => {
     if (open && entered) enter();
   }, [open, entered]);
@@ -196,7 +207,9 @@ export function PanelDrawer({
           }}
           data-panel-drawer={name}
           data-project-drawer={name === "project" ? "" : undefined}
-          data-snap={snap && snap.point !== 1 ? "partial" : undefined}
+          data-snap={
+            snap?.folded ? "folded" : snap && snap.point !== 1 ? "partial" : undefined
+          }
           floating={snap ? snap.point !== 1 : undefined}
           className={cn(
             panelDrawerClasses,
@@ -216,7 +229,27 @@ export function PanelDrawer({
                 event.target.closest("[popover], dialog"))
             )
               return;
-            snap.onChange(1);
+            snap.onChange(unfold ?? 1);
+          }}
+          onPointerDown={(event) => {
+            press.current = snap?.folded
+              ? { x: event.clientX, y: event.clientY }
+              : null;
+          }}
+          onClick={(event) => {
+            const start = press.current;
+            press.current = null;
+            if (
+              !snap?.folded ||
+              !start ||
+              Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10 ||
+              (event.target instanceof Element &&
+                event.target.closest(
+                  "button, a, input, select, textarea, [role=button], [popover], dialog",
+                ))
+            )
+              return;
+            snap.onChange(unfold ?? 1);
           }}
           viewportClassName={stackLayers[Math.min(index, stackLayers.length - 1)]}
           contentClassName={panelDrawerInnerClasses}
@@ -226,7 +259,9 @@ export function PanelDrawer({
           edge={
             <>
               {edge}
-              {snap && <ScrollFade shown={snap.point !== 1} />}
+              {snap && (
+                <ScrollFade shown={snap.point !== 1 && !snap.folded} />
+              )}
             </>
           }
           onMotion={onMotion}

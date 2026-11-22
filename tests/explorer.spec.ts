@@ -319,6 +319,87 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       .toMatch(/^59\.\d+,10\.7500,13$/);
   });
 
+  test("a touch on the map folds a project over it down to its header", async ({
+    page,
+  }) => {
+    await page.goto("/?kart=59.9100,10.7500,13");
+    const shape = page.locator(`path[data-project-id="${project.id}"]`);
+    await shape.dispatchEvent("pointerdown");
+    await shape.dispatchEvent("click");
+    await expect(page).toHaveURL(atProject);
+    const drawer = page.locator("[data-project-drawer]");
+    await expectDrawerHeight(page, 0.58, "project");
+    await expectDrawerHeight(page, 0.58);
+    // A finger across the map above it folds it down to its header and
+    // phase timeline, labels and all, and folds the list down under it; the
+    // project stays open.
+    await touchMove(page, { x: 160, y: 100 }, { x: 100, y: 140 }, { steps: 10 });
+    await expect(drawer).toHaveAttribute("data-snap", "folded");
+    await expectDrawerHeight(page, compact);
+    const phases = drawer.locator("[data-phase-strip]");
+    await expect
+      .poll(() =>
+        phases.evaluate(
+          (element) =>
+            window.innerHeight - element.getBoundingClientRect().bottom,
+        ),
+      )
+      .toBeGreaterThanOrEqual(8 + 10);
+    await expect
+      .poll(() =>
+        drawer.evaluate(
+          (element) => window.innerHeight - element.getBoundingClientRect().top,
+        ),
+      )
+      .toBeLessThan(viewport.height * 0.45);
+    await expect(drawer.locator("[data-scroll-fade]")).toHaveCount(0);
+    await expect(page).toHaveURL(atProject);
+    await expect(page.locator("[data-map-controls]")).toBeVisible();
+    await shot(page, "mobile-project-folded");
+    // A tap on it unfolds it, and the list with it.
+    await drawer.locator(":scope > [aria-hidden]").tap();
+    await expectDrawerHeight(page, 0.58, "project");
+    await expectDrawerHeight(page, 0.58);
+    // Folded again, a swipe down closes it, and the list comes back up to
+    // the middle height.
+    await touchMove(page, { x: 160, y: 100 }, { x: 100, y: 140 }, { steps: 10 });
+    await expect(drawer).toHaveAttribute("data-snap", "folded");
+    await swipeDown(page, drawer.locator(":scope > [aria-hidden]"));
+    await expect(page).toHaveURL(atList);
+    await expect(drawer).toBeHidden();
+    await expectDrawerHeight(page, 0.58);
+  });
+
+  test("a project closed after the map was moved leaves the map there", async ({
+    page,
+  }) => {
+    await page.goto("/?kart=59.9100,10.7500,13");
+    const shape = page.locator(`path[data-project-id="${project.id}"]`);
+    await shape.dispatchEvent("pointerdown");
+    await shape.dispatchEvent("click");
+    await expect(page).toHaveURL(atProject);
+    await expectDrawerHeight(page, 0.58, "project");
+    // Where on screen the project lies: the drawer's height changes the
+    // view the URL names, not what is where.
+    const at = () =>
+      shape.evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        return [Math.round(box.x), Math.round(box.y)];
+      });
+    const opened = await at();
+    await touchMove(page, { x: 160, y: 60 }, { x: 60, y: 160 }, { steps: 10 });
+    await expect.poll(at).not.toEqual(opened);
+    await page.waitForTimeout(600);
+    const moved = await at();
+    await page
+      .getByRole("button", { name: "Lukk prosjekt", exact: true })
+      .click();
+    await expect(page).toHaveURL(atList);
+    await expectDrawerHeight(page, 0.58);
+    await page.waitForTimeout(500);
+    expect(await at()).toEqual(moved);
+  });
+
   test("the list rests at the middle height, the map above it", async ({
     page,
   }) => {
@@ -1641,6 +1722,34 @@ test.describe("desktop explorer", () => {
     // A group that stays the same keeps its marker rather than being redrawn.
     if (out.some(({ ids }) => ids.join(" ") === before[0].ids.join(" ")))
       await expect(marker).toHaveAttribute("data-old", "");
+  });
+
+  test("a project closed after the map was moved leaves the map there", async ({
+    page,
+  }) => {
+    await page.goto(oslo);
+    const shape = page.locator(`path[data-project-id="${project.id}"]`);
+    await shape.dispatchEvent("pointerdown");
+    await shape.dispatchEvent("click");
+    await expect(page).toHaveURL(atProject);
+    const map = page.locator(".leaflet-container");
+    // Framed on the project, then dragged by hand.
+    await page.waitForTimeout(400);
+    const framed = mapParam(page);
+    const box = (await map.boundingBox())!;
+    await page.mouse.move(box.x + box.width - 120, box.y + 120);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width - 320, box.y + 260, { steps: 10 });
+    await page.mouse.up();
+    await expect.poll(() => mapParam(page)).not.toBe(framed);
+    await page.waitForTimeout(600);
+    const moved = mapParam(page);
+    await page.getByRole("button", { name: "Lukk prosjekt", exact: true }).click();
+    await expect(page).toHaveURL(atList);
+    // The URL takes the view back from the history entry once the step lands.
+    await expect.poll(() => mapParam(page)).toBe(moved);
+    await page.waitForTimeout(500);
+    expect(mapParam(page)).toBe(moved);
   });
 
   test("a project clicked on the map shows no focus ring; the keyboard's does", async ({

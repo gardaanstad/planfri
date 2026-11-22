@@ -428,6 +428,11 @@ type Props = {
   /** The user starts panning the map by hand. */
   onPanStart?: () => void;
   /**
+   * The user moves the map by hand in any way: a drag, a pinch, the wheel,
+   * a double tap, the keyboard or the zoom buttons.
+   */
+  onUserMove?: () => void;
+  /**
    * Pixels along the bottom that a sheet covers, such as the mobile drawer.
    * Reported bounds leave them out, and framing keeps clear of them.
    */
@@ -463,6 +468,7 @@ export default function ProjectMap({
   onViewChange,
   onReady,
   onPanStart,
+  onUserMove,
   bottomInset,
   selectedId = null,
   onSelect = noSelect,
@@ -500,6 +506,7 @@ export default function ProjectMap({
       onViewChange?: (view: MapViewChange) => void;
     onReady?: (api: MapApi) => void;
     onPanStart?: () => void;
+    onUserMove?: () => void;
     bottomInset?: () => number;
     draw: boolean;
     commit: (next: Point[]) => void;
@@ -559,6 +566,7 @@ export default function ProjectMap({
       onViewChange,
       onReady,
       onPanStart,
+      onUserMove,
       bottomInset,
       draw,
       commit(next) {
@@ -570,6 +578,7 @@ export default function ProjectMap({
     onViewChange,
     onReady,
     onPanStart,
+    onUserMove,
     bottomInset,
     draw,
     onPointsChange,
@@ -600,7 +609,10 @@ export default function ProjectMap({
     map.on("click", () => {
       if (!handlers.current.draw) handlers.current.onSelect(null);
     });
-    map.on("dragstart", () => handlers.current.onPanStart?.());
+    map.on("dragstart", () => {
+      handlers.current.onUserMove?.();
+      handlers.current.onPanStart?.();
+    });
     // The container grows and shrinks as panels beside it open, close and
     // resize. The geography on screen stays where it is: the edge that moves
     // uncovers or covers map, it doesn't drag it along. Run before paint, so
@@ -667,11 +679,28 @@ export default function ProjectMap({
         if (!renderer._bounds.contains(view)) renderer._update();
       }
     });
+    // Moves by hand other than a drag; the map's own framing moves it too,
+    // so its events can't tell them apart.
+    const userMove = () => handlers.current.onUserMove?.();
+    const pinch = (event: TouchEvent) => {
+      if (event.touches.length > 1) userMove();
+    };
+    const keyMove = (event: KeyboardEvent) => {
+      if (/^(Arrow\w+|\+|-|=)$/.test(event.key)) userMove();
+    };
+    element.addEventListener("wheel", userMove, { passive: true });
+    element.addEventListener("touchstart", pinch, { passive: true });
+    element.addEventListener("dblclick", userMove);
+    element.addEventListener("keydown", keyMove);
     setReady(true);
     return () => {
       resize.disconnect();
       window.removeEventListener("resize", sync);
       element.removeEventListener("touchmove", claimTouch);
+      element.removeEventListener("wheel", userMove);
+      element.removeEventListener("touchstart", pinch);
+      element.removeEventListener("dblclick", userMove);
+      element.removeEventListener("keydown", keyMove);
       syncRef.current = () => {};
       mapRef.current = null;
       map.stop();
@@ -1789,7 +1818,10 @@ export default function ProjectMap({
           )}
           aria-label="Zoom inn"
           data-tooltip="Zoom inn"
-          onClick={() => mapRef.current?.zoomIn()}
+          onClick={() => {
+            handlers.current.onUserMove?.();
+            mapRef.current?.zoomIn();
+          }}
         >
           <Plus size={20} aria-hidden="true" />
         </button>
@@ -1801,7 +1833,10 @@ export default function ProjectMap({
           )}
           aria-label="Zoom ut"
           data-tooltip="Zoom ut"
-          onClick={() => mapRef.current?.zoomOut()}
+          onClick={() => {
+            handlers.current.onUserMove?.();
+            mapRef.current?.zoomOut();
+          }}
         >
           <Minus size={20} aria-hidden="true" />
         </button>
