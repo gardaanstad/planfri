@@ -25,6 +25,7 @@ import {
   iconButton,
   panelTitle,
   panelTitleTop,
+  wrapTitle,
 } from "../lib/ui";
 import ActionSheet, { type SheetAction } from "./action-sheet";
 import {
@@ -329,7 +330,11 @@ export default function ProjectPostHeader({
       id="project-card-title"
       tabIndex={-1}
       className={cn(
-        "m-0 line-clamp-2 min-w-0 flex-1 overflow-hidden text-ink outline-none wrap-break-word",
+        "m-0 min-w-0 flex-1 text-balance text-ink outline-none",
+        wrapTitle,
+        // In full at the top; two lines once scrolled past the intro, so the
+        // bar stays small over the text.
+        compact && "line-clamp-2",
         // The first line level with the buttons beside it; see panelTitleTop.
         mobile ? panelTitleTop.mobile : panelTitleTop.desktop,
         titleType,
