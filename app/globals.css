@@ -337,6 +337,8 @@
   /* Native controls, scrollbars and form fields follow the palette. */
   :root {
     color-scheme: light dark;
+    /* No pull-to-refresh or overscroll back and forward on the page itself. */
+    overscroll-behavior: none;
   }
   :root[data-theme="light"] {
     color-scheme: light;

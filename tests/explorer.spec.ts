@@ -280,6 +280,66 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expect(page.getByRole("dialog", { name: /^Bilder av / })).toHaveCount(0);
   });
 
+  test("sideways drags stay on the page unless a gallery can scroll that way", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page
+      .getByRole("button", { name: "Utvid prosjektlisten", exact: true })
+      .click();
+    await page.getByRole("button", { name: /^Visning/ }).click();
+    await page.getByRole("option", { name: "Utvidet" }).click();
+    const card = page
+      .getByRole("region", { name: "Prosjektliste", exact: true })
+      .locator("[data-card-id]")
+      .filter({ has: page.getByRole("group", { name: /^Bilder av / }) })
+      .filter({ has: page.getByRole("button", { name: /^Neste/ }) })
+      .first();
+    const gallery = card
+      .getByRole("group", { name: /^Bilder av / })
+      .locator("img")
+      .first();
+    await expect(gallery).toBeVisible();
+    // Whether the first move of a drag by (dx, dy) from the element's
+    // middle is cancelled, which is when swipe navigation takes a gesture.
+    const firstMoveCancelled = (target: Locator, dx: number, dy: number) =>
+      target.evaluate(
+        (element, [dx, dy]) => {
+          const rect = element.getBoundingClientRect();
+          const x = rect.left + rect.width / 2;
+          const y = rect.top + rect.height / 2;
+          const touch = (dx: number, dy: number) =>
+            new Touch({
+              identifier: 1,
+              target: element,
+              clientX: x + dx,
+              clientY: y + dy,
+            });
+          const event = (type: string, dx: number, dy: number) =>
+            new TouchEvent(type, {
+              bubbles: true,
+              cancelable: true,
+              touches: type === "touchend" ? [] : [touch(dx, dy)],
+              changedTouches: [touch(dx, dy)],
+            });
+          element.dispatchEvent(event("touchstart", 0, 0));
+          const move = event("touchmove", dx, dy);
+          element.dispatchEvent(move);
+          element.dispatchEvent(event("touchend", dx, dy));
+          return move.defaultPrevented;
+        },
+        [dx, dy],
+      );
+    const title = card.getByRole("heading").first();
+    expect(await firstMoveCancelled(title, 12, 2)).toBe(true);
+    expect(await firstMoveCancelled(title, -12, 2)).toBe(true);
+    // Up and down still scroll the list.
+    expect(await firstMoveCancelled(title, 2, -12)).toBe(false);
+    // The gallery scrolls on to its next photo, but not back past its first.
+    expect(await firstMoveCancelled(gallery, -12, 2)).toBe(false);
+    expect(await firstMoveCancelled(gallery, 12, 2)).toBe(true);
+  });
+
   test("the views are chosen from a sheet, beside a count that wraps on its own", async ({
     page,
   }) => {

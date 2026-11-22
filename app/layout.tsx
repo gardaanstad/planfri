@@ -83,6 +83,19 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             __html: `(()=>{const r=document.documentElement;addEventListener("pointerdown",()=>r.setAttribute("data-pointer",""),true);addEventListener("keydown",e=>{if(!e.metaKey&&!e.ctrlKey&&!e.altKey)r.removeAttribute("data-pointer")},true)})()`,
           }}
         />
+        {/*
+          Browsers with swipe navigation anywhere on the page (Arc Search)
+          take a sideways drag as back or forward unless the page cancels
+          its first move. A sideways start is cancelled everywhere except
+          over a field or a scroller that can still scroll that way, so
+          dragging the map, a sheet or a card never leaves the page. The map
+          claims all of its moves itself (project-map.tsx).
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(()=>{let s=null;const o={capture:true,passive:false};addEventListener("touchstart",e=>{const t=e.touches[0];s=e.touches.length===1?{x:t.clientX,y:t.clientY}:null},{capture:true,passive:true});addEventListener("touchmove",e=>{if(!s)return;const t=e.touches[0],dx=t.clientX-s.x,dy=t.clientY-s.y;if(!dx&&!dy)return;s=null;if(!e.cancelable||Math.abs(dx)<=Math.abs(dy))return;for(let n=e.target;n instanceof Element;n=n.parentElement){if(n.matches("input,textarea,select,[contenteditable]"))return;const x=getComputedStyle(n).overflowX;if((x==="auto"||x==="scroll")&&(dx>0?n.scrollLeft>0:n.scrollLeft<n.scrollWidth-n.clientWidth-1))return}e.preventDefault()},o)})()`,
+          }}
+        />
       </head>
       <body className="flex min-h-full flex-col bg-canvas text-ink">
         <AuthProvider
