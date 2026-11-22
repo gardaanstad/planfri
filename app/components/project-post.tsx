@@ -11,6 +11,7 @@ import { flushSync } from "react-dom";
 import {
   ArrowUp,
   ArrowUpRight,
+  Building2,
   ImagePlus,
   Megaphone,
   ChevronDown,
@@ -506,28 +507,92 @@ function morph(
   return animations;
 }
 
-/** Place and status at a glance, under the title. */
+/**
+ * Where it is, who builds it and its site, then how far along it is, at a
+ * glance under the title.
+ */
 function ProjectMeta({ project }: { project: Project }) {
+  const developer =
+    project.developer !== unknownDeveloper ? project.developer : "";
   return (
-    <p
-      className="mb-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-ui leading-normal text-muted max-md:text-xs [&>span]:inline-flex [&>span]:items-center [&>span]:gap-1.5 [&_svg]:shrink-0"
-      data-project-meta=""
+    <div className="mb-3" data-project-meta="">
+      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-ui leading-normal text-muted max-md:text-xs [&>*]:inline-flex [&>*]:min-w-0 [&>*]:items-center [&>*]:gap-1.5 [&_svg]:shrink-0">
+        <span>
+          <MapPin size={14} aria-hidden="true" />
+          {projectPlace(project)}
+        </span>
+        {developer && (
+          <span data-tooltip="Byggherre">
+            <Building2 size={14} aria-hidden="true" />
+            <span className="sr-only">Byggherre: </span>
+            {developer}
+          </span>
+        )}
+        {project.website && (
+          <a
+            href={project.website}
+            target="_blank"
+            rel="noreferrer"
+            className="text-ink underline decoration-border-strong decoration-1 underline-offset-3 transition-[text-decoration-color] duration-120 hover:decoration-current"
+          >
+            Nettside
+            <ArrowUpRight size={14} aria-hidden="true" />
+          </a>
+        )}
+      </p>
+      <PhaseStrip project={project} />
+    </div>
+  );
+}
+
+// The strip's own words: short, so four fit side by side on a phone.
+const phaseLabels: Record<Status, string> = {
+  proposed: "Forslag",
+  planned: "Planlagt",
+  construction: "Under bygging",
+  completed: "Ferdig",
+};
+
+/**
+ * The phases a project passes through, filled up to where it stands, in its
+ * status colour. The last step carries the year it's done.
+ */
+function PhaseStrip({ project }: { project: Project }) {
+  const current = statusOrder.indexOf(project.status);
+  return (
+    <ol
+      className="mt-2.5 grid grid-cols-4 gap-1"
+      aria-label="Fase"
+      data-phase-strip={project.status}
     >
-      <span>
-        <MapPin size={14} aria-hidden="true" />
-        {projectPlace(project)}
-      </span>
-      <span>
-        <i
-          className={cn(
-            "size-2 rounded-full",
-            statusTone[project.status].dot,
-          )}
-        />
-        {statuses[project.status].label}
-        {project.year && <span>· {project.year}</span>}
-      </span>
-    </p>
+      {statusOrder.map((status, index) => (
+        <li
+          key={status}
+          className="min-w-0"
+          aria-current={index === current ? "step" : undefined}
+        >
+          <span
+            className={cn(
+              "block h-1 rounded-full",
+              index <= current
+                ? statusTone[project.status].dot
+                : "bg-border-strong/70",
+            )}
+          />
+          <span
+            className={cn(
+              "mt-1.5 block truncate text-2xs leading-4",
+              index === current ? "font-medium text-ink" : "text-muted",
+            )}
+          >
+            {phaseLabels[status]}
+            {index === statusOrder.length - 1 && project.year && (
+              <span className="tabular-nums"> {project.year}</span>
+            )}
+          </span>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -1216,8 +1281,15 @@ export default function ProjectPost({
   const { mutate, suggest } = useCommunity();
   const onUpdate = (next: Project) =>
     mutate({ action: "project", project: next, create: false });
+  // A project with updates opens on them; a linked comment opens its tab.
   const [tab, setTab] = useState<string>(
-    initialSection ?? (initialUpdateId ? "updates" : "discussion"),
+    () =>
+      initialSection ??
+      (initialUpdateId
+        ? "updates"
+        : !initialCommentId && getProjectUpdates(project).length > 0
+          ? "updates"
+          : "discussion"),
   );
   // A comment opened while the project is already open shows its tab.
   const [shownCommentId, setShownCommentId] = useState(initialCommentId);
@@ -1365,16 +1437,17 @@ export default function ProjectPost({
         comment.updateId,
         (referenceCounts.get(comment.updateId) ?? 0) + 1,
       );
+  // Updates are the project's own record; the discussion follows them.
   const tabs = [
-    {
-      id: "discussion",
-      label: "Kommentarer",
-      icon: MessageCircle,
-    },
     {
       id: "updates",
       label: "Oppdateringer",
       icon: Megaphone,
+    },
+    {
+      id: "discussion",
+      label: "Kommentarer",
+      icon: MessageCircle,
     },
   ];
   useEffect(() => {

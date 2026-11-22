@@ -24,6 +24,7 @@ import {
   norwayBounds,
   type Point,
   type Project,
+  type Status,
   statuses,
   type ViewBounds,
 } from "../lib/data";
@@ -47,6 +48,11 @@ import { mapIconButton } from "../lib/ui";
 type MapLayer = "standard" | "streets" | "osm";
 
 // Selected projects draw heavier; shared by the first render and selection.
+// Not yet built: planned dashed, proposed dotted.
+const dashes: Partial<Record<Status, { area: string; line: string }>> = {
+  proposed: { area: "2, 5", line: "1, 7" },
+  planned: { area: "7, 5", line: "8, 6" },
+};
 const lineWeight = (selected: boolean) => (selected ? 5 : 3.5);
 const shapeStyle = (line: boolean, selected: boolean) => ({
   weight: line ? lineWeight(selected) : selected ? 4 : 2.5,
@@ -837,7 +843,7 @@ export default function ProjectMap({
         color,
         bubblingMouseEvents: false,
         fillColor: color,
-        dashArray: project.status === "planned" ? "7, 5" : undefined,
+        dashArray: dashes[project.status]?.area,
         ...shapeStyle(line, selected),
       };
       // A casing in the base map's tone keeps thin alignments crisp.
@@ -856,7 +862,7 @@ export default function ProjectMap({
             ...options,
             lineCap: project.status === "planned" ? "butt" : "round",
             lineJoin: "round",
-            dashArray: project.status === "planned" ? "8, 6" : undefined,
+            dashArray: dashes[project.status]?.line,
           })
         : L.polygon(project.geometry, options);
       shape.addTo(group).on("click", (event) => {

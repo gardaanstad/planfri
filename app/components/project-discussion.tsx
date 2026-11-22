@@ -556,25 +556,6 @@ export default function ProjectDiscussion({
       className={cn(scoped && "pt-3.5 -mb-2.5 max-sm:pt-3")}
       data-scoped={scoped || undefined}
     >
-      {!user?.username && (
-        <div className="rounded-[20px] border border-border-strong bg-surface px-4 py-2.5">
-          <p className="text-sm leading-[1.4] text-muted max-md:text-ui">
-            <button
-              type="button"
-              className="font-medium text-ink underline decoration-ink/35 underline-offset-3 transition-[text-decoration-color] duration-150 hover:decoration-current"
-              onClick={() =>
-                requireLogin("Du må være logget inn for å kommentere.", {
-                  type: "comment",
-                  projectId,
-                })
-              }
-            >
-              {user ? "Velg brukernavn" : "Logg inn"}
-            </button>{" "}
-            for å kommentere.
-          </p>
-        </div>
-      )}
       {user?.username && (
         <form
           className={composer}
@@ -630,7 +611,7 @@ export default function ProjectDiscussion({
         <div
           className={cn(
             "mb-1 flex items-center justify-between gap-3 border-b border-border pb-2",
-            scoped ? "mt-3" : "mt-5",
+            scoped ? "mt-3" : user?.username ? "mt-5" : "mt-0",
           )}
         >
           <span className="text-ui whitespace-nowrap text-muted tabular-nums">
@@ -662,6 +643,30 @@ export default function ProjectDiscussion({
             />
           ))}
       </div>
+      {/* Reading comes first; joining in is a quiet line after them. */}
+      {!user?.username && (
+        <p
+          className={cn(
+            "text-ui leading-normal text-muted max-md:text-xs",
+            scoped ? "pt-3" : "pt-4",
+          )}
+          data-login-to-comment=""
+        >
+          <button
+            type="button"
+            className="font-medium text-ink underline decoration-ink/35 underline-offset-3 transition-[text-decoration-color] duration-150 hover:decoration-current"
+            onClick={() =>
+              requireLogin("Du må være logget inn for å kommentere.", {
+                type: "comment",
+                projectId,
+              })
+            }
+          >
+            {user ? "Velg brukernavn" : "Logg inn"}
+          </button>{" "}
+          for å kommentere.
+        </p>
+      )}
     </section>
   );
 }

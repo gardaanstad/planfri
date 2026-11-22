@@ -28,7 +28,7 @@ export const projectFields = z.object({
     .min(1, "Velg minst én kategori.")
     .max(categories.length)
     .transform(normalizeCategories),
-  status: z.enum(["planned", "construction", "completed"]),
+  status: z.enum(["proposed", "planned", "construction", "completed"]),
   image: z.union([image, z.literal("")]),
   images: z.array(photo).max(20).optional(),
   imageCredit: z.string().max(300).optional(),

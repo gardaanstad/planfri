@@ -16,7 +16,7 @@ export type ExploreState = {
 };
 
 // Most people follow what is coming, so finished projects start hidden.
-export const defaultStatus: string[] = ["planned", "construction"];
+export const defaultStatus: string[] = ["proposed", "planned", "construction"];
 export const sortOptions = [
   { value: "current", label: "Aktuelt" },
   { value: "added", label: "Nyeste" },
@@ -153,17 +153,25 @@ export function subscribeCollapsed(callback: () => void) {
   };
 }
 
-export type ListDensity = "compact" | "expanded";
+/**
+ * The project list's layout: rows, cards with photos, or the "Nytt" view
+ * of what last happened on each project.
+ */
+export type ListDensity = "compact" | "expanded" | "feed";
+/** A project card's own layout; the "Nytt" view draws its own rows. */
+export type CardDensity = Exclude<ListDensity, "feed">;
+export const defaultDensity: ListDensity = "compact";
 const densityKey = "varde-list-density";
 const densityEvent = "varde-list-density";
-let densityFallback: ListDensity = "expanded";
+let densityFallback: ListDensity = defaultDensity;
+const isDensity = (value: string | null): value is ListDensity =>
+  value === "compact" || value === "expanded" || value === "feed";
 
 /** The project list's layout, kept in this browser. */
 export function storedDensity(): ListDensity {
   try {
-    return localStorage.getItem(densityKey) === "compact"
-      ? "compact"
-      : "expanded";
+    const stored = localStorage.getItem(densityKey);
+    return isDensity(stored) ? stored : defaultDensity;
   } catch {
     return densityFallback;
   }
@@ -172,7 +180,7 @@ export function storedDensity(): ListDensity {
 export function storeDensity(density: ListDensity) {
   densityFallback = density;
   try {
-    if (density === "compact") localStorage.setItem(densityKey, density);
+    if (density !== defaultDensity) localStorage.setItem(densityKey, density);
     else localStorage.removeItem(densityKey);
   } catch {
     /* The fallback above holds it. */

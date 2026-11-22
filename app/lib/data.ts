@@ -1,4 +1,4 @@
-export type Status = "planned" | "construction" | "completed";
+export type Status = "proposed" | "planned" | "construction" | "completed";
 /**
  * Main categories and their subcategories. A project holds a main category
  * on its own, or narrowed to one or more of its subcategories; names are
@@ -246,6 +246,7 @@ export function projectAddedAt(project: Project) {
 }
 // Map colours; Leaflet can't read CSS variables. Keep in sync with --color-status-*.
 export const statuses: Record<Status, { label: string; color: string }> = {
+  proposed: { label: "Forslag", color: "#a084b8" },
   planned: { label: "Planlagt", color: "#7383ba" },
   construction: { label: "Under bygging", color: "#d59a42" },
   completed: { label: "Ferdigstilt", color: "#4f9279" },

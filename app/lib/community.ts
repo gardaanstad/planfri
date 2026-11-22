@@ -1,7 +1,19 @@
 import type { Comment, Project } from "./data";
 
-/** A project's comments: all of them, and those from the past week. */
-export type ProjectActivity = { comments: number; recent: number };
+/** A project's newest comment, its text shortened, for the "Nytt" view. */
+export type LatestComment = {
+  id: string;
+  author: string;
+  text: string;
+  date: string;
+};
+
+/** A project's comments: all of them, those from the past week, the newest. */
+export type ProjectActivity = {
+  comments: number;
+  recent: number;
+  latest?: LatestComment;
+};
 
 /**
  * What the explorer shows. Comments themselves load per project, or per

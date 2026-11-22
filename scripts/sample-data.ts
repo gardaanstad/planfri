@@ -299,7 +299,7 @@ export const sampleProjects: Project[] = [
     district: "Majorstuen – Carl Berners plass",
     city: "Oslo",
     categories: ["Samferdsel", "Sykkel og gange"],
-    status: "planned",
+    status: "proposed",
     image: "",
     description: "Sammenhengende sykkelvei i begge retninger langs Ring 2.",
     center: [59.93, 10.75],

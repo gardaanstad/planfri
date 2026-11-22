@@ -113,6 +113,11 @@ export const avatarTone = {
 } as const;
 
 export const statusTone = {
+  proposed: {
+    dot: "bg-status-proposed",
+    fill: "fill-status-proposed",
+    badge: "border-status-proposed/30 text-status-proposed-ink",
+  },
   planned: {
     dot: "bg-status-planned",
     fill: "fill-status-planned",

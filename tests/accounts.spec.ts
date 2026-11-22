@@ -17,6 +17,7 @@ import {
   accountMenuItem,
   member,
   mutation,
+  openDiscussion,
   openOwnProfile,
   origin,
   shot,
@@ -553,6 +554,7 @@ test("comment failures preserve the draft and successful comments persist after 
   const person = await member({ username: uniqueName() });
   await signIn(context, person);
   await page.goto(`/prosjekt/${project.id}`);
+  await openDiscussion(page);
   const composer = page.getByRole("textbox", { name: /^Kommenter / }).first();
   const message = `Min kommentar ${randomUUID()}`;
   await composer.fill(message);
@@ -576,6 +578,7 @@ test("comment failures preserve the draft and successful comments persist after 
   await send.click();
   await expect(composer).toHaveValue("");
   await page.reload();
+  await openDiscussion(page);
   await expect(page.getByText(message, { exact: true })).toBeVisible();
 });
 

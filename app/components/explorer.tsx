@@ -19,8 +19,10 @@ import Link from "next/link";
 import {
   ArrowDownUp,
   Construction,
-  ChevronsLeft,
-  ChevronsRight,
+  Activity,
+  Maximize2,
+  PanelLeftClose,
+  PanelLeftOpen,
   GalleryVertical,
   Inbox,
   LayoutList,
@@ -45,6 +47,7 @@ import {
   statusOrder,
 } from "../lib/data";
 import {
+  defaultDensity,
   defaultStatus,
   parseExploreState,
   sameValues,
@@ -80,6 +83,7 @@ import ProjectEditor from "./project-editor";
 import { OsmPanel, useOsmModeStored, useOsmReview } from "./osm-review";
 import ProjectPost from "./project-post";
 import ProjectCard from "./project-card";
+import { FeedRow, feedEntries } from "./activity-feed";
 import PanelResizer from "./panel-resizer";
 import SavedProjects from "./saved-projects";
 import { useUnread } from "./unread-provider";
@@ -144,8 +148,9 @@ import {
 } from "../lib/ui";
 
 const densityOptions = [
-  { value: "expanded", label: "Utvidet", Icon: GalleryVertical },
   { value: "compact", label: "Kompakt", Icon: LayoutList },
+  { value: "expanded", label: "Utvidet", Icon: GalleryVertical },
+  { value: "feed", label: "Nytt", Icon: Activity },
 ] as const;
 
 /** Where in a project to open: an update, a comment, or a section. */
@@ -385,7 +390,7 @@ export default memo(function Explorer({
   const density = useSyncExternalStore(
     subscribeDensity,
     storedDensity,
-    (): ListDensity => "expanded",
+    (): ListDensity => defaultDensity,
   );
   // Desktop: the OSM mode wants the whole map, so the list steps aside,
   // without its toggle, until the mode is off.
@@ -1334,6 +1339,14 @@ export default memo(function Explorer({
         })),
     ];
   }, [isMobile, matching, place, placesOf, projects]);
+  // With every match in sight, the view is as good as all of Norway.
+  const allInView = useMemo(
+    () =>
+      !listBounds ||
+      matching.every((project) => projectInBounds(project, listBounds)),
+    [listBounds, matching],
+  );
+  const placeFallback = allInView ? "Hele Norge" : "Velg sted";
   // Every status shown is no filter; the last one shown can't be hidden.
   const statusValue = status.length ? status : statusOrder;
   const pickStatus = (next: string[]) => {
@@ -1346,7 +1359,7 @@ export default memo(function Explorer({
       multiple
       value={statusValue}
       onChange={pickStatus}
-      triggerLabel="Prosjektstatus"
+      triggerLabel={isMobile ? "Prosjektstatus" : "Status"}
       menuTitle
       icon={<StatusDots values={status} />}
       className={cn(
@@ -1358,8 +1371,10 @@ export default memo(function Explorer({
           : [
               panelChoiceClasses,
               "shrink-0",
-              // Its dots alone; the menu carries the name.
-              "[&_[data-slot=choice-trigger]>span]:sr-only [&_[data-slot=choice-trigger]]:pr-2.75 [&_[data-slot=choice-trigger]]:pl-3.25 [&_[data-slot=choice-menu]]:min-w-[200px]",
+              // Narrow, its dots alone; the menu carries the name.
+              // The dots already count what is shown.
+              "[&_[data-slot=choice-trigger]>span:nth-of-type(2)]:hidden",
+              "@max-[360px]:[&_[data-slot=choice-trigger]>span]:sr-only [&_[data-slot=choice-menu]]:min-w-[200px]",
               statusChanged && panelChoiceActive,
             ],
       )}
@@ -1372,7 +1387,7 @@ export default memo(function Explorer({
         label="Sted"
         value={place}
         onChange={pickPlace}
-        triggerLabel={place || "Velg sted"}
+        triggerLabel={place || placeFallback}
         className={cn(
           inlineChoiceClasses,
           "[&_[data-slot=choice-trigger]>span:nth-of-type(2)]:hidden",
@@ -1441,7 +1456,7 @@ export default memo(function Explorer({
       label="Sted"
       value={place}
       onChange={pickPlace}
-      triggerLabel={place || "Velg sted"}
+      triggerLabel={place || placeFallback}
       icon={<MapPin size={15} aria-hidden="true" />}
       className={cn(
         panelChoiceClasses,
@@ -1468,12 +1483,7 @@ export default memo(function Explorer({
         )}
         options={categoryOptions}
       />
-      <span
-        className="flex shrink-0"
-        data-tooltip="Prosjektstatus"
-      >
-        {statusFilter}
-      </span>
+      <span className="flex shrink-0">{statusFilter}</span>
     </>,
   );
 
@@ -1512,7 +1522,7 @@ export default memo(function Explorer({
     <button
       type="button"
       className="inline-flex min-h-7 items-center gap-1 text-xs font-medium whitespace-nowrap text-accent underline-offset-3 hover:text-accent-strong hover:underline"
-      aria-label={`Vis ${outsideHits} treff utenfor kartet`}
+      aria-label={`Vis ${outsideHits} ${needle ? "treff" : outsideHits === 1 ? "prosjekt" : "prosjekter"} utenfor kartet`}
       onClick={showSearchHits}
     >
       <ZoomOut size={13} aria-hidden="true" />
@@ -1521,7 +1531,7 @@ export default memo(function Explorer({
   );
   const emptyActions = (
     <div className="flex flex-wrap justify-center gap-2">
-      {outsideHits > 0 ? (
+      {outsideHits > 0 && needle ? (
         <button className={secondaryAction} onClick={showSearchHits}>
           <ZoomOut size={15} aria-hidden="true" />
           Vis {outsideHits} treff
@@ -1574,6 +1584,18 @@ export default memo(function Explorer({
       else openLatest.current(id, {}, true);
     },
     [openCard],
+  );
+  const feed = useMemo(
+    () => (density === "feed" ? feedEntries(listedProjects, activity) : []),
+    [activity, density, listedProjects],
+  );
+  // A row opens at what it shows, over the map like a card.
+  const openFeedRow = useCallback(
+    (id: string, target: { updateId?: string; commentId?: string }) => {
+      if (target.updateId || target.commentId) openLatest.current(id, target);
+      else openLatest.current(id, {}, true);
+    },
+    [],
   );
   const saveLatest = useRef(toggleSave);
   useLayoutEffect(() => {
@@ -1651,7 +1673,8 @@ export default memo(function Explorer({
           </div>
           <div className="flex shrink-0 items-center gap-1">
             {densitySwitch}
-            {sortFilter}
+            {/* "Nytt" has its own order: what happened last comes first. */}
+            {density !== "feed" && sortFilter}
           </div>
         </div>
         {listedProjects.length === 0 ? (
@@ -1664,6 +1687,18 @@ export default memo(function Explorer({
           >
             {emptyActions}
           </EmptyState>
+        ) : density === "feed" ? (
+          <ol aria-label="Nytt">
+            {feed.map((entry) => (
+              <FeedRow
+                key={entry.project.id}
+                entry={entry}
+                news={news.get(entry.project.id)}
+                onOpen={openFeedRow}
+                onHover={hoverCard}
+              />
+            ))}
+          </ol>
         ) : (
           <ol>
             {listedProjects.map((project) => (
@@ -1681,6 +1716,16 @@ export default memo(function Explorer({
             ))}
           </ol>
         )}
+        <div className="flex justify-center pt-6">
+          <button
+            type="button"
+            className={cn(quietAction, "gap-1.5 text-muted hover:text-ink")}
+            onClick={() => openEditor()}
+          >
+            <Plus size={15} aria-hidden="true" />
+            Mangler et prosjekt?
+          </button>
+        </div>
       </div>
     </section>
   );
@@ -1910,7 +1955,7 @@ export default memo(function Explorer({
       {
         id: "maximize",
         label: "Vis som helside",
-        icon: <ChevronsRight size={16} />,
+        icon: <Maximize2 size={16} />,
         onSelect: maximize,
       },
     ] as (OverflowAction | false | null | undefined | "")[]
@@ -1935,9 +1980,9 @@ export default memo(function Explorer({
       onClick={toggleCollapsed}
     >
       {sidebarMode === "collapsed" ? (
-        <ChevronsRight size={18} />
+        <PanelLeftOpen size={18} />
       ) : (
-        <ChevronsLeft size={18} />
+        <PanelLeftClose size={18} />
       )}
     </button>
   );
@@ -2003,7 +2048,7 @@ export default memo(function Explorer({
             <SavedProjects
               projects={savedProjects}
               activity={activity}
-              density={density}
+              density={density === "feed" ? "compact" : density}
               news={news}
               onOpen={openCard}
               onSave={saveCard}

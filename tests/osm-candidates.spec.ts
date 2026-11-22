@@ -155,7 +155,7 @@ test.describe("candidates from OpenStreetMap ways", () => {
     expect(osmDraft(line, titles.get(line.id)!)).toMatchObject({
       title: "Dobbeltspor Hamar-Brumunddal",
       description: "",
-      status: "planned",
+      status: "proposed",
       categories: ["Samferdsel", "Jernbane"],
       developer: "Bane NOR",
       year: "2034",

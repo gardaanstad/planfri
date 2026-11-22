@@ -15,7 +15,7 @@ import {
   projectPlace,
   statuses,
 } from "../lib/data";
-import type { ListDensity } from "../lib/explore-state";
+import type { CardDensity } from "../lib/explore-state";
 import { type ProjectNews, unreadCount, unreadSummary } from "../lib/unread";
 import { cn } from "../lib/cn";
 import { keyboardFocused, statusTone } from "../lib/ui";
@@ -44,7 +44,7 @@ const reach = "after:inset-y-2 max-md:after:inset-y-1.5";
  * What is new since the user last opened the project: a dot and a count in
  * the accent colour, at the end of the stats, with the details on hover.
  */
-function UnreadMark({
+export function UnreadMark({
   news,
   className,
 }: {
@@ -83,7 +83,7 @@ export default memo(function ProjectCard({
 }: {
   project: Project;
   commentCount: number;
-  density: ListDensity;
+  density: CardDensity;
   saved: boolean;
   /** What is new since the user last opened it, for projects they have. */
   news?: ProjectNews;

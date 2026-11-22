@@ -46,7 +46,7 @@ export function statusSummary(values: string[]) {
     .map((value, i) =>
       i === 0 ? statuses[value].label : statuses[value].label.toLowerCase(),
     );
-  if (labels.length === 0 || labels.length === 3) return "Alle statuser";
+  if (labels.length === 0 || labels.length === statusOrder.length) return "Alle statuser";
   return labels.join(", ");
 }
 /** What a search matches a project on, lowercased. */

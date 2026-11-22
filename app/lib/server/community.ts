@@ -15,6 +15,7 @@ import { getProjectUpdates, type Comment, type Project } from "../data";
 import type {
   CommentList,
   CommunityData,
+  LatestComment,
   ProjectActivity,
 } from "../community";
 import { HttpError } from "./http";
@@ -23,22 +24,67 @@ import { serverNow } from "./clock";
 
 const week = 7 * 24 * 60 * 60 * 1000;
 
-/** Comment counts per project; one project's if `projectId` is given. */
+/**
+ * Comment counts per project, with each project's newest comment; one
+ * project's if `projectId` is given.
+ */
 async function readActivity(projectId?: string) {
+  const db = getDb();
   const weekAgo = new Date(serverNow().getTime() - week).toISOString();
-  const rows = await getDb()
+  const newest = db
     .select({
       projectId: comment.projectId,
-      comments: sql<number>`count(*)`,
-      recent: sql<number>`coalesce(sum(${comment.date} >= ${weekAgo}), 0)`,
+      date: sql<string>`max(${comment.date})`.as("newest_date"),
     })
     .from(comment)
     .where(projectId ? eq(comment.projectId, projectId) : undefined)
-    .groupBy(comment.projectId);
+    .groupBy(comment.projectId)
+    .as("newest");
+  const [rows, latestRows] = await Promise.all([
+    db
+      .select({
+        projectId: comment.projectId,
+        comments: sql<number>`count(*)`,
+        recent: sql<number>`coalesce(sum(${comment.date} >= ${weekAgo}), 0)`,
+      })
+      .from(comment)
+      .where(projectId ? eq(comment.projectId, projectId) : undefined)
+      .groupBy(comment.projectId),
+    db
+      .select({
+        id: comment.id,
+        projectId: comment.projectId,
+        author: sql<string>`coalesce(${user.username}, ${comment.seedAuthor}, 'slettet_bruker')`,
+        text: comment.text,
+        date: comment.date,
+      })
+      .from(comment)
+      .innerJoin(
+        newest,
+        and(
+          eq(comment.projectId, newest.projectId),
+          eq(comment.date, newest.date),
+        ),
+      )
+      .leftJoin(user, eq(comment.userId, user.id))
+      .orderBy(comment.id),
+  ]);
+  const latest = new Map<string, LatestComment>();
+  for (const { projectId, text, ...row } of latestRows)
+    if (!latest.has(projectId))
+      latest.set(projectId, {
+        ...row,
+        text: text.length > latestLength ? `${text.slice(0, latestLength).trimEnd()}…` : text,
+      });
   return Object.fromEntries(
-    rows.map(({ projectId, ...counts }) => [projectId, counts]),
+    rows.map(({ projectId, ...counts }) => [
+      projectId,
+      { ...counts, latest: latest.get(projectId) },
+    ]),
   ) as Record<string, ProjectActivity>;
 }
+// Enough for two lines of the "Nytt" view.
+const latestLength = 200;
 
 /**
  * Everything the explorer shows. `suggestions` counts pending suggestions:

@@ -9,6 +9,7 @@ import { seedProjects } from "../scripts/seed-data";
 import {
   accountMenuItem,
   member,
+  openDiscussion,
   openOwnProfile,
   openSaved,
   shot,
@@ -47,6 +48,37 @@ const top = (page: Page, selector: string) =>
   page.locator(selector).evaluate((element) =>
     Math.round(element.getBoundingClientRect().top),
   );
+
+test("a project shows its phase and its facts, and opens on its updates", async ({
+  page,
+}) => {
+  await page.goto(projectPath);
+  const post = page.locator("[data-project-post]");
+  const phases = post.getByRole("list", { name: "Fase" });
+  await expect(phases.getByRole("listitem")).toHaveText([
+    "Forslag",
+    "Planlagt",
+    "Under bygging",
+    `Ferdig${project.year ? ` ${project.year}` : ""}`,
+  ]);
+  await expect(phases.locator("[aria-current=step]")).toHaveCount(1);
+  await expect(phases).toHaveAttribute("data-phase-strip", project.status);
+  await expect(post.locator("[data-project-meta]")).toContainText(
+    project.developer,
+  );
+  const tabs = post.locator("#project-sections").getByRole("button");
+  await expect(tabs.first()).toHaveText(/^Oppdateringer/);
+  await expect(tabs.first()).toHaveAttribute("aria-pressed", "true");
+  // Guests read the comments first; joining in is a line after them.
+  await openDiscussion(page);
+  const discussion = post.getByRole("region", { name: "Kommentarer", exact: true });
+  const line = discussion.locator("[data-login-to-comment]");
+  await expect(line).toBeVisible();
+  const comment = discussion.locator("[data-comment-id]").first();
+  expect((await line.boundingBox())!.y).toBeGreaterThan(
+    (await comment.boundingBox())!.y,
+  );
+});
 
 test.describe("login prompt", () => {
   test.use({ viewport: { width: 1280, height: 800 } });
@@ -96,6 +128,7 @@ test.describe("login prompt", () => {
     await prompt.getByRole("button", { name: "Lukk", exact: true }).click();
     await expect(prompt).toHaveCount(0);
 
+    await openDiscussion(page);
     await post
       .getByRole("button", { name: "Logg inn", exact: true })
       .first()

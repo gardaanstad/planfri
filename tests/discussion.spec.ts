@@ -3,7 +3,14 @@ import { randomUUID } from "node:crypto";
 import type { Comment } from "../app/lib/data";
 import { seedProjects } from "../scripts/seed-data";
 import { discussionThreads } from "../app/lib/discussion";
-import { member, mutation, shot, signIn, uniqueName } from "./support";
+import {
+  member,
+  mutation,
+  openDiscussion,
+  shot,
+  signIn,
+  uniqueName,
+} from "./support";
 
 const project = seedProjects[0];
 const path = `/prosjekt/${project.id}`;
@@ -148,6 +155,7 @@ test("commenting under an update references it in the main discussion and preser
 }) => {
   await signIn(context, await member({ username: uniqueName() }));
   await page.goto(path);
+  await openDiscussion(page);
   const discussion = page.getByRole("region", {
     name: "Kommentarer",
     exact: true,
@@ -187,6 +195,7 @@ test("commenting under an update references it in the main discussion and preser
   await page.getByRole("button", { name: /^Kommentarer/ }).click();
   await expect(composer).toHaveValue(draft);
   await page.reload();
+  await openDiscussion(page);
   const added = discussion
     .locator("[data-comment-id]")
     .filter({ hasText: text });
@@ -427,6 +436,7 @@ test("on a phone, tapping a comment's name line folds its thread", async ({
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(path);
+  await openDiscussion(page);
   const discussion = page.getByRole("region", {
     name: "Kommentarer",
     exact: true,
@@ -464,6 +474,7 @@ test("a reply closes on cancel or a click elsewhere, keeping its draft only for 
 }) => {
   await signIn(context, await member({ username: uniqueName() }));
   await page.goto(path);
+  await openDiscussion(page);
   const thread = page
     .getByRole("region", { name: "Kommentarer", exact: true })
     .locator('[data-comment-id="c1"]');
@@ -497,6 +508,7 @@ test("a vote shows at once and goes back if the server refuses it", async ({
     await route.fulfill({ status: 500, json: { error: "Serveren svarte ikke." } });
   });
   await page.goto(path);
+  await openDiscussion(page);
   const votes = page
     .getByRole("region", { name: "Kommentarer", exact: true })
     .locator('[data-comment-id="c1"]')
