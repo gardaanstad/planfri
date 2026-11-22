@@ -80,6 +80,7 @@ import ProjectEditor from "./project-editor";
 import { OsmPanel, useOsmModeStored, useOsmReview } from "./osm-review";
 import ProjectPost from "./project-post";
 import ProjectCard from "./project-card";
+import { useListMotion } from "./use-list-motion";
 import PanelResizer from "./panel-resizer";
 import SavedProjects from "./saved-projects";
 import { useUnread } from "./unread-provider";
@@ -181,6 +182,8 @@ const controlsSlotClasses = cn(
   "[&_[data-map-controls]]:bottom-[15px]!",
 );
 /** Hides the map controls in a slot while its drawer would cover them. */
+const projectKey = (project: Project) => project.id;
+
 function coverControls(slot: HTMLElement | null, motion: DrawerMotion) {
   if (!slot) return;
   const covered = motion.visible > window.innerHeight * middleSnapPoint + 2;
@@ -1586,6 +1589,12 @@ export default memo(function Explorer({
     hoveredId.current = next;
     mapApi.current?.highlight(next);
   }, []);
+  const listRows = useListMotion(
+    listedProjects,
+    projectKey,
+    listRef,
+    "data-card-id",
+  );
   const projectResults = (
     <section
       ref={listRef}
@@ -1654,32 +1663,35 @@ export default memo(function Explorer({
             {sortFilter}
           </div>
         </div>
-        {listedProjects.length === 0 ? (
-          <EmptyState
-            level={2}
-            icon={
-              filtersChanged ? <Search size={22} /> : <MapPin size={22} />
-            }
-            title={filtersChanged ? "Ingen treff" : "Ingen prosjekter her"}
-          >
-            {emptyActions}
-          </EmptyState>
-        ) : (
-          <ol>
-            {listedProjects.map((project) => (
-              <ProjectCard
-                key={project.id}
-                project={project}
-                commentCount={activity[project.id]?.comments ?? 0}
-                density={density}
-                saved={savedIds.has(project.id)}
-                news={news.get(project.id)}
-                onOpen={openListCard}
-                onSave={saveCard}
-                onHover={hoverCard}
-              />
-            ))}
-          </ol>
+        {/* Kept when empty, so rows filtered out can fade in it. */}
+        <ol className="relative" data-list-motion="">
+          {listRows.map((project) => (
+            <ProjectCard
+              key={project.id}
+              project={project}
+              commentCount={activity[project.id]?.comments ?? 0}
+              density={density}
+              saved={savedIds.has(project.id)}
+              news={news.get(project.id)}
+              onOpen={openListCard}
+              onSave={saveCard}
+              onHover={hoverCard}
+            />
+          ))}
+        </ol>
+        {listRows.length === 0 && (
+          // Fades in as the last rows fade out over it.
+          <div className="animate-panel-fade-in">
+            <EmptyState
+              level={2}
+              icon={
+                filtersChanged ? <Search size={22} /> : <MapPin size={22} />
+              }
+              title={filtersChanged ? "Ingen treff" : "Ingen prosjekter her"}
+            >
+              {emptyActions}
+            </EmptyState>
+          </div>
         )}
       </div>
     </section>

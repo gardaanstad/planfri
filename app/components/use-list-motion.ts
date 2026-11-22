@@ -1,0 +1,204 @@
+"use client";
+import { useLayoutEffect, useRef, useState, type RefObject } from "react";
+
+const exitMs = 120;
+const moveMs = 320;
+const enterMs = 220;
+const easeOutSoft = "cubic-bezier(0.22, 1, 0.36, 1)";
+// Each kind of motion on its own property, so they combine when interrupted.
+const moveId = "list-move";
+const enterId = "list-enter";
+
+function stop(element: Element, id: string) {
+  for (const animation of element.getAnimations())
+    if (animation.id === id) animation.cancel();
+}
+
+type Sight = { top: number; bottom: number; height: number };
+
+/** The part of the scroll container that is on screen. */
+function sightOf(element: HTMLElement | null): Sight | null {
+  if (!element) return null;
+  const rect = element.getBoundingClientRect();
+  const top = Math.max(rect.top, 0);
+  const bottom = Math.min(rect.bottom, window.innerHeight);
+  return { top, bottom, height: Math.max(bottom - top, 0) };
+}
+
+function overlaps(rect: DOMRect, view: Sight) {
+  return rect.height > 0 && rect.bottom > view.top && rect.top < view.bottom;
+}
+
+/** A copy of a row that left the list, fading where the row was. */
+type Ghost = { node: HTMLElement; rect: DOMRect; opacity: number };
+
+/** Lifts a leaving row's copy into `list`, over where the row was. */
+function place(node: HTMLElement, rect: DOMRect, list: HTMLElement) {
+  const origin = list.getBoundingClientRect();
+  Object.assign(node.style, {
+    position: "absolute",
+    top: `${rect.top - origin.top}px`,
+    left: `${rect.left - origin.left}px`,
+    width: `${rect.width}px`,
+    height: `${rect.height}px`,
+    margin: "0",
+    pointerEvents: "none",
+  });
+  node.inert = true;
+  node.setAttribute("aria-hidden", "true");
+  // First in the list, so the rows gliding in pass over it.
+  list.prepend(node);
+}
+
+/**
+ * Moves a list from one set of items to the next at once: rows that drop out
+ * fade where they were, lifted out of the flow, while the rows that stay
+ * glide into the room they leave and new rows fade in at their places. Only
+ * rows in sight move; a change midway carries on from where every row is.
+ * With reduced motion, or the list out of sight, it swaps without motion.
+ *
+ * Rows are found by `attribute` inside `scroller`, and leaving rows fade in
+ * their list element, marked `data-list-motion`, which must be positioned
+ * (`relative`).
+ */
+export function useListMotion<T>(
+  items: T[],
+  keyOf: (item: T) => string,
+  scroller: RefObject<HTMLElement | null>,
+  attribute: string,
+): T[] {
+  const [shown, setShown] = useState(items);
+  const prev = useRef(items);
+  /** Where each row was in sight before the swap, for the glide after it. */
+  const from = useRef<Map<string, DOMRect> | null>(null);
+  const ghosts = useRef<Ghost[]>([]);
+  const fading = useRef(new Set<HTMLElement>());
+  const keyRef = useRef(keyOf);
+  useLayoutEffect(() => {
+    keyRef.current = keyOf;
+  });
+
+  useLayoutEffect(() => {
+    const live = fading.current;
+    return () => live.forEach((node) => node.remove());
+  }, []);
+
+  useLayoutEffect(() => {
+    if (prev.current === items) return;
+    prev.current = items;
+    const view = sightOf(scroller.current);
+    const rows =
+      scroller.current?.querySelectorAll<HTMLElement>(`[${attribute}]`) ?? [];
+    const still =
+      !view ||
+      view.height === 0 ||
+      document.hidden ||
+      matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (still) {
+      from.current = null;
+      for (const row of rows) row.getAnimations().forEach((a) => a.cancel());
+    } else {
+      const rects = new Map<string, DOMRect>();
+      const left: Ghost[] = [];
+      const staying = new Set(items.map(keyRef.current));
+      for (const row of rows) {
+        const id = row.getAttribute(attribute)!;
+        // Mid-glide, from where the row is now, not where it is headed.
+        const rect = row.getBoundingClientRect();
+        rects.set(id, rect);
+        stop(row, moveId);
+        if (!staying.has(id) && overlaps(rect, view)) {
+          const node = row.cloneNode(true) as HTMLElement;
+          node.removeAttribute(attribute);
+          node
+            .querySelectorAll("[id]")
+            .forEach((el) => el.removeAttribute("id"));
+          left.push({
+            node,
+            rect,
+            opacity: Number(getComputedStyle(row).opacity),
+          });
+        }
+      }
+      from.current = rects;
+      ghosts.current = left;
+    }
+    // The swap waits on the rows as they were, so it follows their commit.
+    setShown(items);
+  }, [attribute, items, scroller]);
+
+  useLayoutEffect(() => {
+    const rects = from.current;
+    const left = ghosts.current;
+    from.current = null;
+    ghosts.current = [];
+    const container = scroller.current;
+    if (!container || !rects) return;
+    const view = sightOf(container)!;
+    const rows = container.querySelectorAll<HTMLElement>(`[${attribute}]`);
+    const list = container.querySelector<HTMLElement>("[data-list-motion]");
+
+    if (list) {
+      for (const { node, rect, opacity } of left) {
+        place(node, rect, list);
+        fading.current.add(node);
+        const fade = node.animate(
+          { opacity: [opacity, 0], scale: [1, 0.985] },
+          { duration: exitMs, easing: "ease-out", fill: "forwards" },
+        );
+        fade.onfinish = fade.oncancel = () => {
+          node.remove();
+          fading.current.delete(node);
+        };
+      }
+    }
+
+    let moved = false;
+    const arrivals: HTMLElement[] = [];
+    for (const row of rows) {
+      const to = row.getBoundingClientRect();
+      const was = rects.get(row.getAttribute(attribute)!);
+      const inSight = overlaps(to, view);
+      if (!was) {
+        if (inSight) arrivals.push(row);
+        continue;
+      }
+      const wasInSight = overlaps(was, view);
+      const dx = was.left - to.left;
+      let dy = was.top - to.top;
+      if (
+        (!inSight && !wasInSight) ||
+        (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5)
+      )
+        continue;
+      // From far out of sight, it glides in from the edge it comes from,
+      // at the pace of the rest.
+      if (!wasInSight)
+        dy =
+          dy > 0
+            ? Math.min(dy, view.bottom - to.top)
+            : Math.max(dy, view.top - to.bottom);
+      moved = true;
+      row.animate(
+        { transform: [`translate(${dx}px, ${dy}px)`, "none"] },
+        { duration: moveMs, easing: easeOutSoft, id: moveId },
+      );
+    }
+    // Arrivals follow the glide a beat behind, so the room opens first.
+    for (const row of arrivals) {
+      stop(row, enterId);
+      row.animate(
+        { opacity: [0, 1], translate: ["0 6px", "0 0"] },
+        {
+          duration: enterMs,
+          delay: moved ? 60 : 0,
+          easing: "ease-out",
+          fill: "backwards",
+          id: enterId,
+        },
+      );
+    }
+  }, [attribute, scroller, shown]);
+
+  return shown;
+}
