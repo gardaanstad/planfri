@@ -34,3 +34,11 @@ Pages are server-rendered, so a test can click before the page is interactive. D
 To get your branch onto main, commit, then run `scripts/land.sh` from your worktree. Never push to main yourself, and don't merge main into your branch. The script rebases on `origin/main`, waits its turn if another agent is landing, and pushes. It reruns lint and typecheck only when main has moved; specs aren't rerun, so run yours before landing.
 
 Exit 0 means landed. On exit 1, do what its last lines say, then run it again. The common case is a conflict: resolve the listed files, `git add` them, `GIT_EDITOR=true git rebase --continue`, rerun. Git remembers conflict resolutions (rerere), so you won't have to resolve the same conflict twice.
+
+Never push your branch or worktree to the remote; `scripts/land.sh` pushing to main is the only push.
+
+After it exits 0, clean up, in this order:
+
+1. Settle your T3 thread with `t3_thread_organize` (`action: "settle"`), if that tool is available.
+2. Remove your worktree and branch. Do this last, since it deletes your working directory: `branch=$(git branch --show-current); wt=$(git rev-parse --show-toplevel); main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)"); git -C "$main" worktree remove "$wt" && git -C "$main" branch -D "$branch"`
+3. Reply in one line: the landed SHA, plus any spec that was flaky.
