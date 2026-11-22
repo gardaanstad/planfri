@@ -19,6 +19,8 @@ export type SheetAction = {
   /** Greyed out for guests; choosing it asks them to log in. */
   locked?: boolean;
   pressed?: boolean;
+  /** Destructive, such as deleting: in the danger colour. */
+  danger?: boolean;
   /** A switch: on or off, shown on the right. */
   checked?: boolean;
   /** A second line under the label. */
@@ -170,6 +172,7 @@ export default function ActionSheet({
                   "transition-colors duration-150 active:bg-surface-muted motion-reduce:transition-none",
                   "[&>svg]:shrink-0 [&>svg]:text-muted",
                   action.locked && "text-muted [&>svg]:text-muted/60",
+                  action.danger && "text-danger [&>svg]:text-danger",
                 )}
                 onClick={() => close(action.onSelect)}
               >
