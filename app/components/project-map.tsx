@@ -258,8 +258,8 @@ export type MapApi = {
    */
   center: (points: Point[], options?: { bottom?: number; maxZoom?: number }) => void;
   /**
-   * Shows the view; with `area`, zoomed out as far as needed for that area
-   * to stay in sight above a sheet that has grown since.
+   * Shows the view; with `area`, the middle of that area is centered above
+   * a sheet that may have grown since, at the view's zoom.
    */
   show: (view: MapView, area?: ViewBounds) => void;
   showNorway: () => void;
@@ -803,29 +803,20 @@ export default function ProjectMap({
       },
       show(view, area) {
         settled(() => {
+          // At the zoom it had, the middle of that area centered in the part
+          // of the map the sheet now leaves open.
           const bottom = inset();
-          const bounds = area
-            ? L.latLngBounds([area.south, area.west], [area.north, area.east])
-            : null;
-          const zoom = bounds
-            ? Math.min(
+          const center = area
+            ? map.unproject(
+                map
+                  .project([area.south, area.west], view.zoom)
+                  .add(map.project([area.north, area.east], view.zoom))
+                  .divideBy(2)
+                  .add([0, bottom / 2]),
                 view.zoom,
-                map.getBoundsZoom(bounds, false, L.point(0, bottom)),
               )
-            : view.zoom;
-          // Centered in the part of the map the sheet leaves open.
-          const center =
-            bounds && zoom < view.zoom
-              ? map.unproject(
-                  map
-                    .project(bounds.getSouthWest(), zoom)
-                    .add(map.project(bounds.getNorthEast(), zoom))
-                    .divideBy(2)
-                    .add([0, bottom / 2]),
-                  zoom,
-                )
-              : view.center;
-          map.setView(center, zoom, { animate: !reducedMotion() });
+            : view.center;
+          map.setView(center, view.zoom, { animate: !reducedMotion() });
         });
       },
       showNorway: () => settled(() => showNorway(!reducedMotion())),

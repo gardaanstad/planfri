@@ -307,11 +307,11 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expect(page).toHaveURL(atList);
     await expect(drawer).toBeHidden();
     await expectDrawerHeight(page, 0.58);
-    // Back to the area it was opened from, zoomed out to keep all of it in
-    // sight above the list, which now rests higher than the folded one did.
+    // Back to the area it was opened from at the zoom it had, its middle
+    // above the list, which now rests higher than the folded one did.
     await expect
       .poll(() => new URL(page.url()).searchParams.get("kart"))
-      .toMatch(/^59\.\d+,10\.7500,12(\.5)?$/);
+      .toMatch(/^59\.\d+,10\.7500,13$/);
   });
 
   test("the list rests at the middle height, the map above it", async ({

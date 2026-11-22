@@ -4,6 +4,7 @@ import { mutationSchema } from "@/app/lib/community-rules";
 import {
   addComment,
   castVote,
+  deleteComment,
   readCommunity,
   saveProject,
   setSaved,
@@ -63,6 +64,12 @@ export function POST(request: Request) {
           action: "comment",
           projectId: body.projectId,
           ...(await addComment(member.id, body)),
+        };
+        break;
+      case "delete-comment":
+        result = {
+          action: "delete-comment",
+          ...(await deleteComment(member.id, body.commentId)),
         };
         break;
     }

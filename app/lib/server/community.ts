@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { getDb } from "../db/client";
 import {
@@ -33,7 +33,12 @@ async function readActivity(projectId?: string) {
       recent: sql<number>`coalesce(sum(${comment.date} >= ${weekAgo}), 0)`,
     })
     .from(comment)
-    .where(projectId ? eq(comment.projectId, projectId) : undefined)
+    .where(
+      and(
+        ne(comment.text, ""),
+        projectId ? eq(comment.projectId, projectId) : undefined,
+      ),
+    )
     .groupBy(comment.projectId);
   return Object.fromEntries(
     rows.map(({ projectId, ...counts }) => [projectId, counts]),
@@ -103,7 +108,8 @@ const author = sql<string>`coalesce(${user.username}, ${comment.seedAuthor}, 'sl
 
 /**
  * A list of comments, oldest first. References to updates that are gone,
- * and to parents that are, read as none.
+ * and to parents that are, read as none. A deleted comment that others
+ * replied to stays in its project's list, without author or text.
  */
 export async function readComments(list: CommentList): Promise<Comment[]> {
   const db = getDb();
@@ -128,7 +134,7 @@ export async function readComments(list: CommentList): Promise<Comment[]> {
     .where(
       list.startsWith("project:")
         ? eq(comment.projectId, key)
-        : sql`${author} = ${key}`,
+        : and(sql`${author} = ${key}`, ne(comment.text, "")),
     )
     .groupBy(comment.id)
     .orderBy(comment.date, comment.id);
@@ -151,6 +157,7 @@ export async function readComments(list: CommentList): Promise<Comment[]> {
       ? row.updateId
       : undefined,
     parentId: row.parentId ?? undefined,
+    ...(!row.text && { author: "", votes: 0, deleted: true }),
   }));
 }
 
@@ -318,4 +325,67 @@ export async function addComment(
     readActivity(input.projectId),
   ]);
   return { comments, activity: activity[input.projectId] };
+}
+
+/**
+ * Deletes a member's own comment. One that others replied to stays as a
+ * placeholder holding its thread together; a placeholder left without
+ * replies goes too.
+ */
+export async function deleteComment(userId: string, commentId: string) {
+  const db = getDb();
+  const [target] = await db
+    .select({ projectId: comment.projectId, userId: comment.userId })
+    .from(comment)
+    .where(eq(comment.id, commentId));
+  if (!target || !target.userId)
+    throw new HttpError(404, "Kommentaren finnes ikke.");
+  if (target.userId !== userId)
+    throw new HttpError(403, "Du kan bare slette dine egne kommentarer.");
+  let id: string | null = commentId;
+  let own = true;
+  while (id) {
+    const [reply] = await db
+      .select({ id: comment.id })
+      .from(comment)
+      .where(eq(comment.parentId, id))
+      .limit(1);
+    if (reply) {
+      if (own)
+        await db.batch([
+          db
+            .update(comment)
+            .set({ text: "", userId: null, seedAuthor: null, seedVotes: 0 })
+            .where(eq(comment.id, id)),
+          db.delete(vote).where(eq(vote.commentId, id)),
+        ]);
+      break;
+    }
+    const [row] = await db
+      .select({ parentId: comment.parentId })
+      .from(comment)
+      .where(eq(comment.id, id));
+    await db.batch([
+      db.delete(vote).where(eq(vote.commentId, id)),
+      db.delete(comment).where(eq(comment.id, id)),
+    ]);
+    // Up the thread: only a placeholder parent, now perhaps without replies.
+    const parentId: string | null = row?.parentId ?? null;
+    if (!parentId) break;
+    const [parent] = await db
+      .select({ text: comment.text })
+      .from(comment)
+      .where(eq(comment.id, parentId));
+    id = parent && !parent.text ? parentId : null;
+    own = false;
+  }
+  const [comments, activity] = await Promise.all([
+    readComments(`project:${target.projectId}`),
+    readActivity(target.projectId),
+  ]);
+  return {
+    projectId: target.projectId,
+    comments,
+    activity: activity[target.projectId] ?? { comments: 0, recent: 0 },
+  };
 }

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { getDb } from "../db/client";
 import { comment, project, projectView } from "../db/schema";
@@ -72,6 +72,7 @@ export async function unreadActivity(
       .where(
         and(
           inArray(comment.projectId, ids),
+          ne(comment.text, ""),
           gte(
             comment.date,
             new Date(Math.max(earliest, 0)).toISOString().slice(0, 10),
@@ -118,7 +119,7 @@ export async function readUnread(userId: string): Promise<Unread> {
         latest: sql<string>`max(${comment.date})`,
       })
       .from(comment)
-      .where(inArray(comment.projectId, ids))
+      .where(and(inArray(comment.projectId, ids), ne(comment.text, "")))
       .groupBy(comment.projectId),
     projectData,
   ]);
