@@ -227,10 +227,8 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await page
       .getByRole("button", { name: "Utvid prosjektlisten", exact: true })
       .click();
-    await page
-      .getByRole("group", { name: "Visning" })
-      .getByRole("button", { name: "Utvidet" })
-      .click();
+    await page.getByRole("button", { name: /^Visning/ }).click();
+    await page.getByRole("option", { name: "Utvidet" }).click();
     const card = page
       .getByRole("region", { name: "Prosjektliste", exact: true })
       .locator("[data-card-id]")
@@ -244,6 +242,72 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       .tap();
     await expect(page).toHaveURL(new RegExp(`/prosjekt/${id}`));
     await expect(page.getByRole("dialog", { name: /^Bilder av / })).toHaveCount(0);
+  });
+
+  test("the views are chosen from a sheet, beside a count that wraps on its own", async ({
+    page,
+  }) => {
+    // Zoomed in on central Oslo: the count names the view, Oslo and all.
+    await page.goto("/?kart=59.9100,10.7500,14");
+    await page
+      .getByRole("button", { name: "Utvid prosjektlisten", exact: true })
+      .click();
+    const list = page.getByRole("region", { name: "Prosjektliste", exact: true });
+    const inOslo = list.getByRole("button", { name: /^\d+ i Oslo, vis Oslo/ });
+    await expect(inOslo).toBeVisible();
+    await expect(page.getByRole("group", { name: "Visning" })).toHaveCount(0);
+    const views = page.getByRole("button", { name: /^Visning/ });
+    await expect(views).toHaveText("Visning");
+    const sort = page.getByRole("button", { name: /^Sorter prosjekter:/ });
+
+    // The count, the order and the views share a row; the count wraps
+    // within its own room, and no line of it starts with a dot.
+    const [viewsBox, sortBox, rowBox] = await Promise.all([
+      views.boundingBox(),
+      sort.boundingBox(),
+      inOslo.locator("xpath=ancestor::span[contains(@class,'overflow-hidden')][1]").boundingBox(),
+    ]);
+    expect(Math.abs(viewsBox!.y - sortBox!.y)).toBeLessThan(1);
+    expect(rowBox!.x + rowBox!.width).toBeLessThanOrEqual(sortBox!.x);
+    const lineStarts = await inOslo.evaluate((link) => {
+      const clip = link.closest(".overflow-hidden")!.getBoundingClientRect();
+      return [...link.closest(".flex-wrap")!.querySelectorAll("[aria-hidden]")]
+        .filter((dot) => dot.textContent?.trim() === "·")
+        .filter((dot) => Math.abs(dot.getBoundingClientRect().left - clip.left) < 1)
+        .length;
+    });
+    expect(lineStarts).toBe(0);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(320);
+
+    // The sheet lists the card layouts, then "Nytt".
+    await expect(async () => {
+      await views.click();
+      await expect(
+        page.getByRole("listbox", { name: "Visning", exact: true }),
+      ).toBeVisible({ timeout: 1000 });
+    }).toPass();
+    const sheet = page.getByRole("listbox", { name: "Visning", exact: true });
+    await expect(sheet.getByRole("option")).toHaveText([
+      "Kompakt",
+      "Utvidet",
+      "Nytt",
+    ]);
+    await expect(sheet.getByRole("option", { name: "Kompakt" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await shot(page, "mobile-views-sheet");
+
+    // Choosing "Nytt" closes the sheet; the order goes, the button stays.
+    await sheet.getByRole("option", { name: "Nytt" }).click();
+    await expect(sheet).toBeHidden();
+    await expect(list.locator("[data-feed-id]").first()).toBeVisible();
+    await expect(sort).toHaveCount(0);
+    await expect(views).toHaveText("Visning");
+    await expect(views).toHaveAccessibleName("Visning: Nytt");
+    await shot(page, "mobile-views-feed");
   });
 
   test("Les mer takes a project at the middle height to the full height", async ({

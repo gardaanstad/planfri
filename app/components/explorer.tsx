@@ -1420,6 +1420,8 @@ export default memo(function Explorer({
         // Beside the view switch, not at the edge: no overhang.
         "mr-0",
         "md:@max-[320px]/list:[&_[data-slot=choice-trigger]>span]:sr-only",
+        // Phones: beside "Visning", a narrow list keeps the icon alone.
+        "max-md:@max-[360px]/list:[&_[data-slot=choice-trigger]>span]:sr-only",
         // Beside the longer count, a narrow list keeps its icon alone too.
         outsideHits > 0 &&
           "@max-[560px]/list:[&_[data-slot=choice-trigger]>span]:sr-only",
@@ -1427,6 +1429,21 @@ export default memo(function Explorer({
       icon={<ArrowDownUp size={14} />}
       onChange={setSort}
       options={sortOptions}
+    />
+  );
+  // Phones: one button, its views in a sheet.
+  const densityMenu = (
+    <ChoiceSelect
+      label="Visning"
+      triggerLabel="Visning"
+      value={density}
+      onChange={(value) => storeDensity(value as ListDensity)}
+      className={sortChoice}
+      options={densityOptions.map(({ value, label, Icon }) => ({
+        value,
+        label,
+        icon: <Icon size={18} aria-hidden="true" />,
+      }))}
     />
   );
   const densitySwitch = (
@@ -1555,55 +1572,68 @@ export default memo(function Explorer({
   // past the line, as tall as a finger needs.
   const countLink =
     "relative text-ink-soft underline decoration-border-strong underline-offset-3 transition-[text-decoration-color,color] duration-120 hover:text-ink hover:decoration-current after:absolute after:-inset-x-1 after:-inset-y-1.5 pointer-coarse:after:-inset-y-3";
+  // Every part leads with a dot, clipped where the part starts a line: the
+  // first, and any wrapped onto a new one, so no line starts with a dot.
+  const countSeparator = (
+    <span aria-hidden="true" className="w-4 shrink-0 text-center">
+      ·
+    </span>
+  );
   // With matches outside the map: what's in view, in the place the view is
-  // on, then all of them; a press on either of the last frames them.
+  // on, then all of them; a press on either of the last frames them. The
+  // padding keeps the links' press areas clear of the clip.
   const listCount =
     outsideHits > 0 ? (
-      <span className="text-ui inline-flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-muted tabular-nums">
-        {density === "feed" ? (
-          feedCount
-        ) : (
-          <span
-            className="whitespace-nowrap"
-            role="status"
-            aria-label={`${shown} ${shown === 1 ? "synlig prosjekt" : "synlige prosjekter"}`}
-          >
-            {shown} {shown === 1 ? "synlig" : "synlige"}
-            {/* A narrow list keeps the line whole with the shorter words. */}
-            <span className="@max-[560px]/list:hidden">
-              {shown === 1 ? " prosjekt" : " prosjekter"}
-            </span>
-          </span>
-        )}
-        {showInPlace && (
-          <span className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap">
-            <span aria-hidden="true">·</span>
-            <button
-              type="button"
-              className={cn(countLink, "flex min-w-0")}
-              aria-label={`${inPlace} i ${countPlace}, vis ${countPlace} på kartet`}
-              onClick={() => goToPlace(countPlace)}
-            >
-              {/* A long name gives way; the press area stays whole. */}
-              <span className="max-w-[12rem] truncate">
-                {inPlace} i {countPlace}
+      <span className="-my-3 min-w-0 overflow-hidden py-3">
+        <span className="text-ui -ml-4 flex min-w-0 flex-wrap items-center gap-y-1 text-muted tabular-nums">
+          <span className="inline-flex min-w-0 items-center">
+            {countSeparator}
+            {density === "feed" ? (
+              feedCount
+            ) : (
+              <span
+                className="whitespace-nowrap"
+                role="status"
+                aria-label={`${shown} ${shown === 1 ? "synlig prosjekt" : "synlige prosjekter"}`}
+              >
+                {shown} {shown === 1 ? "synlig" : "synlige"}
+                {/* A narrow list keeps the line whole with the shorter words. */}
+                <span className="@max-[560px]/list:hidden">
+                  {shown === 1 ? " prosjekt" : " prosjekter"}
+                </span>
               </span>
-            </button>
+            )}
           </span>
-        )}
-        {showTotal && (
-          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-            <span aria-hidden="true">·</span>
-            <button
-              type="button"
-              className={countLink}
-              aria-label={`${total} totalt, vis alle på kartet`}
-              onClick={showSearchHits}
-            >
-              {total} totalt
-            </button>
-          </span>
-        )}
+          {showInPlace && (
+            <span className="inline-flex min-w-0 items-center whitespace-nowrap">
+              {countSeparator}
+              <button
+                type="button"
+                className={cn(countLink, "flex min-w-0")}
+                aria-label={`${inPlace} i ${countPlace}, vis ${countPlace} på kartet`}
+                onClick={() => goToPlace(countPlace)}
+              >
+                {/* A long name gives way; the press area stays whole. */}
+                <span className="max-w-[12rem] truncate">
+                  {inPlace} i {countPlace}
+                </span>
+              </button>
+            </span>
+          )}
+          {showTotal && (
+            <span className="inline-flex items-center whitespace-nowrap">
+              {countSeparator}
+              <button
+                type="button"
+                className={countLink}
+                aria-label={`${total} totalt, vis alle på kartet`}
+                onClick={showSearchHits}
+              >
+                {total} totalt
+              </button>
+            </span>
+          )}
+        </span>
       </span>
     ) : density === "feed" ? (
       <span className="text-ui text-muted tabular-nums">{feedCount}</span>
@@ -1722,17 +1752,18 @@ export default memo(function Explorer({
         )}
       >
         {isMobile ? mobileFilters : desktopFilters}
-        {/* Too narrow for both, the views and order go under the count. */}
-        <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border py-1.5">
+        {/* Too narrow for both, the views and order go under the count;
+            on phones they stay beside it, and the count wraps instead. */}
+        <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border py-1.5 max-md:flex-nowrap">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
             <h1 className="sr-only">Prosjekter</h1>
             {listCount}
           </div>
-          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          <div className="ml-auto flex shrink-0 items-center gap-1.5 max-md:gap-0">
             {/* The switch at the edge, so the order coming and going, or a
                 longer name for it, never moves it. "Nytt" has its own order. */}
             {density !== "feed" && sortFilter}
-            {densitySwitch}
+            {isMobile ? densityMenu : densitySwitch}
           </div>
         </div>
         {density === "feed" && listedProjects.length > 0 && (
