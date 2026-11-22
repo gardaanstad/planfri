@@ -1136,12 +1136,13 @@ test.describe("desktop explorer", () => {
     );
     const cards = listRegion(page).locator("[data-card-id]");
     await expect(cards.first()).toBeVisible();
-    for (const id of await cards.evaluateAll((items) =>
+    // Other specs add projects as they run; only the seed's are known here.
+    const ids = await cards.evaluateAll((items) =>
       items.map((item) => item.getAttribute("data-card-id")),
-    ))
-      expect(
-        seedProjects.find((seed) => seed.id === id)?.categories,
-      ).toContain(sub);
+    );
+    const listed = seedProjects.filter((seed) => ids.includes(seed.id));
+    expect(listed.length).toBeGreaterThan(0);
+    for (const seed of listed) expect(seed.categories).toContain(sub);
     // The last subcategory's chip takes its main category along.
     await active
       .getByRole("button", { name: `Fjern filter: ${sub}` })
