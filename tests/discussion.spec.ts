@@ -273,6 +273,14 @@ test("moderators edit the reference page and publish sourced updates without new
   await expect(bar).toContainText("4 endringer");
   await page.getByRole("button", { name: "Angre", exact: true }).click();
   await expect(bar).toContainText("3 endringer");
+  // An area fills between its points; a route is only its line.
+  const outline = page.locator("path.draw-shape").first();
+  await expect(outline).not.toHaveCSS("fill", "none");
+  await page.getByRole("button", { name: "Trasé", exact: true }).click();
+  await expect(outline).toHaveCSS("fill", "none");
+  await page.getByRole("button", { name: "Område", exact: true }).click();
+  await expect(outline).not.toHaveCSS("fill", "none");
+  await expect(bar).toContainText("3 endringer");
   // Clearing the outline asks first, with keeping it as the default.
   await page
     .getByRole("button", { name: "Fjern alle punkter", exact: true })

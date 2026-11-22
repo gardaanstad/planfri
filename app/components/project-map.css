@@ -28,6 +28,10 @@
 
 [data-project-map] .draw-shape {
   stroke: var(--map-draw);
+}
+
+/* Only areas fill; Leaflet leaves lines unfilled, which a CSS fill overrides. */
+[data-project-map] .draw-shape:not([fill="none"]) {
   fill: var(--map-draw);
 }
 
