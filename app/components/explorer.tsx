@@ -3,7 +3,6 @@
 import {
   type CSSProperties,
   Fragment,
-  type PointerEvent as ReactPointerEvent,
   type ReactNode,
   memo,
   useCallback,
@@ -834,21 +833,6 @@ export default memo(function Explorer({
     // A project link frames its project, unless the URL already places the map.
     if (initialProjectId) enterPostView(initialProjectId, !initial.view);
   }
-  /**
-   * On phones, a second finger on the map, pinching it, folds a project
-   * resting over it down to its header, and the list behind it with it; a
-   * drag does too (see `onMapPan`), and a tap closes it (see `onMapTap`).
-   */
-  function onMapTouch(event: ReactPointerEvent) {
-    const target = event.target;
-    if (
-      event.isPrimary ||
-      !(target instanceof Element) ||
-      !target.closest("[data-project-map]")
-    )
-      return;
-    foldPost();
-  }
   // A tap on the map waits out a second one, which zooms instead.
   const tapTimer = useRef<number | undefined>(undefined);
   function cancelMapTap() {
@@ -860,7 +844,10 @@ export default memo(function Explorer({
     tapTimer.current = undefined;
     if (postOverMap) closePost();
   });
-  /** On phones, a tap on the map closes a project opened from it. */
+  /**
+   * On phones, a tap on the map closes a project opened from it; a drag, a
+   * pinch or a double tap folds it instead (see `onMapGesture`).
+   */
   function onMapTap() {
     setSelectedId(postId);
     cancelMapTap();
@@ -899,8 +886,10 @@ export default memo(function Explorer({
     cancelMapTap();
     if (postView.current) postView.current.before = null;
   }
-  /** On phones, panning the map folds the list down out of its way. */
-  function onMapPan() {
+  /**
+   * On phones, panning or zooming the map folds the list down out of its way.
+   */
+  function onMapGesture() {
     if (isMobile) foldPost();
     if (isMobile && !topLayer && snapPoint === middleSnapPoint)
       setSnapPoint(compactSnapPoint);
@@ -1604,7 +1593,7 @@ export default memo(function Explorer({
         // Beside the view switch, not at the edge: no overhang.
         "mr-0",
         "md:@max-[320px]/list:[&_[data-slot=choice-trigger]>span]:sr-only",
-        // Phones: beside "Visning", a narrow list keeps the icon alone.
+        // Phones: beside the view button, a narrow list keeps the icon alone.
         "max-md:@max-[360px]/list:[&_[data-slot=choice-trigger]>span]:sr-only",
         // Beside the longer count, a narrow list keeps its icon alone too.
         outsideHits > 0 &&
@@ -1615,11 +1604,10 @@ export default memo(function Explorer({
       options={sortOptions}
     />
   );
-  // Phones: one button, its views in a sheet.
+  // Phones: one button naming the view, its views in a sheet.
   const densityMenu = (
     <ChoiceSelect
       label="Visning"
-      triggerLabel="Visning"
       value={density}
       onChange={(value) => storeDensity(value as ListDensity)}
       className={sortChoice}
@@ -2766,14 +2754,13 @@ export default memo(function Explorer({
               "[&_.leaflet-bottom]:bottom-[124px]! [&_.leaflet-control-attribution]:text-[8px]!",
           )}
           aria-label="Prosjektkart"
-          onPointerDownCapture={isMobile ? onMapTouch : undefined}
         >
           <ProjectMap
             projects={osm.on && osm.hideProjects ? noProjects : mapProjects}
             initialView={initial.view}
             onViewChange={onMapView}
             onReady={onMapReady}
-            onPanStart={onMapPan}
+            onGestureStart={onMapGesture}
             onUserMove={onMapMove}
             bottomInset={isMobile ? mobileMapInset : undefined}
             controlsContainer={
