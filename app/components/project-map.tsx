@@ -134,6 +134,11 @@ const vertexIcon = L.divIcon({
   className: "draw-vertex",
   iconSize: [26, 26],
 });
+// The end of a route that new points extend.
+const vertexEndIcon = L.divIcon({
+  className: "draw-vertex draw-vertex-end",
+  iconSize: [26, 26],
+});
 const midpointIcon = L.divIcon({
   className: "draw-midpoint",
   iconSize: [22, 22],
@@ -354,6 +359,8 @@ type Props = {
   geometryType?: "area" | "line";
   /** Every drawing edit: added, moved, inserted or removed points. */
   onPointsChange?: (points: Point[]) => void;
+  /** A route grows from its first point instead of its last. */
+  extendFromStart?: boolean;
   /**
    * Where the zoom and layer controls go instead of over the map, such as a
    * slot on the mobile drawer so they move with it. `null` holds them back
@@ -381,6 +388,7 @@ export default function ProjectMap({
   points = noPoints,
   geometryType = "area",
   onPointsChange,
+  extendFromStart = false,
   controlsContainer,
   osm,
   overlays = noOverlays,
@@ -1269,6 +1277,12 @@ export default function ProjectMap({
     const area = geometryType === "area";
     const commit = (next: Point[]) => handlers.current.commit(next);
     const toPoint = (latlng: L.LatLng): Point => [latlng.lat, latlng.lng];
+    // A route with two or more points grows from one of its ends.
+    const route = !area && points.length > 1;
+    const fromStart = route && extendFromStart;
+    const end = fromStart ? 0 : points.length - 1;
+    const extended = (point: Point) =>
+      fromStart ? [point, ...points] : [...points, point];
     const outline = (list: Point[]) =>
       area && list.length > 2
         ? L.polygon(list, { ...drawStroke, fillOpacity: 0.18, weight: 2.5 })
@@ -1299,7 +1313,7 @@ export default function ProjectMap({
     };
     points.forEach((point, index) => {
       const vertex = L.marker(point, {
-        icon: vertexIcon,
+        icon: route && index === end ? vertexEndIcon : vertexIcon,
         draggable: true,
         autoPan: true,
         keyboard: false,
@@ -1402,7 +1416,7 @@ export default function ProjectMap({
       commit(
         spot
           ? inserted(spot.side, toPoint(spot.latlng))
-          : [...points, toPoint(event.latlng)],
+          : extended(toPoint(event.latlng)),
       );
     };
     const element = map.getContainer();
@@ -1416,7 +1430,7 @@ export default function ProjectMap({
         ghostSide = spot.side;
         ghost.setLatLng(spot.latlng).addTo(group);
       } else ghost.remove();
-      const last = points.at(-1);
+      const last = points.at(fromStart ? 0 : -1);
       const latlng = map.containerPointToLatLng(cursor);
       preview.setLatLngs(
         onVertex || spot || !last
@@ -1440,7 +1454,7 @@ export default function ProjectMap({
       element.removeEventListener("mouseleave", leave);
       group.remove();
     };
-  }, [points, ready, draw, geometryType]);
+  }, [points, ready, draw, geometryType, extendFromStart]);
   const controls = (
     <div
       data-map-controls=""

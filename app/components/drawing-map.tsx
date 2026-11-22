@@ -2,6 +2,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import {
+  ArrowLeftRight,
   Check,
   ChevronDown,
   Pentagon,
@@ -34,8 +35,9 @@ const coordinatePattern = /^\s*(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)\s*
 
 /**
  * The map a project's outline is drawn on, with its tools around it rather
- * than over it: area or route, undo and clear above; the point count and
- * typed coordinates below. Clearing asks first and can be undone.
+ * than over it: area or route, which end of a route to extend, undo and clear
+ * above; the point count and typed coordinates below. Clearing asks first
+ * and can be undone.
  */
 export default function DrawingMap({
   city,
@@ -58,6 +60,7 @@ export default function DrawingMap({
   // Drawing edits can be undone one by one, moves and removals included.
   const [history, setHistory] = useState<Point[][]>([]);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [extendStart, setExtendStart] = useState(false);
   const [typing, setTyping] = useState(false);
   const [coordinate, setCoordinate] = useState("");
   const [coordinateError, setCoordinateError] = useState("");
@@ -67,6 +70,9 @@ export default function DrawingMap({
   const minimum = shape === "area" ? 3 : 2;
   const enough = points.length >= minimum;
   const clearing = confirmClear && points.length > 0;
+  // Only a route has two ends to choose between.
+  const route = shape === "line" && points.length > 1;
+  const fromStart = route && extendStart;
 
   useEffect(() => {
     if (clearing) keepClear.current?.focus();
@@ -100,7 +106,7 @@ export default function DrawingMap({
       setCoordinateError("Bruk breddegrad, lengdegrad i Norge, f.eks. 59.91, 10.75");
       return;
     }
-    change([...points, point]);
+    change(fromStart ? [point, ...points] : [...points, point]);
     setCoordinate("");
     setCoordinateError("");
   }
@@ -188,6 +194,28 @@ export default function DrawingMap({
               </button>
             </div>
             <div className="ml-auto flex items-center gap-0.5">
+              {route && (
+                <>
+                  <button
+                    type="button"
+                    className={toolButton}
+                    onClick={() => setExtendStart(!fromStart)}
+                    aria-label={
+                      fromStart
+                        ? "Tegn videre fra slutten"
+                        : "Tegn videre fra starten"
+                    }
+                    data-tooltip={
+                      fromStart
+                        ? "Tegn videre fra slutten"
+                        : "Tegn videre fra starten"
+                    }
+                  >
+                    <ArrowLeftRight size={17} aria-hidden="true" />
+                  </button>
+                  <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+                </>
+              )}
               <button
                 type="button"
                 className={toolButton}
@@ -228,6 +256,7 @@ export default function DrawingMap({
           points={points}
           geometryType={shape}
           onPointsChange={change}
+          extendFromStart={fromStart}
         />
       </div>
       <div className="flex min-h-8 items-center gap-3 text-xs text-muted">

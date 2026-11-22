@@ -266,6 +266,11 @@
   opacity: 0.75;
 }
 
+.draw-vertex-end::after {
+  background: var(--map-draw);
+  border-color: var(--map-halo);
+}
+
 .leaflet-dragging .draw-vertex::after {
   transform: scale(1.3);
 }

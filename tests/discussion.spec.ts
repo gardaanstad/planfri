@@ -278,7 +278,20 @@ test("moderators edit the reference page and publish sourced updates without new
   await expect(outline).not.toHaveCSS("fill", "none");
   await page.getByRole("button", { name: "Trasé", exact: true }).click();
   await expect(outline).toHaveCSS("fill", "none");
+  // A route grows from its last point, or from its first once switched.
+  const vertices = page.locator(".draw-vertex");
+  await expect(vertices.last()).toHaveClass(/draw-vertex-end/);
+  await page
+    .getByRole("button", { name: "Tegn videre fra starten", exact: true })
+    .click();
+  await expect(vertices.first()).toHaveClass(/draw-vertex-end/);
+  await expect(vertices.last()).not.toHaveClass(/draw-vertex-end/);
+  await page
+    .getByRole("button", { name: "Tegn videre fra slutten", exact: true })
+    .click();
+  await expect(vertices.last()).toHaveClass(/draw-vertex-end/);
   await page.getByRole("button", { name: "Område", exact: true }).click();
+  await expect(page.locator(".draw-vertex-end")).toHaveCount(0);
   await expect(outline).not.toHaveCSS("fill", "none");
   await expect(bar).toContainText("3 endringer");
   // Clearing the outline asks first, with keeping it as the default.
