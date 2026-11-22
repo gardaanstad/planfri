@@ -2196,15 +2196,11 @@ test.describe("desktop explorer", () => {
     await layer.getByRole("button", { name: "Vis som helside", exact: true }).click();
     await expect(page).toHaveURL(/[?&]visning=full/);
     await expect(layer).toHaveAttribute("data-full", "true");
-    // It fills the window and uses the width: facts beside the text. It
-    // only grows sideways.
+    // It fills the window and uses the width. It only grows sideways.
     await expect
       .poll(async () => Math.round((await layer.boundingBox())!.width))
       .toBe(1280);
     expect(await top()).toBe(0);
-    await expect(
-      page.getByRole("complementary", { name: "Prosjektfakta", exact: true }),
-    ).toBeVisible();
     await expect(
       page.getByRole("main", { name: "Utforsk prosjekter" }),
     ).toHaveAttribute("inert", "");

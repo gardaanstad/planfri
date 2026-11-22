@@ -891,14 +891,19 @@ export default function ProjectMap({
     handlers.current.onReady?.({
       fit(points, { bottom = inset(), left = 0, top = 0, maxZoom = 15 } = {}) {
         if (!points.length) return;
-        settled(() =>
-          map.fitBounds(L.latLngBounds(points), {
-            paddingTopLeft: [64 + left, 64 + top],
-            paddingBottomRight: [80, 64 + bottom],
+        settled(() => {
+          const bounds = L.latLngBounds(points);
+          const options = {
+            paddingTopLeft: L.point(64 + left, 64 + top),
+            paddingBottomRight: L.point(80, 64 + bottom),
             maxZoom,
-            animate: !reducedMotion(),
-          }),
-        );
+          };
+          if (reducedMotion())
+            map.fitBounds(bounds, { ...options, animate: false });
+          // fitBounds jumps instead when the zoom changes by more than four
+          // levels or the place is over a screen away, so it flies there.
+          else map.flyToBounds(bounds, { ...options, duration: 0.8 });
+        });
       },
       center(points, { bottom = inset(), maxZoom = 14 } = {}) {
         if (!points.length) return;

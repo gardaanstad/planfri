@@ -11,7 +11,6 @@ import { flushSync } from "react-dom";
 import {
   ArrowUp,
   ArrowUpRight,
-  Building2,
   ImagePlus,
   Megaphone,
   ChevronDown,
@@ -23,9 +22,7 @@ import {
 } from "lucide-react";
 import {
   arrangePhotos,
-  categoryLabels,
   finishYear,
-  formatDateYear,
   formatPhaseDate,
   getProjectUpdates,
   presetPlaces,
@@ -57,7 +54,6 @@ import DrawingMap from "./drawing-map";
 import ProjectPostHeader from "./project-post-header";
 import ProjectDiscussion, { DiscussionSortSelect } from "./project-discussion";
 import type { DiscussionSort } from "../lib/discussion";
-import CategoryIcon from "./category-icon";
 import CategoryPicker from "./category-picker";
 import RelativeTime from "./relative-time";
 import { usePanelExpand } from "./panel";
@@ -87,7 +83,6 @@ import { takeLoginIntent } from "../lib/login-intent";
 
 const cover =
   "relative aspect-3/2 w-full overflow-hidden rounded-[10px] bg-surface-muted";
-const note = "mt-3 text-xs leading-[1.6] text-muted";
 /**
  * "Les mer" / "Skjul kommentarer": sticks to the bottom (when `sticky`) and
  * becomes a floating pill while stuck.
@@ -135,100 +130,6 @@ type Props = {
   onToggleFull?: () => void;
   onNotify: (message: string) => void;
 };
-const factRow =
-  "flex justify-between gap-4 border-b border-border py-2.25 text-ui leading-normal first:border-t";
-const factValue =
-  "flex items-center justify-end gap-1.5 text-right font-medium text-ink [&_svg]:shrink-0 [&_svg]:text-muted";
-
-function Fact({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className={factRow}>
-      <dt className="shrink-0 text-muted">{label}</dt>
-      <dd className={factValue}>{children}</dd>
-    </div>
-  );
-}
-
-function ProjectFacts({
-  project,
-  className,
-}: {
-  project: Project;
-  className?: string;
-}) {
-  const developer =
-    project.developer !== unknownDeveloper ? project.developer : "";
-  const labels = categoryLabels(project.categories);
-  return (
-    <dl className={cn("my-4", className)}>
-      <Fact label="Status">
-        <i
-          className={cn(
-            "inline-block size-2 shrink-0 rounded-full",
-            statusTone[project.status].dot,
-          )}
-        />
-        {statuses[project.status].label}
-      </Fact>
-      {project.status !== "proposed" && (
-        <Fact
-          label={
-            project.status === "completed" ? "Ferdigstilt" : "Ferdigstilles"
-          }
-        >
-          {project.year || "–"}
-        </Fact>
-      )}
-      <Fact label={labels.length > 1 ? "Kategorier" : "Kategori"}>
-        <span className="flex flex-wrap justify-end gap-x-3 gap-y-1">
-          {labels.map((category) => (
-            <span
-              key={category}
-              className="inline-flex items-center gap-1.5 whitespace-nowrap"
-            >
-              <CategoryIcon category={category} size={14} />
-              {category}
-            </span>
-          ))}
-        </span>
-      </Fact>
-      <Fact label="Sted">{projectPlace(project)}</Fact>
-      {developer && <Fact label="Byggherre">{developer}</Fact>}
-      {/* The website sits as a final fact: right-aligned, underlined, no label. */}
-      {project.website && (
-        <div className={cn(factRow, "justify-end border-b-0")}>
-          <dt className="sr-only">Nettside</dt>
-          <dd className={factValue}>
-            <a
-              href={project.website}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 underline decoration-border-strong decoration-1 underline-offset-3 transition-[text-decoration-color] duration-120 hover:decoration-current"
-            >
-              Prosjektets nettside
-              <ArrowUpRight size={14} aria-hidden="true" />
-            </a>
-          </dd>
-        </div>
-      )}
-      {!!project.contributors?.length && (
-        <div className="pt-2.5 text-right text-xs leading-normal text-muted">
-          <dt className="sr-only">Forslag fra</dt>
-          <dd>
-            via{" "}
-            {project.contributors.map((username, index) => (
-              <span key={username}>
-                {index > 0 && ", "}
-                <Credit username={username} />
-              </span>
-            ))}
-          </dd>
-        </div>
-      )}
-    </dl>
-  );
-}
-
 /** A suggester's username, quietly linked to their profile. */
 function Credit({ username }: { username: string }) {
   return (
@@ -533,28 +434,29 @@ function ProjectMeta({ project }: { project: Project }) {
     project.developer !== unknownDeveloper ? project.developer : "";
   return (
     <div className="mb-3" data-project-meta="">
-      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-ui leading-normal text-muted max-md:text-xs [&>*]:inline-flex [&>*]:min-w-0 [&>*]:items-center [&>*]:gap-1.5 [&_svg]:shrink-0">
+      <p className="flex flex-wrap items-center gap-y-1 text-ui leading-normal text-muted max-md:text-xs [&>*]:inline-flex [&>*]:min-w-0 [&>*]:items-center [&>*]:gap-1.5 [&_svg]:shrink-0 [&>*+*]:before:ml-2 [&>*+*]:before:mr-0.5 [&>*+*]:before:content-['·']">
         <span>
           <MapPin size={14} aria-hidden="true" />
           {projectPlace(project)}
         </span>
         {developer && (
           <span data-tooltip="Byggherre">
-            <Building2 size={14} aria-hidden="true" />
             <span className="sr-only">Byggherre: </span>
             {developer}
           </span>
         )}
         {project.website && (
-          <a
-            href={project.website}
-            target="_blank"
-            rel="noreferrer"
-            className="text-ink underline decoration-border-strong decoration-1 underline-offset-3 transition-[text-decoration-color] duration-120 hover:decoration-current"
-          >
-            Nettside
-            <ArrowUpRight size={14} aria-hidden="true" />
-          </a>
+          <span>
+            <a
+              href={project.website}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-ink underline decoration-border-strong decoration-1 underline-offset-3 transition-[text-decoration-color] duration-120 hover:decoration-current"
+            >
+              Nettside
+              <ArrowUpRight size={14} aria-hidden="true" />
+            </a>
+          </span>
         )}
       </p>
       <PhaseTimeline project={project} />
@@ -690,29 +592,26 @@ function WideIntro({ project }: { project: Project }) {
   );
 }
 
-/** The full page's side column: photos, then the facts. */
+/** The full page's side column: the photos. */
 function ProjectAside({ project }: { project: Project }) {
   const photos = projectPhotos(project);
+  if (photos.length === 0) return null;
   return (
-    <aside className="sticky top-0 pt-3 pb-10" aria-label="Prosjektfakta">
-      {photos.length > 0 && (
-        <ImageGallery
-          images={photos}
-          label={`Bilder av ${project.title}`}
-          // As in the narrow layout, so switching reuses the loaded file.
-          sizes="(max-width: 768px) 100vw, 560px"
-          className={cover}
-        />
-      )}
-      <ProjectFacts project={project} />
-      <p className={note}>Sist redigert {formatDateYear(project.updated)}</p>
+    <aside className="sticky top-0 pt-3 pb-10" aria-label="Bilder">
+      <ImageGallery
+        images={photos}
+        label={`Bilder av ${project.title}`}
+        // As in the narrow layout, so switching reuses the loaded file.
+        sizes="(max-width: 768px) 100vw, 560px"
+        className={cover}
+      />
     </aside>
   );
 }
 
 /**
  * A few lines of the description, then "Les mer" and the image (more lines on desktop). "Les mer"
- * grows the text and reveals the facts, pushing the image down.
+ * grows the text, pushing the image down; a description that fits has none.
  */
 function ProjectIntro({ project }: { project: Project }) {
   const [open, setOpen] = useState(false);
@@ -724,10 +623,10 @@ function ProjectIntro({ project }: { project: Project }) {
   // Without a photo, three lines show and fade out instead of an ellipsis.
   const photos = projectPhotos(project);
   const photo = photos.length > 0;
+  // Whether the clamped text hides any of it, and so needs "Les mer".
   const [overflows, setOverflows] = useState(true);
   const body = useRef<HTMLDivElement>(null);
   const text = useRef<HTMLDivElement>(null);
-  const details = useRef<HTMLDivElement>(null);
   const end = useRef<HTMLDivElement>(null);
   // On a phone resting at the middle height, reading on takes the full height.
   const expandPanel = usePanelExpand();
@@ -736,14 +635,14 @@ function ProjectIntro({ project }: { project: Project }) {
 
   useLayoutEffect(() => {
     const copy = text.current;
-    if (photo || !copy || !clamped) return;
+    if (!copy || !clamped) return;
     const measure = () =>
       setOverflows(copy.scrollHeight > copy.clientHeight + 1);
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(copy);
     return () => observer.disconnect();
-  }, [clamped, photo]);
+  }, [clamped]);
 
   // While expanded, the toggle sticks to the bottom until its own spot scrolls in.
   useEffect(() => {
@@ -772,10 +671,9 @@ function ProjectIntro({ project }: { project: Project }) {
 
   function toggle() {
     const copy = text.current;
-    const more = details.current;
     const intro = body.current;
     const scroller = intro?.closest<HTMLElement>("[data-project-scroll]");
-    if (!copy || !more || !intro || !scroller) return;
+    if (!copy || !intro || !scroller) return;
     // A second tap lands the first change before starting the next.
     const last = running.current;
     if (last) {
@@ -794,7 +692,7 @@ function ProjectIntro({ project }: { project: Project }) {
       });
       return;
     }
-    const parts = [copy, more];
+    const parts = [copy];
     // The toggle, the image and the rest of the post.
     const movers = laterElements(intro, scroller);
     const reset = () => {
@@ -898,39 +796,26 @@ function ProjectIntro({ project }: { project: Project }) {
             <p key={index}>{paragraph}</p>
           ))}
         </div>
-        {/* Spacing sits inside the clip, so the panel can close fully. */}
-        <div
-          ref={details}
-          className={cn(
-            "flex flex-col overflow-hidden",
-            "data-[expanded=false]:max-h-0 *:shrink-0",
-          )}
-          data-expanded={open}
-          inert={!open}
-        >
-          <ProjectFacts project={project} className="mt-3 mb-0" />
-          <p className={cn(note, "mt-2")}>
-            Sist redigert {formatDateYear(project.updated)}
-          </p>
-        </div>
       </div>
-      <button
-        type="button"
-        className={cn(
-          stickyToggle,
-          "my-0.5",
-          open && "sticky",
-          "aria-expanded:[&>svg]:rotate-180",
-        )}
-        data-stuck={stuck}
-        data-moving={moving || undefined}
-        aria-expanded={open}
-        aria-controls={`intro-${project.id}`}
-        onClick={toggle}
-      >
-        {open ? "Vis mindre" : "Les mer"}
-        <ChevronDown size={16} aria-hidden="true" />
-      </button>
+      {(overflows || open) && (
+        <button
+          type="button"
+          className={cn(
+            stickyToggle,
+            "my-0.5",
+            open && "sticky",
+            "aria-expanded:[&>svg]:rotate-180",
+          )}
+          data-stuck={stuck}
+          data-moving={moving || undefined}
+          aria-expanded={open}
+          aria-controls={`intro-${project.id}`}
+          onClick={toggle}
+        >
+          {open ? "Vis mindre" : "Les mer"}
+          <ChevronDown size={16} aria-hidden="true" />
+        </button>
+      )}
       <div ref={end} aria-hidden="true" />
       {photo && (
         <ImageGallery
