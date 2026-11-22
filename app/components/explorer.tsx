@@ -768,7 +768,6 @@ export default memo(function Explorer({
   function onMapView(view: MapViewChange) {
     // The URL and the view to return to take only views the map rests on.
     if (!view.moving) mapViewRef.current = view;
-    else cancelMapTap();
     const shown = projectsInView(view);
     const key = shown.map((project) => project.id).join();
     if (key !== inViewKey.current) {
@@ -836,25 +835,13 @@ export default memo(function Explorer({
     // A project link frames its project, unless the URL already places the map.
     if (initialProjectId) enterPostView(initialProjectId, !initial.view);
   }
-  // A tap on the map waits out a second one, which zooms instead.
-  const tapTimer = useRef<number | undefined>(undefined);
-  function cancelMapTap() {
-    window.clearTimeout(tapTimer.current);
-    tapTimer.current = undefined;
-  }
-  useEffect(() => cancelMapTap, [postId]);
-  const dismissPost = useEffectEvent(() => {
-    tapTimer.current = undefined;
-    if (postOverMap) closePost();
-  });
   /**
-   * On phones, a tap on the map closes a project opened from it; a drag, a
-   * pinch or a double tap folds it instead (see `onMapGesture`).
+   * On phones, a tap on the map closes a project opened from it at once; a
+   * drag or a pinch folds it instead (see `onMapGesture`).
    */
   function onMapTap() {
     setSelectedId(postId);
-    cancelMapTap();
-    if (postOverMap) tapTimer.current = window.setTimeout(dismissPost, 300);
+    if (postOverMap) closePost();
   }
   function foldPost() {
     if (postOverMap && postSnap?.point === middleSnapPoint)
@@ -887,7 +874,6 @@ export default memo(function Explorer({
    * closing the project no longer returns it to where it was opened from.
    */
   function onMapMove() {
-    cancelMapTap();
     if (postView.current) postView.current.before = null;
   }
   /**

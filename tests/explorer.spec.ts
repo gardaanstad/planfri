@@ -480,15 +480,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await touchMove(page, { x: 160, y: 100 }, { x: 100, y: 140 }, { steps: 10 });
     await expect(drawer).toHaveAttribute("data-snap", "folded");
     await expect(page).toHaveURL(atProject);
-    // A double tap zooms in; it stays open.
-    const zoom = () => new URL(page.url()).searchParams.get("kart")?.split(",")[2];
-    const before = await zoom();
-    await page.touchscreen.tap(40, 60);
-    await page.touchscreen.tap(40, 60);
-    await expect.poll(zoom).not.toBe(before);
-    await page.waitForTimeout(400);
-    await expect(page).toHaveURL(atProject);
-    // A tap closes it, back to the folded list it was opened over.
+    // A tap closes it at once, back to the folded list it was opened over.
     await page.touchscreen.tap(40, 60);
     await expect(page).toHaveURL(atList);
     await expect(drawer).toBeHidden();
