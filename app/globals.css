@@ -115,6 +115,8 @@
   --animate-lightbox-in: lightbox-in 160ms ease-out;
   --animate-sheet-in: sheet-in 320ms var(--ease-out-soft);
   --animate-backdrop-in: lightbox-in 200ms ease-out;
+  /* A choice sheet's scrim, by its own color, so the sheet itself only slides. */
+  --animate-scrim-in: scrim-in 200ms ease-out;
   --animate-highlight: highlight 2.4s ease-out;
   /* A project sidebar sliding out from the left edge, and back. */
   --animate-panel-in: panel-slide 320ms var(--ease-out-soft);
@@ -161,6 +163,11 @@
   @keyframes lightbox-in {
     from {
       opacity: 0;
+    }
+  }
+  @keyframes scrim-in {
+    from {
+      --sheet-progress: 1;
     }
   }
   @keyframes sheet-in {
