@@ -257,7 +257,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expect(inOslo).toBeVisible();
     await expect(page.getByRole("group", { name: "Visning" })).toHaveCount(0);
     const views = page.getByRole("button", { name: /^Visning/ });
-    await expect(views).toHaveText("Visning");
+    await expect(views).toHaveText("Kompakt");
     const sort = page.getByRole("button", { name: /^Sorter prosjekter:/ });
 
     // The count, the order and the views share a row; the count wraps
@@ -300,12 +300,12 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     );
     await shot(page, "mobile-views-sheet");
 
-    // Choosing "Nytt" closes the sheet; the order goes, the button stays.
+    // Choosing "Nytt" closes the sheet; the order goes, the button names it.
     await sheet.getByRole("option", { name: "Nytt" }).click();
     await expect(sheet).toBeHidden();
     await expect(list.locator("[data-feed-id]").first()).toBeVisible();
     await expect(sort).toHaveCount(0);
-    await expect(views).toHaveText("Visning");
+    await expect(views).toHaveText("Nytt");
     await expect(views).toHaveAccessibleName("Visning: Nytt");
     await shot(page, "mobile-views-feed");
   });
