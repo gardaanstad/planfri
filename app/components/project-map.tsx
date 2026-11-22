@@ -44,7 +44,7 @@ import { cn } from "../lib/cn";
 import { reducedMotion } from "../lib/media";
 import { mapIconButton } from "../lib/ui";
 
-type MapLayer = "standard" | "streets";
+type MapLayer = "standard" | "streets" | "osm";
 
 // Selected projects draw heavier; shared by the first render and selection.
 const lineWeight = (selected: boolean) => (selected ? 5 : 3.5);
@@ -110,6 +110,12 @@ const layerOptions: ReadonlyArray<{
     label: "Gatekart",
     swatch:
       "bg-[repeating-linear-gradient(36deg,transparent_0_8px,#fff_8px_11px,transparent_11px_24px),repeating-linear-gradient(-38deg,#e3ebd9_0_12px,#fff_12px_16px,#e7e2d9_16px_27px)]",
+  },
+  {
+    value: "osm",
+    label: "OpenStreetMap",
+    swatch:
+      "bg-[repeating-linear-gradient(-38deg,transparent_0_9px,#f7fabf_9px_12px,transparent_12px_22px),repeating-linear-gradient(40deg,#f2efe9_0_10px,#e8a7a3_10px_13px,#cdebb0_13px_25px)]",
   },
 ];
 
@@ -229,9 +235,27 @@ export type MapViewChange = MapView & { bounds: ViewBounds };
 // by the browser, so labels and lines are sharp at any pixel density and at
 // half zoom steps. Positron is a quiet grey base for the projects, and Dark
 // its counterpart in dark mode; Liberty is a street map, light in both.
-const mapStyles: Record<MapLayer, string> = {
+// OpenStreetMap's own map is raster, but it draws what the vector styles
+// leave out, such as lines under construction, so it's the default when
+// drawing a project.
+const osmStyle: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {
+    osm: {
+      type: "raster",
+      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>',
+    },
+  },
+  layers: [{ id: "osm", type: "raster", source: "osm" }],
+};
+const mapStyles: Record<MapLayer, string | maplibregl.StyleSpecification> = {
   standard: "https://tiles.openfreemap.org/styles/positron",
   streets: "https://tiles.openfreemap.org/styles/liberty",
+  osm: osmStyle,
 };
 const darkStandardStyle = "https://tiles.openfreemap.org/styles/dark";
 const norwegianName: maplibregl.ExpressionSpecification = [
@@ -396,14 +420,14 @@ export default function ProjectMap({
   const refreshBase = useRef<() => boolean>(() => false);
   // The base map, and the style it was last given.
   const glRef = useRef<maplibregl.Map | null>(null);
-  const glStyle = useRef<string | null>(null);
+  const glStyle = useRef<string | maplibregl.StyleSpecification | null>(null);
   const osmSelect = useRef(osm?.onSelect);
   const osmSelected = useRef(osm?.selectedId ?? null);
   // Restyles one candidate for the current selection.
   const osmStyle = useRef<(id: string | null) => void>(() => {});
   const [ready, setReady] = useState(false);
   const [layersOpen, setLayersOpen] = useState(false);
-  const [layer, setLayer] = useState<MapLayer>(draw ? "streets" : "standard");
+  const [layer, setLayer] = useState<MapLayer>(draw ? "osm" : "standard");
   const [mapMessage, setMapMessage] = useState("");
   // Shapes outlined to stand out from the base map; see project-map.css.
   const darkBase = useTheme() === "dark" && layer === "standard";

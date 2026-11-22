@@ -1775,7 +1775,7 @@ test.describe("desktop explorer", () => {
     await expect.poll(mapWidth).toBe(narrow);
   });
 
-  test("the street map loads", async ({ page }) => {
+  test("the street and OpenStreetMap maps load", async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem("varde:basemap", "on"));
     await page.goto(oslo);
     const basemap = page.locator("[data-basemap]");
@@ -1783,6 +1783,10 @@ test.describe("desktop explorer", () => {
     await page.getByRole("button", { name: "Kartlag", exact: true }).click();
     await page.getByRole("button", { name: "Gatekart", exact: true }).click();
     await expect(basemap).toHaveAttribute("data-map-style", "streets");
+    await expect(basemap).toHaveAttribute("data-basemap", "idle", { timeout: 20_000 });
+    await page.getByRole("button", { name: "Kartlag", exact: true }).click();
+    await page.getByRole("button", { name: "OpenStreetMap", exact: true }).click();
+    await expect(basemap).toHaveAttribute("data-map-style", "osm");
     await expect(basemap).toHaveAttribute("data-basemap", "idle", { timeout: 20_000 });
     await expect(page.getByText("Kartet kunne ikke lastes")).toHaveCount(0);
   });

@@ -256,6 +256,10 @@ test("moderators edit the reference page and publish sourced updates without new
     .first()
     .click();
   await expect(bar).toContainText("3 endringer");
+  // Editing draws on OpenStreetMap's map, which shows lines under construction.
+  await expect(
+    page.locator("[data-map-style]", { has: page.locator(".draw-vertex") }),
+  ).toHaveAttribute("data-map-style", "osm");
   // A point dragged on the map counts as a change to the outline.
   const vertex = page.locator(".draw-vertex").first();
   await page
