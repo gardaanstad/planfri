@@ -170,6 +170,9 @@ const drawerSnapPoints: DrawerSnapPoint[] = [
   middleSnapPoint,
   1,
 ];
+// How long the full list takes to come down to meet a project; the drawers'
+// own 450ms otherwise.
+const meetTime = 340;
 const projectSnapPoints: DrawerSnapPoint[] = [middleSnapPoint, 1];
 // The map controls ride a drawer's top edge, 14px clear of its border.
 const controlsSlotClasses = cn(
@@ -308,6 +311,14 @@ export default memo(function Explorer({
   const meetPending = useRef(false);
   const raiseBehindPost = useRef(false);
   const [snapInstantly, setSnapInstantly] = useState(false);
+  // Coming down to meet a project, the list moves a little quicker than the
+  // project rises, so it is out from under it first.
+  const [meetQuickly, setMeetQuickly] = useState(false);
+  useEffect(() => {
+    if (!meetQuickly) return;
+    const timer = window.setTimeout(() => setMeetQuickly(false), meetTime);
+    return () => window.clearTimeout(timer);
+  }, [meetQuickly]);
   useLayoutEffect(() => {
     if (!snapInstantly) return;
     let frame = requestAnimationFrame(() => {
@@ -2141,6 +2152,7 @@ export default memo(function Explorer({
                 requestAnimationFrame(() => {
                   if (!meetPending.current) return;
                   meetPending.current = false;
+                  setMeetQuickly(true);
                   setSnapPoint(middleSnapPoint);
                 });
                 meetPending.current = true;
@@ -2532,11 +2544,18 @@ export default memo(function Explorer({
                 data-explorer-drawer=""
                 data-panel-open={liveLayers.length > 0 || undefined}
                 data-map-covered={liveLayers.length > 0 || undefined}
-                viewportClassName={snapInstantly ? "transition-none" : undefined}
+                viewportClassName={
+                  snapInstantly
+                    ? "transition-none"
+                    : meetQuickly
+                      ? "duration-340"
+                      : undefined
+                }
                 className={cn(
                   explorerDrawerClasses,
                   visibleBottomClasses,
                   snapInstantly && "transition-none",
+                  meetQuickly && "duration-340",
                   // Let Base UI swipe the drawer before its content starts scrolling.
                   snapPoint !== 1 &&
                     "[&_[data-drawer-scroll]]:overflow-y-hidden",
