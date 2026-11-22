@@ -304,6 +304,8 @@ test.describe("mobile panels", () => {
   });
 
   test("Vis mindre floats over the post from the start", async ({ page }) => {
+    // Short enough that the whole description runs past the fold.
+    await page.setViewportSize({ width: 390, height: 420 });
     await page.goto(projectPath);
     const drawer = page.locator('[data-panel-drawer="project"]');
     await drawer.getByRole("button", { name: "Les mer", exact: true }).click();
@@ -315,6 +317,7 @@ test.describe("mobile panels", () => {
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.setViewportSize({ width: 390, height: 420 });
     await page.goto(projectPath);
     const drawer = page.locator('[data-panel-drawer="project"]');
     const toggle = drawer.locator('[aria-controls^="intro-"]');
