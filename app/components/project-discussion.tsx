@@ -301,44 +301,50 @@ export default function ProjectDiscussion({
             }
           >
             {reference && (
-              <button
-                type="button"
-                // Baseline-aligned so the chip's text, not its border, lines up with the date.
-                className={cn(
-                  "inline-flex max-w-full min-w-0 items-baseline gap-1 rounded-full border border-border-strong pr-1.75 pl-1.5",
-                  "text-left text-xs leading-4 text-muted transition-colors duration-120 hover:border-muted hover:text-ink",
-                  "[&>svg]:shrink-0 [&>svg]:self-center",
-                )}
-                data-tooltip="Viser til denne oppdateringen"
-                data-tooltip-delay="long"
-                onClick={() => onReadUpdate(reference.id)}
-              >
-                <Megaphone size={11} aria-hidden="true" />
-                <span className="truncate">{reference.title}</span>
-              </button>
+              <div className="mt-0.5 mb-1 flex min-w-0">
+                <button
+                  type="button"
+                  // Baseline-aligned so the chip's text, not its border, lines up with the date.
+                  className={cn(
+                    "inline-flex max-w-full min-w-0 items-baseline gap-1 rounded-full border border-border-strong pr-1.75 pl-1.5",
+                    "text-left text-xs leading-4 text-muted transition-colors duration-120 hover:border-muted hover:text-ink",
+                    "[&>svg]:shrink-0 [&>svg]:self-center",
+                  )}
+                  data-tooltip="Viser til denne oppdateringen"
+                  data-tooltip-delay="long"
+                  onClick={() => onReadUpdate(reference.id)}
+                >
+                  <Megaphone size={11} aria-hidden="true" />
+                  <span className="truncate">{reference.title}</span>
+                </button>
+              </div>
             )}
+            <div className={styles.fold} inert={shut}>
+              <div className={styles.clip}>
+                <p className="wrap-anywhere whitespace-pre-wrap text-body leading-[1.6] text-ink-soft">
+                  {comment.text
+                    .split(/(https?:\/\/[^\s<>]+)/g)
+                    .map((part, index) =>
+                      /^https?:\/\//.test(part) ? (
+                        <a
+                          key={index}
+                          href={part}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="underline decoration-accent/40 underline-offset-3 hover:text-accent"
+                        >
+                          {part}
+                        </a>
+                      ) : (
+                        part
+                      ),
+                    )}
+                </p>
+              </div>
+            </div>
           </UserIdentity>
           <div className={styles.fold} inert={shut}>
             <div className={styles.clip}>
-              <p className="mt-0.5 ml-10.5 wrap-anywhere whitespace-pre-wrap text-body leading-[1.6] text-ink-soft">
-                {comment.text
-                  .split(/(https?:\/\/[^\s<>]+)/g)
-                  .map((part, index) =>
-                    /^https?:\/\//.test(part) ? (
-                      <a
-                        key={index}
-                        href={part}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="underline decoration-accent/40 underline-offset-3 hover:text-accent"
-                      >
-                        {part}
-                      </a>
-                    ) : (
-                      part
-                    ),
-                  )}
-              </p>
               <div className="ml-[34px] flex items-center gap-2 text-xs text-muted max-sm:-mr-1.5 max-sm:ml-0 max-sm:justify-end max-sm:gap-1">
                 <div
                   className="flex items-center gap-0 text-muted"
