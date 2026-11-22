@@ -434,6 +434,33 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expectDrawerHeight(page, 0.58);
   });
 
+  test("a tap on the map closes a project opened from it", async ({ page }) => {
+    await page.goto("/?kart=59.9100,10.7500,13");
+    const shape = page.locator(`path[data-project-id="${project.id}"]`);
+    await shape.dispatchEvent("pointerdown");
+    await shape.dispatchEvent("click");
+    await expect(page).toHaveURL(atProject);
+    const drawer = page.locator("[data-project-drawer]");
+    await expectDrawerHeight(page, 0.58, "project");
+    // A drag folds it; it stays open.
+    await touchMove(page, { x: 160, y: 100 }, { x: 100, y: 140 }, { steps: 10 });
+    await expect(drawer).toHaveAttribute("data-snap", "folded");
+    await expect(page).toHaveURL(atProject);
+    // A double tap zooms in; it stays open.
+    const zoom = () => new URL(page.url()).searchParams.get("kart")?.split(",")[2];
+    const before = await zoom();
+    await page.touchscreen.tap(40, 60);
+    await page.touchscreen.tap(40, 60);
+    await expect.poll(zoom).not.toBe(before);
+    await page.waitForTimeout(400);
+    await expect(page).toHaveURL(atProject);
+    // A tap closes it, and the list comes back up to the middle height.
+    await page.touchscreen.tap(40, 60);
+    await expect(page).toHaveURL(atList);
+    await expect(drawer).toBeHidden();
+    await expectDrawerHeight(page, 0.58);
+  });
+
   test("a project closed after the map was moved leaves the map there", async ({
     page,
   }) => {
@@ -1879,6 +1906,29 @@ test.describe("desktop explorer", () => {
     await expect.poll(() => mapParam(page)).toBe(moved);
     await page.waitForTimeout(500);
     expect(mapParam(page)).toBe(moved);
+  });
+
+  test("a project opened from the map takes the open one's place", async ({
+    page,
+  }) => {
+    await page.goto(oslo);
+    const open = async (id: string) => {
+      const shape = page.locator(`path[data-project-id="${id}"]`);
+      await shape.dispatchEvent("pointerdown");
+      await shape.dispatchEvent("click");
+      await expect(page).toHaveURL(new RegExp(`/prosjekt/${id}(\\?|$)`));
+    };
+    await open(project.id);
+    await open("regjeringskvartalet");
+    await expect(
+      page.getByRole("button", { name: "Lukk prosjekt", exact: true }),
+    ).toHaveCount(1);
+    // Closing it goes back to the list, not to the one before.
+    await page.getByRole("button", { name: "Lukk prosjekt", exact: true }).click();
+    await expect(page).toHaveURL(/:\d+\/(\?|$)/);
+    await expect(
+      page.getByRole("button", { name: "Lukk prosjekt", exact: true }),
+    ).toHaveCount(0);
   });
 
   test("a project clicked on the map shows no focus ring; the keyboard's does", async ({

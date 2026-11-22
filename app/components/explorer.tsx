@@ -766,6 +766,7 @@ export default memo(function Explorer({
   function onMapView(view: MapViewChange) {
     // The URL and the view to return to take only views the map rests on.
     if (!view.moving) mapViewRef.current = view;
+    else cancelMapTap();
     const shown = projectsInView(view);
     const key = shown.map((project) => project.id).join();
     if (key !== inViewKey.current) {
@@ -834,19 +835,36 @@ export default memo(function Explorer({
     if (initialProjectId) enterPostView(initialProjectId, !initial.view);
   }
   /**
-   * On phones, a touch on the map folds a project resting over it down to
-   * its header, and the list behind it with it. A tap on a project opens
-   * that one instead (a drag from it still folds; see `onMapPan`).
+   * On phones, a second finger on the map, pinching it, folds a project
+   * resting over it down to its header, and the list behind it with it; a
+   * drag does too (see `onMapPan`), and a tap closes it (see `onMapTap`).
    */
   function onMapTouch(event: ReactPointerEvent) {
     const target = event.target;
     if (
+      event.isPrimary ||
       !(target instanceof Element) ||
-      !target.closest("[data-project-map]") ||
-      target.closest("[data-project-id], [data-project-dot]")
+      !target.closest("[data-project-map]")
     )
       return;
     foldPost();
+  }
+  // A tap on the map waits out a second one, which zooms instead.
+  const tapTimer = useRef<number | undefined>(undefined);
+  function cancelMapTap() {
+    window.clearTimeout(tapTimer.current);
+    tapTimer.current = undefined;
+  }
+  useEffect(() => cancelMapTap, [postId]);
+  const dismissPost = useEffectEvent(() => {
+    tapTimer.current = undefined;
+    if (postOverMap) closePost();
+  });
+  /** On phones, a tap on the map closes a project opened from it. */
+  function onMapTap() {
+    setSelectedId(postId);
+    cancelMapTap();
+    if (postOverMap) tapTimer.current = window.setTimeout(dismissPost, 300);
   }
   function foldPost() {
     if (postOverMap && postSnap?.point === middleSnapPoint)
@@ -878,6 +896,7 @@ export default memo(function Explorer({
    * closing the project no longer returns it to where it was opened from.
    */
   function onMapMove() {
+    cancelMapTap();
     if (postView.current) postView.current.before = null;
   }
   /** On phones, panning the map folds the list down out of its way. */
@@ -1044,11 +1063,16 @@ export default memo(function Explorer({
     setPostId(id);
     setSelectedId(id);
     highlight(null);
-    window.history.pushState(
-      { projectOverlay: true, suggestionsBelow: suggestionsOpen },
-      "",
-      withSearch(projectHref(id)),
-    );
+    // Opened from the map over another project, it takes that one's place:
+    // closing it goes back to what was under both.
+    if (overMap && postId && !profileName)
+      replaceUrl(withSearch(projectHref(id)));
+    else
+      window.history.pushState(
+        { projectOverlay: true, suggestionsBelow: suggestionsOpen },
+        "",
+        withSearch(projectHref(id)),
+      );
   }
 
   /**
@@ -2760,9 +2784,7 @@ export default memo(function Explorer({
                 : undefined
             }
             selectedId={selectedId}
-            onSelect={(id) =>
-              id ? openPost(id, {}, true) : setSelectedId(postId)
-            }
+            onSelect={(id) => (id ? openPost(id, {}, true) : onMapTap())}
             osm={osm.layer}
             overlays={
               osm.allowed
