@@ -231,15 +231,15 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await shape.press("Enter");
     await expect(page).toHaveURL(atProject);
     // Opened from the map, it rests at the middle height over it, and the
-    // folded list rises behind it.
+    // folded list stays folded behind it.
     await expectDrawerHeight(page, 0.58, "project");
-    await expectDrawerHeight(page, 0.58);
-    // Swiping the project away leaves the list at the middle height.
+    await expectDrawerHeight(page, compact);
+    // Swiping the project away goes back to the folded list.
     // By its grip: the map controls ride above it.
     await swipeDown(page, projectDrawer.locator(":scope > [aria-hidden]"));
     await expect(page).toHaveURL(atList);
     await expect(projectDrawer).toBeHidden();
-    await expectDrawerHeight(page, 0.58);
+    await expectDrawerHeight(page, compact);
     await expect
       .poll(() =>
         page.evaluate(
@@ -404,9 +404,8 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       .click();
     await expect(page).toHaveURL(atList);
     await expect(drawer).toBeHidden();
-    await expectDrawerHeight(page, 0.58);
-    // Back to the area it was opened from at the zoom it had, its middle
-    // above the list, which now rests higher than the folded one did.
+    await expectDrawerHeight(page, compact);
+    // Back to the area it was opened from at the zoom it had.
     await expect
       .poll(() => new URL(page.url()).searchParams.get("kart"))
       .toMatch(/^59\.\d+,10\.7500,13$/);
@@ -416,6 +415,12 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     page,
   }) => {
     await page.goto("/?kart=59.9100,10.7500,13");
+    // From the list at the middle height, which folds under the project.
+    await swipeUp(
+      page,
+      page.getByRole("button", { name: "Utvid prosjektlisten", exact: true }),
+    );
+    await expectDrawerHeight(page, 0.58);
     const shape = page.locator(`path[data-project-id="${project.id}"]`);
     await shape.dispatchEvent("pointerdown");
     await shape.dispatchEvent("click");
@@ -483,11 +488,11 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expect.poll(zoom).not.toBe(before);
     await page.waitForTimeout(400);
     await expect(page).toHaveURL(atProject);
-    // A tap closes it, and the list comes back up to the middle height.
+    // A tap closes it, back to the folded list it was opened over.
     await page.touchscreen.tap(40, 60);
     await expect(page).toHaveURL(atList);
     await expect(drawer).toBeHidden();
-    await expectDrawerHeight(page, 0.58);
+    await expectDrawerHeight(page, compact);
   });
 
   test("a project closed after the map was moved leaves the map there", async ({
@@ -515,7 +520,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       .getByRole("button", { name: "Lukk prosjekt", exact: true })
       .click();
     await expect(page).toHaveURL(atList);
-    await expectDrawerHeight(page, 0.58);
+    await expectDrawerHeight(page, compact);
     await page.waitForTimeout(500);
     expect(await at()).toEqual(moved);
   });

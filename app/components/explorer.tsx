@@ -345,14 +345,17 @@ export default memo(function Explorer({
   const snapRef = useRef(snapPoint);
   // A project opened over the map rests at the middle height with the list
   // at the same height behind it, so closing it leaves the list there. From
-  // the full list, the list comes down to meet it, in step; from the folded
-  // one, the list rises behind it, unseen, once it is up.
+  // the full list, the list comes down to meet it, in step; from under a
+  // folded project, the list rises behind it, unseen, once it is up.
   const meetPost = useRef(false);
   const meetPending = useRef(false);
   const raiseBehindPost = useRef(false);
   // A project folded over the map has the list folded under it; the list
   // comes back up to the middle height as the project closes.
   const listUnderFolded = useRef(false);
+  // Opened over the folded list, a project leaves it folded: closing the
+  // project goes back to it.
+  const listStaysFolded = useRef(false);
   const [snapInstantly, setSnapInstantly] = useState(false);
   // Coming down to meet a project, the list moves a little quicker than the
   // project rises, so it is out from under it first.
@@ -865,6 +868,7 @@ export default memo(function Explorer({
   function movePost(point: DrawerSnapPoint) {
     const from = postSnap?.point;
     setPostSnap((current) => current && { ...current, point });
+    if (listStaysFolded.current) return;
     if (isFolded(point)) {
       // Folded before the list was up behind it: it stays down, under the
       // project, and comes up as the project closes.
@@ -1008,6 +1012,7 @@ export default memo(function Explorer({
   // A project closed before the list reached it, or while folded over it,
   // leaves the list at the middle height all the same.
   useLayoutEffect(() => {
+    if (!postId) listStaysFolded.current = false;
     if (
       postId ||
       (!meetPost.current &&
@@ -1030,15 +1035,19 @@ export default memo(function Explorer({
       return;
     }
     setPostTarget(target);
+    if (!(isMobile && overMap)) listStaysFolded.current = false;
     setPostSnap(isMobile && overMap ? { id, point: middleSnapPoint } : null);
     // Before the map moves, so closing returns to where it was.
     enterPostView(id);
     const project = projects.find((item) => item.id === id);
     if (isMobile && overMap) {
-      // The list comes to the middle height behind it, and the map centers
-      // the project above it.
+      // The list comes to the middle height behind it, unless it was folded
+      // down, and the map centers the project above it.
+      const folded = snapPoint === compactSnapPoint;
       meetPost.current = snapPoint === 1;
-      raiseBehindPost.current = snapPoint === compactSnapPoint;
+      raiseBehindPost.current = folded && listUnderFolded.current;
+      listStaysFolded.current =
+        folded && (!postId || listStaysFolded.current);
       mapInset.current = middleMapInset();
       if (project) mapApi.current?.center(projectPoints(project));
     }
