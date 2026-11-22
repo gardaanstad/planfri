@@ -572,6 +572,7 @@ function ProjectBody({
     "status",
     "place",
     "year",
+    "dates",
     "developer",
     "website",
     "geometry",

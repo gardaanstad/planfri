@@ -2,7 +2,7 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { LogIn } from "lucide-react";
 import { cn } from "../lib/cn";
-import { reducedMotion } from "../lib/media";
+import { reducedMotion, sheetLeave } from "../lib/media";
 import { keyboardFocused } from "../lib/ui";
 import { useSwipeDismiss } from "./use-swipe-dismiss";
 
@@ -19,6 +19,8 @@ export type SheetAction = {
   /** Greyed out for guests; choosing it asks them to log in. */
   locked?: boolean;
   pressed?: boolean;
+  /** Destructive, such as deleting: in the danger colour. */
+  danger?: boolean;
   /** A switch: on or off, shown on the right. */
   checked?: boolean;
   /** A second line under the label. */
@@ -105,13 +107,12 @@ export default function ActionSheet({
       then?.();
     };
     if (!dialog || !panel || !animate || reducedMotion()) return done();
-    const options = { duration: 200, easing: "ease-in", fill: "forwards" as const };
     const out = panel.animate(
       [{ transform: "none" }, { transform: "translateY(100%)" }],
-      options,
+      sheetLeave,
     );
     dialog.animate([{ opacity: 1 }, { opacity: 0 }], {
-      ...options,
+      ...sheetLeave,
       pseudoElement: "::backdrop",
     });
     out.finished.then(done, done);
@@ -170,6 +171,7 @@ export default function ActionSheet({
                   "transition-colors duration-150 active:bg-surface-muted motion-reduce:transition-none",
                   "[&>svg]:shrink-0 [&>svg]:text-muted",
                   action.locked && "text-muted [&>svg]:text-muted/60",
+                  action.danger && "text-danger [&>svg]:text-danger",
                 )}
                 onClick={() => close(action.onSelect)}
               >

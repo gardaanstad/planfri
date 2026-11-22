@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { categories, type Category, normalizeCategories } from "./data";
+import {
+  categories,
+  type Category,
+  datedPhases,
+  type DatedPhase,
+  normalizeCategories,
+} from "./data";
 export const id = z.string().min(1).max(100);
 export const sourceUrl = z
   .url()
@@ -28,7 +34,7 @@ export const projectFields = z.object({
     .min(1, "Velg minst én kategori.")
     .max(categories.length)
     .transform(normalizeCategories),
-  status: z.enum(["planned", "construction", "completed"]),
+  status: z.enum(["proposed", "planned", "construction", "completed"]),
   image: z.union([image, z.literal("")]),
   images: z.array(photo).max(20).optional(),
   imageCredit: z.string().max(300).optional(),
@@ -43,6 +49,20 @@ export const projectFields = z.object({
   geometry: z.array(point).min(2).max(2000),
   geometryType: z.enum(["area", "line"]),
   year: z.string().max(30),
+  phaseDates: z
+    .object(
+      Object.fromEntries(
+        datedPhases.map((phase) => [
+          phase,
+          z
+            .string()
+            .regex(/^\d{4}(-(0[1-9]|1[0-2]))?$/)
+            .optional(),
+        ]),
+      ) as Record<DatedPhase, z.ZodOptional<z.ZodString>>,
+    )
+    .strict()
+    .optional(),
   updated: z.string().min(1).max(40),
   comments: z.number().int().nonnegative(),
   developer: z.string().max(200),
@@ -71,6 +91,10 @@ export const mutationSchema = z.discriminatedUnion("action", [
     updateId: id.optional(),
     text: z.string().trim().min(1, "Skriv en kommentar først.").max(2000),
     parentId: id.optional(),
+  }),
+  z.object({
+    action: z.literal("delete-comment"),
+    commentId: id,
   }),
   z.object({
     action: z.literal("save"),

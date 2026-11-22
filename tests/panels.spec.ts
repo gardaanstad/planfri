@@ -9,6 +9,7 @@ import { seedProjects } from "../scripts/seed-data";
 import {
   accountMenuItem,
   member,
+  openDiscussion,
   openOwnProfile,
   openSaved,
   shot,
@@ -47,6 +48,52 @@ const top = (page: Page, selector: string) =>
   page.locator(selector).evaluate((element) =>
     Math.round(element.getBoundingClientRect().top),
   );
+
+test("a project shows its phase and its facts, and opens on its updates", async ({
+  page,
+}) => {
+  await page.goto(projectPath);
+  const post = page.locator("[data-project-post]");
+  const phases = post.getByRole("list", { name: "Fase" });
+  // Each step with its date, where it has one; "Ferdig" has the year.
+  await expect(phases.getByRole("listitem")).toHaveText([
+    "Foreslått",
+    "Planlagt, 2019",
+    "Under bygging, apr. 2023",
+    `Ferdig, ${project.year}`,
+  ]);
+  await expect(phases.locator("[aria-current=step]")).toHaveCount(1);
+  await expect(phases).toHaveAttribute("data-phase-strip", project.status);
+  await expect(post.locator("[data-project-meta]")).toContainText(
+    project.developer,
+  );
+  const tabs = post.locator("#project-sections").getByRole("button");
+  await expect(tabs.first()).toHaveText(/^Oppdateringer/);
+  await expect(tabs.first()).toHaveAttribute("aria-pressed", "true");
+  // Guests get a quiet line between the tabs and the comments, and the
+  // comments' order sits on the tabs' line, with no count.
+  await openDiscussion(page);
+  const discussion = post.getByRole("region", { name: "Kommentarer", exact: true });
+  const line = discussion.locator("[data-login-to-comment]");
+  await expect(line).toBeVisible();
+  const comment = discussion.locator("[data-comment-id]").first();
+  expect((await line.boundingBox())!.y).toBeLessThan(
+    (await comment.boundingBox())!.y,
+  );
+  const sort = post
+    .locator("#project-sections")
+    .getByRole("button", { name: /^Sorter kommentarer:/ });
+  await expect(sort).toBeVisible();
+  expect(
+    Math.abs(
+      (await sort.boundingBox())!.y +
+        (await sort.boundingBox())!.height / 2 -
+        ((await tabs.first().boundingBox())!.y +
+          (await tabs.first().boundingBox())!.height / 2),
+    ),
+  ).toBeLessThan(3);
+  await expect(discussion).not.toContainText(/\d+ kommentar/);
+});
 
 test.describe("login prompt", () => {
   test.use({ viewport: { width: 1280, height: 800 } });
@@ -96,6 +143,7 @@ test.describe("login prompt", () => {
     await prompt.getByRole("button", { name: "Lukk", exact: true }).click();
     await expect(prompt).toHaveCount(0);
 
+    await openDiscussion(page);
     await post
       .getByRole("button", { name: "Logg inn", exact: true })
       .first()

@@ -27,8 +27,9 @@ import { useAuth } from "./auth-provider";
 
 /**
  * Avatar beside the name, with `meta` (such as a date) after it on the same
- * line, and `children` on a line below. `onRowClick` hears clicks on the
- * name's line, which reaches up and out to the edge to be easier to hit.
+ * line, and `children` below the name, still beside the avatar. `onRowClick`
+ * hears clicks on the name's line, which reaches up and out to the edge to be
+ * easier to hit.
  */
 export default function UserIdentity({
   username,
@@ -222,7 +223,7 @@ export default function UserIdentity({
           )}
         </div>
         {children && (
-          <div className="flex min-w-0 items-baseline gap-2">{children}</div>
+          <div className="min-w-0">{children}</div>
         )}
       </div>
       <div

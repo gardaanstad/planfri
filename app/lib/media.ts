@@ -23,3 +23,10 @@ export function useMediaQuery(query: string, serverValue = false) {
     () => serverValue,
   );
 }
+
+/** Bottom sheets leave quicker than they arrive: a short slide down. */
+export const sheetLeave = {
+  duration: 90,
+  easing: "cubic-bezier(0.3, 0, 0.8, 0.4)",
+  fill: "forwards",
+} as const;

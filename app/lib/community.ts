@@ -1,7 +1,22 @@
 import type { Comment, Project } from "./data";
 
-/** A project's comments: all of them, and those from the past week. */
-export type ProjectActivity = { comments: number; recent: number };
+/** One of a project's newest comments, its text shortened, for "Nytt". */
+export type LatestComment = {
+  id: string;
+  author: string;
+  text: string;
+  date: string;
+};
+
+/** A project's comments: all of them, those from the past week, the newest. */
+export type ProjectActivity = {
+  comments: number;
+  recent: number;
+  /** Its newest comments, within a week of the newest, newest first. */
+  latest?: LatestComment[];
+  /** How many more there are within that week. */
+  latestMore?: number;
+};
 
 /**
  * What the explorer shows. Comments themselves load per project, or per
@@ -22,7 +37,12 @@ export type CommunityData = {
 
 /** What each community mutation answers: only what it changed. */
 export type MutationResult =
-  | { action: "comment"; projectId: string; comments: Comment[]; activity: ProjectActivity }
+  | {
+      action: "comment" | "delete-comment";
+      projectId: string;
+      comments: Comment[];
+      activity: ProjectActivity;
+    }
   | { action: "vote"; commentId: string; value: number; votes: number }
   | { action: "save"; projectId: string; saved: boolean }
   | { action: "project"; project: Project };

@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { safeReturnPath } from "../lib/account-rules";
 import { cn } from "../lib/cn";
-import { reducedMotion } from "../lib/media";
+import { reducedMotion, sheetLeave } from "../lib/media";
 import { iconButton } from "../lib/ui";
 import { openedByKeyboard } from "./action-sheet";
 import GoogleSignIn from "./google-sign-in";
@@ -55,7 +55,9 @@ export default function LoginPrompt({
     closing.current = true;
     if (!dialog || !panel || reducedMotion()) return onClose();
     const mobile = getComputedStyle(panel).getPropertyValue("--sheet") === "1";
-    const options = { duration: mobile ? 220 : 140, easing: "ease-in", fill: "forwards" as const };
+    const options = mobile
+      ? sheetLeave
+      : { duration: 140, easing: "ease-in", fill: "forwards" as const };
     const out = panel.animate(
       mobile
         ? [{ transform: "none" }, { transform: "translateY(100%)" }]

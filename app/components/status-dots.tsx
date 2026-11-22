@@ -8,9 +8,9 @@ import { statusTone } from "../lib/ui";
 export default function StatusDots({ values }: { values: string[] }) {
   return (
     <svg
-      width="27"
+      width="37"
       height="7"
-      viewBox="0 0 27 7"
+      viewBox="0 0 37 7"
       aria-hidden="true"
       data-status-dots={values.length ? values.join(",") : "all"}
     >

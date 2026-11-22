@@ -308,7 +308,7 @@ export const covered = (match: OsmMatch | null) => (match?.share ?? 0) >= 0.6;
 
 const statusOf: Record<OsmStatus, Status> = {
   construction: "construction",
-  proposed: "planned",
+  proposed: "proposed",
 };
 const categoriesOf = (candidate: OsmCandidate): Category[] =>
   candidate.kind === "road"

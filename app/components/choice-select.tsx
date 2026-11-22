@@ -8,9 +8,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { flushSync } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import { cn } from "../lib/cn";
-import { mobileQuery, reducedMotion } from "../lib/media";
+import { mobileQuery, reducedMotion, sheetLeave } from "../lib/media";
 import { useSwipeDismiss } from "./use-swipe-dismiss";
 
 type Option = {
@@ -42,6 +43,11 @@ type ChoiceSelectBase = {
   triggerLabel?: string;
   /** Names the anchored menu above its options, as the phone sheet does. */
   menuTitle?: boolean;
+  /**
+   * Grows and shrinks to a new label smoothly, so what sits beside it in a
+   * row follows along rather than jumping.
+   */
+  smoothWidth?: boolean;
 };
 
 type ChoiceSelectProps =
@@ -56,6 +62,8 @@ type ChoiceSelectProps =
       onChange: (value: string[]) => void;
     });
 
+const widthMotion = "choice-width";
+
 export default function ChoiceSelect(props: ChoiceSelectProps) {
   const {
     label,
@@ -65,6 +73,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
     triggerClassName,
     triggerLabel,
     menuTitle = false,
+    smoothWidth = false,
   } = props;
   const multiple = props.multiple === true;
   const selectedValues = new Set(
@@ -97,6 +106,9 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
   const [sheet, setSheet] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  // The width it last rested at, for `smoothWidth`.
+  const restingWidth = useRef<number | null>(null);
+  const labelRef = useRef<HTMLSpanElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
@@ -222,17 +234,94 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
     return () => observer.disconnect();
   }, [open, sheet]);
 
-  function close() {
-    setOpen(false);
+  // A sheet sliding away; its animations are let go once it has closed.
+  // Kept current while it rests, whatever resizes it.
+  useLayoutEffect(() => {
+    const element = root.current;
+    if (!smoothWidth || !element) return;
+    const observer = new ResizeObserver(() => {
+      if (!element.getAnimations().some((a) => a.id === widthMotion))
+        restingWidth.current = element.getBoundingClientRect().width;
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [smoothWidth]);
+  // A new label: from where it was (or is, midway), to its new width.
+  useLayoutEffect(() => {
+    const element = root.current;
+    if (!smoothWidth || !element) return;
+    const running = element
+      .getAnimations()
+      .filter((animation) => animation.id === widthMotion);
+    const from = running.length
+      ? element.getBoundingClientRect().width
+      : restingWidth.current;
+    running.forEach((animation) => animation.cancel());
+    labelRef.current
+      ?.getAnimations()
+      .forEach((animation) => animation.id === widthMotion && animation.cancel());
+    delete element.dataset.growing;
+    const to = element.getBoundingClientRect().width;
+    restingWidth.current = to;
+    if (from === null || Math.abs(from - to) < 1 || reducedMotion()) return;
+    const motion = element.animate(
+      [{ width: `${from}px` }, { width: `${to}px` }],
+      { duration: 240, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+    );
+    motion.id = widthMotion;
+    // Growing, the longer words would read cut short: they come in as the
+    // room opens, clipped rather than ending in "…".
+    const words = labelRef.current;
+    if (to > from && words) {
+      element.dataset.growing = "";
+      const fade = words.animate([{ opacity: 0 }, { opacity: 1 }], {
+        duration: 240,
+        easing: "cubic-bezier(0.55, 0, 0.75, 0.4)",
+      });
+      fade.id = widthMotion;
+      const done = () => {
+        if (!element.getAnimations().some((a) => a.id === widthMotion))
+          delete element.dataset.growing;
+      };
+      motion.finished.then(done, done);
+    }
+  }, [smoothWidth, shownLabel]);
+  const leaving = useRef<Animation[] | null>(null);
+  function close(animate = true) {
     trigger.current?.focus({ preventScroll: true });
+    const panel = sheetPanel.current;
+    const scrim = menu.current;
+    if (leaving.current) return;
+    if (!sheet || !animate || !panel || !scrim || reducedMotion()) {
+      setOpen(false);
+      return;
+    }
+    const out = panel.animate(
+      [{ transform: "none" }, { transform: "translateY(100%)" }],
+      sheetLeave,
+    );
+    const fade = scrim.animate(
+      [{ "--sheet-progress": 0 }, { "--sheet-progress": 1 }],
+      sheetLeave,
+    );
+    leaving.current = [out, fade];
+    const done = () => {
+      // Hidden first, in the same frame, so letting go of the slide can't
+      // show it back at rest; it opens again from there.
+      flushSync(() => setOpen(false));
+      leaving.current?.forEach((animation) => animation.cancel());
+      leaving.current = null;
+    };
+    out.finished.then(done, done);
   }
-  // Dragged down like the drawers, from its handle or a list at its top.
+  // Dragged down like the drawers, from its handle or a list at its top;
+  // it has already slid away by then.
   useSwipeDismiss({
     enabled: open && sheet,
     sheet: sheetPanel,
     scroller: list,
     backdrop: menu,
-    onDismiss: close,
+    onDismiss: () => close(false),
   });
 
   /** A parent narrowed to some of its children, rather than all of it. */
@@ -486,7 +575,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
           // hover, press or open states, and no turning chevron.
           "[-webkit-tap-highlight-color:transparent]",
           "md:hover:border-border-strong md:hover:bg-surface-subtle",
-          "md:aria-expanded:border-accent/50",
+          "md:aria-expanded:border-border-strong",
           triggerClassName,
         )}
         aria-label={
@@ -511,7 +600,10 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
         }}
       >
         {icon}
-        <span className="min-w-0 overflow-hidden text-ellipsis">
+        <span
+          ref={labelRef}
+          className="min-w-0 overflow-hidden text-ellipsis group-data-growing/choice:text-clip"
+        >
           {shownLabel}
         </span>
         {multiple && selectedCount > 0 && (
@@ -544,6 +636,12 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
         data-sheet={sheet}
         inert={!open}
         aria-hidden={!open}
+        // A tap on the scrim would hand focus to the drawer behind it, after
+        // the press, closing the sheet at once; its click closes it instead.
+        onMouseDown={(event) => {
+          if (sheet && event.target === event.currentTarget)
+            event.preventDefault();
+        }}
         onClick={(event) => {
           if (event.target === event.currentTarget) close();
         }}

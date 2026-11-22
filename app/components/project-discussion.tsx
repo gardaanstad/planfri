@@ -20,6 +20,7 @@ import { errorMessage } from "../lib/api-client";
 import { composer, composerField, composerSend, sortChoice } from "../lib/ui";
 import UserIdentity from "./user-identity";
 import ChoiceSelect from "./choice-select";
+import CommentMenu from "./comment-menu";
 import EmptyState from "./empty-state";
 import styles from "./project-discussion.module.css";
 
@@ -31,17 +32,30 @@ const voteButton = cn(
 /** On a phone, where the replies' line is hidden, a tap on the name's line folds a thread. */
 const phoneQuery = "(width < 40rem)";
 
-/** Counts the given threads' roots and every reply beneath them. */
-function countThreadComments(comments: Comment[], thread: Comment[]) {
-  const included = new Set(thread.map((comment) => comment.id));
-  let size;
-  do {
-    size = included.size;
-    for (const comment of comments)
-      if (comment.parentId && included.has(comment.parentId))
-        included.add(comment.id);
-  } while (included.size > size);
-  return included.size;
+const sortOptions = [
+  { value: "relevant", label: "Aktuelt" },
+  { value: "top", label: "Topp" },
+  { value: "newest", label: "Nyeste" },
+];
+
+/** How a discussion's threads are ordered. */
+export function DiscussionSortSelect({
+  value,
+  onChange,
+}: {
+  value: DiscussionSort;
+  onChange: (sort: DiscussionSort) => void;
+}) {
+  return (
+    <ChoiceSelect
+      label="Sorter kommentarer"
+      value={value}
+      className={sortChoice}
+      icon={<ArrowDownUp size={14} />}
+      onChange={(next) => onChange(next as DiscussionSort)}
+      options={sortOptions}
+    />
+  );
 }
 
 export default function ProjectDiscussion({
@@ -50,6 +64,8 @@ export default function ProjectDiscussion({
   updates,
   updateId,
   initialCommentId,
+  sort: sortProp,
+  onSortChange,
   onReadUpdate,
   onNotify,
 }: {
@@ -63,6 +79,9 @@ export default function ProjectDiscussion({
    * update, and new comments written here reference it.
    */
   updateId?: string;
+  /** Set when the order is chosen elsewhere, beside the section's tabs. */
+  sort?: DiscussionSort;
+  onSortChange?: (sort: DiscussionSort) => void;
   onReadUpdate: (id: string) => void;
   onNotify: (message: string) => void;
 }) {
@@ -78,7 +97,9 @@ export default function ProjectDiscussion({
   const replyButtons = useRef(new Map<string, HTMLButtonElement>());
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const idPrefix = useId();
-  const [sort, setSort] = useState<DiscussionSort>("relevant");
+  const [ownSort, setOwnSort] = useState<DiscussionSort>("relevant");
+  const sort = sortProp ?? ownSort;
+  const setSort = onSortChange ?? setOwnSort;
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   // Threads collapsed to their author's line by a tap, on a phone.
   const [minimized, setMinimized] = useState<ReadonlySet<string>>(new Set());
@@ -120,7 +141,8 @@ export default function ProjectDiscussion({
   }
   function countReplies(id: string): number {
     return (repliesOf.get(id) ?? []).reduce(
-      (total, reply) => total + 1 + countReplies(reply.id),
+      (total, reply) =>
+        total + (reply.deleted ? 0 : 1) + countReplies(reply.id),
       0,
     );
   }
@@ -191,9 +213,6 @@ export default function ProjectDiscussion({
     latest: updates[0]?.date,
     updateId,
   });
-  const commentCount = scoped
-    ? countThreadComments(comments, thread)
-    : comments.length;
   function resizeComposer(element: HTMLTextAreaElement) {
     element.style.height = "auto";
     element.style.height = `${Math.min(element.scrollHeight, 260)}px`;
@@ -252,6 +271,15 @@ export default function ProjectDiscussion({
       onNotify(errorMessage(error, "Kunne ikke lagre stemmen."));
     }
   }
+  async function removeComment(commentId: string) {
+    try {
+      await mutate({ action: "delete-comment", commentId });
+      if (replyTo === commentId) setReplyTo(null);
+      onNotify("Kommentaren er slettet");
+    } catch (error) {
+      onNotify(errorMessage(error, "Kunne ikke slette kommentaren."));
+    }
+  }
   function renderComment(comment: Comment, depth = 0): React.ReactNode {
     const vote = votes[comment.id] || 0;
     const reference =
@@ -280,209 +308,235 @@ export default function ProjectDiscussion({
           data-highlighted={comment.id === initialCommentId || undefined}
           data-minimized={shut || undefined}
         >
-          <UserIdentity
-            username={comment.author}
-            onRowClick={(event) => toggleMinimized(event, comment.id)}
-            meta={
-              <>
-                <RelativeTime
-                  date={comment.date}
-                  className="shrink-0 text-xs whitespace-nowrap text-muted select-none"
-                />
-                <ChevronDown
-                  size={16}
-                  aria-hidden="true"
-                  className={cn(
-                    "ml-auto shrink-0 self-center text-muted transition-opacity duration-200 motion-reduce:transition-none",
-                    !shut && "opacity-0",
-                  )}
-                />
-              </>
-            }
-          >
-            {reference && (
-              <button
-                type="button"
-                // Baseline-aligned so the chip's text, not its border, lines up with the date.
-                className={cn(
-                  "inline-flex max-w-full min-w-0 items-baseline gap-1 rounded-full border border-border-strong pr-1.75 pl-1.5",
-                  "text-left text-xs leading-4 text-muted transition-colors duration-120 hover:border-muted hover:text-ink",
-                  "[&>svg]:shrink-0 [&>svg]:self-center",
-                )}
-                data-tooltip="Viser til denne oppdateringen"
-                data-tooltip-delay="long"
-                onClick={() => onReadUpdate(reference.id)}
+          {comment.deleted ? (
+            <div className="flex min-h-8 items-center gap-2.5">
+              <span
+                aria-hidden="true"
+                className="size-8 shrink-0 rounded-full border border-dashed border-border-strong"
+              />
+              <p className="text-ui text-muted italic">Slettet kommentar</p>
+            </div>
+          ) : (
+            <>
+              <UserIdentity
+                username={comment.author}
+                onRowClick={(event) => toggleMinimized(event, comment.id)}
+                meta={
+                  <>
+                    <RelativeTime
+                      date={comment.date}
+                      className="shrink-0 text-xs whitespace-nowrap text-muted select-none"
+                    />
+                    <ChevronDown
+                      size={16}
+                      aria-hidden="true"
+                      className={cn(
+                        "ml-auto shrink-0 self-center text-muted transition-opacity duration-200 motion-reduce:transition-none",
+                        !shut && "opacity-0",
+                      )}
+                    />
+                  </>
+                }
               >
-                <Megaphone size={11} aria-hidden="true" />
-                <span className="truncate">{reference.title}</span>
-              </button>
-            )}
-          </UserIdentity>
-          <div className={styles.fold} inert={shut}>
-            <div className={styles.clip}>
-              <p className="mt-0.5 ml-10.5 wrap-anywhere whitespace-pre-wrap text-body leading-[1.6] text-ink-soft">
-                {comment.text
-                  .split(/(https?:\/\/[^\s<>]+)/g)
-                  .map((part, index) =>
-                    /^https?:\/\//.test(part) ? (
-                      <a
-                        key={index}
-                        href={part}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="underline decoration-accent/40 underline-offset-3 hover:text-accent"
-                      >
-                        {part}
-                      </a>
-                    ) : (
-                      part
-                    ),
-                  )}
-              </p>
-              <div className="ml-[34px] flex items-center gap-2 text-xs text-muted max-sm:-mr-1.5 max-sm:ml-0 max-sm:justify-end max-sm:gap-1">
-                <div
-                  className="flex items-center gap-0 text-muted"
-                  role="group"
-                  aria-label={`Stem på kommentaren fra ${comment.author}`}
-                  data-vote={vote}
-                >
-                  <button
-                    type="button"
-                    className={cn(voteButton, "aria-pressed:text-accent")}
-                    aria-label={`Stem opp kommentaren fra ${comment.author}`}
-                    aria-pressed={vote === 1}
-                    onClick={() =>
-                      void castVote(comment.id, vote === 1 ? 0 : 1)
-                    }
-                  >
-                    <ArrowUp size={15} />
-                  </button>
-                  <span
-                    className={cn(
-                      "min-w-4.5 text-center text-xs font-semibold tabular-nums",
-                      vote === 1 && "text-accent",
-                      vote === -1 && "text-danger",
-                    )}
-                    aria-live="polite"
-                    aria-atomic="true"
-                  >
-                    {comment.votes}
-                  </span>
-                  <button
-                    type="button"
-                    className={cn(voteButton, "aria-pressed:text-danger")}
-                    aria-label={`Stem ned kommentaren fra ${comment.author}`}
-                    aria-pressed={vote === -1}
-                    onClick={() =>
-                      void castVote(comment.id, vote === -1 ? 0 : -1)
-                    }
-                  >
-                    <ArrowDown size={15} />
-                  </button>
+                {reference && (
+                  <div className="mt-0.5 mb-1 flex min-w-0">
+                    <button
+                      type="button"
+                      // Baseline-aligned so the chip's text, not its border, lines up with the date.
+                      className={cn(
+                        "inline-flex max-w-full min-w-0 items-baseline gap-1 rounded-full border border-border-strong pr-1.75 pl-1.5",
+                        "text-left text-xs leading-4 text-muted transition-colors duration-120 hover:border-muted hover:text-ink",
+                        "[&>svg]:shrink-0 [&>svg]:self-center",
+                      )}
+                      data-tooltip="Viser til denne oppdateringen"
+                      data-tooltip-delay="long"
+                      onClick={() => onReadUpdate(reference.id)}
+                    >
+                      <Megaphone size={11} aria-hidden="true" />
+                      <span className="truncate">{reference.title}</span>
+                    </button>
+                  </div>
+                )}
+                <div className={styles.fold} inert={shut}>
+                  <div className={styles.clip}>
+                    <p className="wrap-anywhere whitespace-pre-wrap text-body leading-[1.6] text-ink-soft">
+                      {comment.text
+                        .split(/(https?:\/\/[^\s<>]+)/g)
+                        .map((part, index) =>
+                          /^https?:\/\//.test(part) ? (
+                            <a
+                              key={index}
+                              href={part}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="underline decoration-accent/40 underline-offset-3 hover:text-accent"
+                            >
+                              {part}
+                            </a>
+                          ) : (
+                            part
+                          ),
+                        )}
+                    </p>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  className={cn(
-                    "inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted",
-                    "transition-colors hover:bg-ink/[0.06] hover:text-ink max-sm:order-first max-sm:h-9",
-                  )}
-                  ref={(element) => {
-                    if (element) replyButtons.current.set(comment.id, element);
-                    else replyButtons.current.delete(comment.id);
-                  }}
-                  aria-expanded={replyTo === comment.id}
-                  aria-controls={replyFormId}
-                  onClick={() => {
-                    if (
-                      !requireLogin("Du må være logget inn for å svare.", {
-                        type: "comment",
-                        projectId,
-                      })
-                    )
-                      return;
-                    setReplyTo(replyTo === comment.id ? null : comment.id);
-                    if (replyDraftFor.current !== comment.id) setReplyText("");
-                    replyDraftFor.current = comment.id;
-                  }}
-                >
-                  <MessageCircle size={13} />
-                  Svar
-                </button>
-              </div>
-              {replyTo === comment.id && (
-                <form
-                  id={replyFormId}
-                  className={cn(
-                    composer,
-                    "mt-1.5 mb-0.5 ml-10.5 motion-safe:animate-menu-enter",
-                  )}
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    addComment(comment.id);
-                  }}
-                >
-                  <textarea
-                    aria-label={`Svar til ${comment.author}`}
-                    placeholder={`Svar til ${comment.author}`}
-                    value={replyText}
-                    rows={1}
-                    onChange={(e) => {
-                      setReplyText(e.target.value);
-                      resizeComposer(e.target);
-                    }}
-                    onKeyDown={(e) => {
-                      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+              </UserIdentity>
+              <div className={styles.fold} inert={shut}>
+                <div className={styles.clip}>
+                  <div className="ml-[34px] flex items-center gap-2 text-xs text-muted max-sm:-mr-1.5 max-sm:ml-0 max-sm:justify-end max-sm:gap-1">
+                    <div
+                      className="flex items-center gap-0 text-muted"
+                      role="group"
+                      aria-label={`Stem på kommentaren fra ${comment.author}`}
+                      data-vote={vote}
+                    >
+                      <button
+                        type="button"
+                        className={cn(voteButton, "aria-pressed:text-accent")}
+                        aria-label={`Stem opp kommentaren fra ${comment.author}`}
+                        aria-pressed={vote === 1}
+                        onClick={() =>
+                          void castVote(comment.id, vote === 1 ? 0 : 1)
+                        }
+                      >
+                        <ArrowUp size={15} />
+                      </button>
+                      <span
+                        className={cn(
+                          "min-w-4.5 text-center text-xs font-semibold tabular-nums",
+                          vote === 1 && "text-accent",
+                          vote === -1 && "text-danger",
+                        )}
+                        aria-live="polite"
+                        aria-atomic="true"
+                      >
+                        {comment.votes}
+                      </span>
+                      <button
+                        type="button"
+                        className={cn(voteButton, "aria-pressed:text-danger")}
+                        aria-label={`Stem ned kommentaren fra ${comment.author}`}
+                        aria-pressed={vote === -1}
+                        onClick={() =>
+                          void castVote(comment.id, vote === -1 ? 0 : -1)
+                        }
+                      >
+                        <ArrowDown size={15} />
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      className={cn(
+                        "inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted",
+                        "transition-colors hover:bg-ink/[0.06] hover:text-ink max-sm:order-first max-sm:h-9",
+                      )}
+                      ref={(element) => {
+                        if (element)
+                          replyButtons.current.set(comment.id, element);
+                        else replyButtons.current.delete(comment.id);
+                      }}
+                      aria-expanded={replyTo === comment.id}
+                      aria-controls={replyFormId}
+                      onClick={() => {
+                        if (
+                          !requireLogin("Du må være logget inn for å svare.", {
+                            type: "comment",
+                            projectId,
+                          })
+                        )
+                          return;
+                        setReplyTo(replyTo === comment.id ? null : comment.id);
+                        if (replyDraftFor.current !== comment.id)
+                          setReplyText("");
+                        replyDraftFor.current = comment.id;
+                      }}
+                    >
+                      <MessageCircle size={13} />
+                      Svar
+                    </button>
+                    {user?.username === comment.author && (
+                      <CommentMenu
+                        hasReplies={replies.length > 0}
+                        onDelete={() => removeComment(comment.id)}
+                      />
+                    )}
+                  </div>
+                  {replyTo === comment.id && (
+                    <form
+                      id={replyFormId}
+                      className={cn(
+                        composer,
+                        "mt-1.5 mb-0.5 ml-10.5 motion-safe:animate-menu-enter",
+                      )}
+                      onSubmit={(e) => {
                         e.preventDefault();
                         addComment(comment.id);
-                      }
-                      if (e.key === "Escape") {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setReplyTo(null);
-                        replyButtons.current.get(comment.id)?.focus();
-                      }
-                    }}
-                    required
-                    maxLength={2000}
-                    autoFocus
-                    className={cn(
-                      composerField,
-                      "block max-h-65 resize-none max-md:placeholder:text-ui",
-                      "max-md:placeholder-shown:pt-2 max-md:placeholder-shown:pb-0.5",
-                    )}
-                  />
-                  {replyText.length > 1800 && (
-                    <span className="self-center text-xs leading-normal text-muted tabular-nums">
-                      {replyText.length}/2000
-                    </span>
+                      }}
+                    >
+                      <textarea
+                        aria-label={`Svar til ${comment.author}`}
+                        placeholder={`Svar til ${comment.author}`}
+                        value={replyText}
+                        rows={1}
+                        onChange={(e) => {
+                          setReplyText(e.target.value);
+                          resizeComposer(e.target);
+                        }}
+                        onKeyDown={(e) => {
+                          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                            e.preventDefault();
+                            addComment(comment.id);
+                          }
+                          if (e.key === "Escape") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setReplyTo(null);
+                            replyButtons.current.get(comment.id)?.focus();
+                          }
+                        }}
+                        required
+                        maxLength={2000}
+                        autoFocus
+                        className={cn(
+                          composerField,
+                          "block max-h-65 resize-none max-md:placeholder:text-ui",
+                          "max-md:placeholder-shown:pt-2 max-md:placeholder-shown:pb-0.5",
+                        )}
+                      />
+                      {replyText.length > 1800 && (
+                        <span className="self-center text-xs leading-normal text-muted tabular-nums">
+                          {replyText.length}/2000
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        className={cn(
+                          "grid size-8 shrink-0 place-items-center rounded-full text-muted",
+                          "transition-colors hover:bg-ink/[0.06] hover:text-ink",
+                        )}
+                        aria-label="Avbryt"
+                        onClick={() => {
+                          setReplyTo(null);
+                          setReplyText("");
+                          replyButtons.current.get(comment.id)?.focus();
+                        }}
+                      >
+                        <X size={16} />
+                      </button>
+                      <button
+                        type="submit"
+                        className={composerSend}
+                        disabled={sending || !replyText.trim()}
+                        aria-label="Send svar"
+                      >
+                        <ArrowUp size={16} strokeWidth={2.25} />
+                      </button>
+                    </form>
                   )}
-                  <button
-                    type="button"
-                    className={cn(
-                      "grid size-8 shrink-0 place-items-center rounded-full text-muted",
-                      "transition-colors hover:bg-ink/[0.06] hover:text-ink",
-                    )}
-                    aria-label="Avbryt"
-                    onClick={() => {
-                      setReplyTo(null);
-                      setReplyText("");
-                      replyButtons.current.get(comment.id)?.focus();
-                    }}
-                  >
-                    <X size={16} />
-                  </button>
-                  <button
-                    type="submit"
-                    className={composerSend}
-                    disabled={sending || !replyText.trim()}
-                    aria-label="Send svar"
-                  >
-                    <ArrowUp size={16} strokeWidth={2.25} />
-                  </button>
-                </form>
-              )}
-            </div>
-          </div>
+                </div>
+              </div>
+            </>
+          )}
           {replies.length > 0 && (
             <button
               type="button"
@@ -544,31 +598,37 @@ export default function ProjectDiscussion({
     );
   }
 
+  const loginLine = !user?.username && (
+    <p
+      className={cn(
+        "text-ui leading-normal text-muted max-md:text-xs",
+        scoped ? "pt-3" : "text-center",
+        !scoped && thread.length > 0 && "pb-1",
+      )}
+      data-login-to-comment=""
+    >
+      <button
+        type="button"
+        className="font-medium text-ink underline decoration-ink/35 underline-offset-3 transition-[text-decoration-color] duration-150 hover:decoration-current"
+        onClick={() =>
+          requireLogin("Du må være logget inn for å kommentere.", {
+            type: "comment",
+            projectId,
+          })
+        }
+      >
+        {user ? "Velg brukernavn" : "Logg inn"}
+      </button>{" "}
+      for å kommentere.
+    </p>
+  );
+
   return (
     <section
       aria-label={scoped ? "Kommentarer til oppdateringen" : "Kommentarer"}
       className={cn(scoped && "pt-3.5 -mb-2.5 max-sm:pt-3")}
       data-scoped={scoped || undefined}
     >
-      {!user?.username && (
-        <div className="rounded-[20px] border border-border-strong bg-surface px-4 py-2.5">
-          <p className="text-sm leading-[1.4] text-muted max-md:text-ui">
-            <button
-              type="button"
-              className="font-medium text-ink underline decoration-ink/35 underline-offset-3 transition-[text-decoration-color] duration-150 hover:decoration-current"
-              onClick={() =>
-                requireLogin("Du må være logget inn for å kommentere.", {
-                  type: "comment",
-                  projectId,
-                })
-              }
-            >
-              {user ? "Velg brukernavn" : "Logg inn"}
-            </button>{" "}
-            for å kommentere.
-          </p>
-        </div>
-      )}
       {user?.username && (
         <form
           className={composer}
@@ -620,31 +680,15 @@ export default function ProjectDiscussion({
           </button>
         </form>
       )}
-      {(!scoped || thread.length > 1) && (
-        <div
-          className={cn(
-            "mb-1 flex items-center justify-between gap-3 border-b border-border pb-2",
-            scoped ? "mt-3" : "mt-5",
-          )}
-        >
-          <span className="text-ui whitespace-nowrap text-muted tabular-nums">
-            {commentCount} {commentCount === 1 ? "kommentar" : "kommentarer"}
-          </span>
-          <ChoiceSelect
-            label="Sorter kommentarer"
-            value={sort}
-            className={sortChoice}
-            icon={<ArrowDownUp size={14} />}
-            onChange={(value) => setSort(value as DiscussionSort)}
-            options={[
-              { value: "relevant", label: "Aktuelt" },
-              { value: "top", label: "Topp" },
-              { value: "newest", label: "Nyeste" },
-            ]}
-          />
+      {/* An update's own comments sort here; the project's beside its tabs. */}
+      {scoped && thread.length > 1 && !onSortChange && (
+        <div className="mt-3 mb-1 flex items-center justify-end border-b border-border pb-2">
+          <DiscussionSortSelect value={sort} onChange={setSort} />
         </div>
       )}
-      <div>
+      {/* Reading comes first; joining in is a quiet line among them. */}
+      {!scoped && thread.length > 0 && loginLine}
+      <div className={cn(!scoped && user?.username && "mt-5")}>
         {thread.map((comment) => renderComment(comment))}
         {thread.length === 0 &&
           (scoped ? (
@@ -653,9 +697,12 @@ export default function ProjectDiscussion({
             <EmptyState
               icon={<MessageCircle size={24} />}
               title="Ingen kommentarer ennå"
-            />
+            >
+              {loginLine}
+            </EmptyState>
           ))}
       </div>
+      {scoped && loginLine}
     </section>
   );
 }

@@ -95,7 +95,7 @@ export function useProjectList({
     needle,
     searchHits,
     listed,
-    /** Search hits the map's view leaves out of the list. */
-    outsideHits: needle && bounds ? searchHits.length - listed.length : 0,
+    /** Matches, or search hits, the map's view leaves out of the list. */
+    outsideHits: bounds ? searchHits.length - listed.length : 0,
   };
 }

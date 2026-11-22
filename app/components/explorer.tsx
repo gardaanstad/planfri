@@ -2,6 +2,7 @@
 
 import {
   type CSSProperties,
+  Fragment,
   type ReactNode,
   memo,
   useCallback,
@@ -17,10 +18,12 @@ import { flushSync } from "react-dom";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
+  Activity,
   ArrowDownUp,
   Construction,
-  ChevronsLeft,
-  ChevronsRight,
+  Maximize2,
+  PanelLeftClose,
+  PanelLeftOpen,
   GalleryVertical,
   Inbox,
   LayoutList,
@@ -35,7 +38,6 @@ import {
   ZoomOut,
 } from "lucide-react";
 import {
-  categoryLabels,
   categoryTree,
   type Bounds,
   type Project,
@@ -45,8 +47,8 @@ import {
   statusOrder,
 } from "../lib/data";
 import {
+  defaultDensity,
   defaultStatus,
-  type MapView,
   parseExploreState,
   sameValues,
   sortOptions,
@@ -80,7 +82,9 @@ import CategoryIcon from "./category-icon";
 import ProjectEditor from "./project-editor";
 import { OsmPanel, useOsmModeStored, useOsmReview } from "./osm-review";
 import ProjectPost from "./project-post";
-import ProjectCard from "./project-card";
+import ProjectCard, { type CardTarget } from "./project-card";
+import { FeedRow, feedEntries, type FeedTarget } from "./activity-feed";
+import { useListMotion } from "./use-list-motion";
 import PanelResizer from "./panel-resizer";
 import SavedProjects from "./saved-projects";
 import { useUnread } from "./unread-provider";
@@ -111,8 +115,6 @@ import {
   categorySummary,
   lessUsedCategories,
   projectPoints,
-  statusSummary,
-  withoutCategory,
 } from "../lib/project-filters";
 import { useProjectList } from "./use-project-list";
 import { usePanelLayers, type Layer } from "./use-panel-layers";
@@ -131,10 +133,7 @@ import {
 import { openProfileEvent } from "../lib/profile-overlay";
 import ProfileOverlay from "./profile-overlay";
 import SuggestionList from "./suggestion-list";
-import {
-  MaximizeButton,
-  type SidebarMode,
-} from "./sidebar-panel";
+import { MaximizeButton, type SidebarMode } from "./sidebar-panel";
 import {
   iconButton,
   primaryButton,
@@ -145,8 +144,9 @@ import {
 } from "../lib/ui";
 
 const densityOptions = [
-  { value: "expanded", label: "Utvidet", Icon: GalleryVertical },
   { value: "compact", label: "Kompakt", Icon: LayoutList },
+  { value: "expanded", label: "Utvidet", Icon: GalleryVertical },
+  { value: "feed", label: "Nytt", Icon: Activity },
 ] as const;
 
 /** Where in a project to open: an update, a comment, or a section. */
@@ -182,6 +182,8 @@ const controlsSlotClasses = cn(
   "[&_[data-map-controls]]:bottom-[15px]!",
 );
 /** Hides the map controls in a slot while its drawer would cover them. */
+const projectKey = (project: Project) => project.id;
+
 function coverControls(slot: HTMLElement | null, motion: DrawerMotion) {
   if (!slot) return;
   const covered = motion.visible > window.innerHeight * middleSnapPoint + 2;
@@ -213,8 +215,6 @@ const secondaryAction = cn(
 );
 const quietAction = cn(textButton, "min-h-11 text-xs");
 const compactIconAction = cn(iconButton, "rounded-lg");
-const chip =
-  "inline-flex min-h-7 items-center gap-1 rounded-full bg-accent-soft pr-1.75 pl-2.5 text-xs font-medium text-accent-strong hover:bg-accent/16";
 /** Marks the avatar when a member's suggestions have been reviewed. */
 const reviewedDot =
   "absolute -top-0.5 -right-0.5 size-2.75 rounded-full border-2 border-surface bg-accent";
@@ -230,8 +230,9 @@ const panelChoiceClasses = [
   "[&_[data-slot=choice-trigger]>svg]:shrink-0 [&_[data-slot=choice-trigger]>svg]:text-muted [&_[data-slot=choice-trigger]>svg:last-child]:ml-0",
   "[&_[data-slot=choice-trigger]>span:nth-of-type(2)]:hidden [&_[data-slot=choice-menu][data-open=false]]:hidden",
 ].join(" ");
+// Set, a filter's pill gets a firmer edge and bolder words; nothing else.
 const panelChoiceActive =
-  "[&_[data-slot=choice-trigger]]:border-accent/30 [&_[data-slot=choice-trigger]]:bg-accent-soft/60 [&_[data-slot=choice-trigger]]:text-accent-strong [&_[data-slot=choice-trigger]>svg]:text-accent";
+  "[&_[data-slot=choice-trigger]]:border-ink/45 [&_[data-slot=choice-trigger]]:font-semibold";
 
 // Mobile filters read as inline text; the menus carry the structure.
 const inlineChoiceClasses = [
@@ -386,7 +387,7 @@ export default memo(function Explorer({
   const density = useSyncExternalStore(
     subscribeDensity,
     storedDensity,
-    (): ListDensity => "expanded",
+    (): ListDensity => defaultDensity,
   );
   // Desktop: the OSM mode wants the whole map, so the list steps aside,
   // without its toggle, until the mode is off.
@@ -453,9 +454,10 @@ export default memo(function Explorer({
   // Desktop: framing an open project moves the map, but the list behind the
   // panel keeps the area it was opened from, so it returns unchanged.
   const [frozenBounds, setFrozenBounds] = useState<Bounds | null>(null);
-  const postView = useRef<{ id: string; before: MapView | null } | null>(
-    null,
-  );
+  const postView = useRef<{
+    id: string;
+    before: MapViewChange | null;
+  } | null>(null);
   // Map moves after closing a project wait until history has stepped back:
   // replacing the URL mid-step makes Next.js reload the page.
   const afterPop = useRef<(() => void) | null>(null);
@@ -475,8 +477,7 @@ export default memo(function Explorer({
     allowed: canModerate,
     projects,
     // Clear of the bar and card over the top of the map.
-    onFrame: (points) =>
-      mapApi.current?.fit(points, { maxZoom: 14, top: 230 }),
+    onFrame: (points) => mapApi.current?.fit(points, { maxZoom: 14, top: 230 }),
     // The list slides aside or back as the mode turns on or off.
     beforeToggle: () => {
       if (!isMobile && !collapsedPref && !maximized) animateFrom();
@@ -484,8 +485,7 @@ export default memo(function Explorer({
   });
 
   const openSearch = useCallback(() => {
-    if (postId || profileName || modal || savedOnly || suggestionsOpen)
-      return;
+    if (postId || profileName || modal || savedOnly || suggestionsOpen) return;
     // Focus during the tap so mobile browsers also open the keyboard.
     flushSync(() => {
       setSearchOpen(true);
@@ -510,13 +510,14 @@ export default memo(function Explorer({
   });
 
   function enterPostView(id: string, frame = true) {
-    if (isMobile) return;
-    if (!postView.current && mapViewRef.current)
+    // Phones keep the view to return to; the list follows the map there.
+    if (!isMobile && !postView.current && mapViewRef.current)
       setFrozenBounds(mapViewRef.current.bounds);
     postView.current = {
       id,
       before: postView.current ? postView.current.before : mapViewRef.current,
     };
+    if (isMobile) return;
     const project = projects.find((item) => item.id === id);
     // Collapsed, the panel lies over the map's left edge.
     if (frame && project)
@@ -534,12 +535,9 @@ export default memo(function Explorer({
   const headerNavRef = useRef<HTMLElement>(null);
   const headerOverflow = useHeaderOverflow(
     headerNavRef,
-    [
-      "theme",
-      user && "add",
-      canModerate && "suggestions",
-      "maximize",
-    ].filter((id): id is string => Boolean(id)),
+    ["theme", user && "add", canModerate && "suggestions", "maximize"].filter(
+      (id): id is string => Boolean(id),
+    ),
   );
   /** The header's width plus the sidebar's border. */
   function headerWidth(all: boolean) {
@@ -554,7 +552,13 @@ export default memo(function Explorer({
     postView.current = null;
     // Back to where the project was opened from; the list follows when the
     // map settles. Opened by link, the list takes the area around it.
-    if (view.before) mapApi.current?.show(view.before);
+    // Phones: the list may rest higher than it did, so the middle of what
+    // was in sight comes back above it, at the zoom it had.
+    if (view.before)
+      mapApi.current?.show(
+        view.before,
+        isMobile ? view.before.bounds : undefined,
+      );
     else setFrozenBounds(null);
     requestAnimationFrame(() =>
       listRef.current
@@ -642,7 +646,8 @@ export default memo(function Explorer({
 
   // Before the map reports its view (and on the server) the list covers
   // Norway. Maximized, the map is out of sight and the place filters instead.
-  const listBounds = maximized && !isMobile ? null : (frozenBounds ?? viewBounds);
+  const listBounds =
+    maximized && !isMobile ? null : (frozenBounds ?? viewBounds);
   const listPlace = maximized && !isMobile ? place : "";
   const {
     placesOf,
@@ -707,8 +712,7 @@ export default memo(function Explorer({
     onClosedOverMaximized: () => minimize(),
   });
   const panelClosing = !postId && leaving("project");
-  if (!postId && !panelClosing && panelPostId)
-    setPanelPostId(null);
+  if (!postId && !panelClosing && panelPostId) setPanelPostId(null);
   if (!profileName && !leaving("profile") && panelProfileName)
     setPanelProfileName(null);
   function projectsInView(view: MapViewChange) {
@@ -764,8 +768,7 @@ export default memo(function Explorer({
     placeHold.current = { name: found ? name : "", until: Date.now() + 1500 };
     if (isMobile) setSnapPoint(compactSnapPoint);
     // On phones, framed above the compact drawer it steps to.
-    if (found)
-      mapApi.current?.fit(extentPoints(found.extent), { maxZoom: 14 });
+    if (found) mapApi.current?.fit(extentPoints(found.extent), { maxZoom: 14 });
     else mapApi.current?.showNorway();
   }
   function pickPlace(name: string) {
@@ -897,9 +900,7 @@ export default memo(function Explorer({
   useLayoutEffect(() => {
     if (
       postId ||
-      (!meetPost.current &&
-        !meetPending.current &&
-        !raiseBehindPost.current)
+      (!meetPost.current && !meetPending.current && !raiseBehindPost.current)
     )
       return;
     meetPost.current = false;
@@ -908,15 +909,11 @@ export default memo(function Explorer({
     setSnapPoint(middleSnapPoint);
   }, [postId]);
 
-  function openPost(
-    id: string,
-    target: PostTarget = {},
-    overMap = false,
-  ) {
+  function openPost(id: string, target: PostTarget = {}, overMap = false) {
     setPostTarget(target);
-    setPostSnap(
-      isMobile && overMap ? { id, point: middleSnapPoint } : null,
-    );
+    setPostSnap(isMobile && overMap ? { id, point: middleSnapPoint } : null);
+    // Before the map moves, so closing returns to where it was.
+    enterPostView(id);
     const project = projects.find((item) => item.id === id);
     if (isMobile && overMap) {
       // The list comes to the middle height behind it, and the map centers
@@ -936,7 +933,6 @@ export default memo(function Explorer({
     setPostId(id);
     setSelectedId(id);
     highlight(null);
-    enterPostView(id);
     window.history.pushState(
       { projectOverlay: true, suggestionsBelow: suggestionsOpen },
       "",
@@ -959,7 +955,8 @@ export default memo(function Explorer({
       const trigger = projectTriggerRef.current;
       if (trigger?.isConnected && focusTrigger)
         trigger.focus({ preventScroll: true });
-      else if (isMobile) drawerHandleRef.current?.focus({ preventScroll: true });
+      else if (isMobile)
+        drawerHandleRef.current?.focus({ preventScroll: true });
       else searchTriggerRef.current?.focus({ preventScroll: true });
     });
     if (state.projectOverlay) {
@@ -1028,6 +1025,8 @@ export default memo(function Explorer({
   function showPostOnMap(project: Project) {
     // Framed above the middle drawer height, so the list can show it too.
     const fit = () => mapApi.current?.fit(projectPoints(project));
+    // The project is framed instead of the view it was opened from.
+    if (postView.current) postView.current.before = null;
     const below = suggestionsOpen;
     closePost(false, () => {
       if (below) closeSuggestions();
@@ -1269,6 +1268,19 @@ export default memo(function Explorer({
             !isMobile && "-mr-2.5",
           )}
         >
+          {/* Any filter but the place offers a way back, beside them. */}
+          {(statusChanged || category.length > 0 || !!needle) && (
+            <button
+              type="button"
+              className={cn(
+                "text-xs whitespace-nowrap text-muted underline-offset-3 hover:text-ink hover:underline",
+                isMobile ? "min-h-11 px-1" : "min-h-9 px-1",
+              )}
+              onClick={resetFilters}
+            >
+              Nullstill filtre
+            </button>
+          )}
           {searchButton}
         </div>
       </div>
@@ -1324,6 +1336,14 @@ export default memo(function Explorer({
         })),
     ];
   }, [isMobile, matching, place, placesOf, projects]);
+  // With every match in sight, the view is as good as all of Norway.
+  const allInView = useMemo(
+    () =>
+      !listBounds ||
+      matching.every((project) => projectInBounds(project, listBounds)),
+    [listBounds, matching],
+  );
+  const placeFallback = allInView ? "Hele Norge" : "Velg sted";
   // Every status shown is no filter; the last one shown can't be hidden.
   const statusValue = status.length ? status : statusOrder;
   const pickStatus = (next: string[]) => {
@@ -1333,11 +1353,11 @@ export default memo(function Explorer({
   const statusFilter = (
     <ChoiceSelect
       label="Prosjektstatus"
+      smoothWidth
       multiple
       value={statusValue}
       onChange={pickStatus}
-      triggerLabel="Prosjektstatus"
-      menuTitle
+      triggerLabel={isMobile ? "Prosjektstatus" : "Status"}
       icon={<StatusDots values={status} />}
       className={cn(
         isMobile
@@ -1348,9 +1368,10 @@ export default memo(function Explorer({
           : [
               panelChoiceClasses,
               "shrink-0",
-              // Its dots alone; the menu carries the name.
-              "[&_[data-slot=choice-trigger]>span]:sr-only [&_[data-slot=choice-trigger]]:pr-2.75 [&_[data-slot=choice-trigger]]:pl-3.25 [&_[data-slot=choice-menu]]:min-w-[200px]",
-              statusChanged && panelChoiceActive,
+              // Narrow, its dots alone; the menu carries the name.
+              // The dots already count what is shown.
+              "[&_[data-slot=choice-trigger]>span:nth-of-type(2)]:hidden",
+              "@max-[360px]:[&_[data-slot=choice-trigger]>span]:sr-only [&_[data-slot=choice-menu]]:min-w-[200px]",
             ],
       )}
       options={statusOptions}
@@ -1360,9 +1381,10 @@ export default memo(function Explorer({
     <>
       <ChoiceSelect
         label="Sted"
+        smoothWidth
         value={place}
         onChange={pickPlace}
-        triggerLabel={place || "Velg sted"}
+        triggerLabel={place || placeFallback}
         className={cn(
           inlineChoiceClasses,
           "[&_[data-slot=choice-trigger]>span:nth-of-type(2)]:hidden",
@@ -1372,6 +1394,7 @@ export default memo(function Explorer({
       />
       <ChoiceSelect
         label="Kategori"
+        smoothWidth
         multiple
         value={category}
         onChange={setCategory}
@@ -1394,7 +1417,12 @@ export default memo(function Explorer({
       // A narrow list keeps the icon; the menu names the order.
       className={cn(
         sortChoice,
+        // Beside the view switch, not at the edge: no overhang.
+        "mr-0",
         "md:@max-[320px]/list:[&_[data-slot=choice-trigger]>span]:sr-only",
+        // Beside the longer count, a narrow list keeps its icon alone too.
+        outsideHits > 0 &&
+          "@max-[560px]/list:[&_[data-slot=choice-trigger]>span]:sr-only",
       )}
       icon={<ArrowDownUp size={14} />}
       onChange={setSort}
@@ -1408,30 +1436,63 @@ export default memo(function Explorer({
       aria-label="Visning"
     >
       {densityOptions.map(({ value, label, Icon }) => (
+        <Fragment key={value}>
+        {/* The layouts of the cards, then "Nytt", a view of its own. */}
+        {value === "feed" && (
+          <span
+            className="pointer-events-none mx-1 my-2 w-px shrink-0 bg-border-strong"
+            aria-hidden="true"
+          />
+        )}
         <button
-          key={value}
           type="button"
           className={cn(
-            "inline-flex size-7 items-center justify-center rounded-md text-muted pointer-coarse:size-8 transition-[color,background-color,box-shadow] duration-150 motion-reduce:transition-none",
+            // As tall as the sort beside it; the pressed pill moves with the
+            // press, as the list does.
+            "relative inline-flex h-8 min-w-8 items-center justify-center rounded-md px-[8.5px] text-muted",
             "hover:text-ink aria-pressed:bg-surface aria-pressed:text-ink aria-pressed:shadow-xs",
+            // Either side of the divider presses the view beside it, up to
+            // the line, so the gap is never dead.
+            value === "expanded" &&
+              "after:absolute after:inset-y-0 after:left-full after:w-[4.5px]",
+            value === "feed" &&
+              "after:absolute after:inset-y-0 after:right-full after:w-[4.5px]",
           )}
           aria-label={label}
           aria-pressed={density === value}
-          data-tooltip={label}
+          data-tooltip={density === value ? undefined : label}
           data-press=""
           onClick={() => storeDensity(value)}
         >
-          <Icon size={15} aria-hidden="true" />
+          <Icon size={15} className="shrink-0" aria-hidden="true" />
+          {/* The pressed view names itself: the name opens out beside its
+              symbol as the last one folds away. */}
+          <span
+            className={cn(
+              "grid transition-[grid-template-columns,opacity] duration-180 ease-out-soft motion-reduce:transition-none",
+              density === value
+                ? "grid-cols-[1fr] opacity-100"
+                : "grid-cols-[0fr] opacity-0",
+            )}
+            aria-hidden="true"
+            data-view-label=""
+          >
+            <span className="min-w-0 overflow-hidden whitespace-nowrap">
+              <span className="pl-1.5 text-xs font-medium">{label}</span>
+            </span>
+          </span>
         </button>
+        </Fragment>
       ))}
     </div>
   );
   const placeFilter = (
     <ChoiceSelect
       label="Sted"
+      smoothWidth
       value={place}
       onChange={pickPlace}
-      triggerLabel={place || "Velg sted"}
+      triggerLabel={place || placeFallback}
       icon={<MapPin size={15} aria-hidden="true" />}
       className={cn(
         panelChoiceClasses,
@@ -1448,6 +1509,7 @@ export default memo(function Explorer({
       {placeFilter}
       <ChoiceSelect
         label="Kategori"
+        smoothWidth
         multiple
         value={category}
         onChange={setCategory}
@@ -1458,60 +1520,105 @@ export default memo(function Explorer({
         )}
         options={categoryOptions}
       />
-      <span
-        className="flex shrink-0"
-        data-tooltip="Prosjektstatus"
-      >
-        {statusFilter}
-      </span>
+      <span className="flex shrink-0">{statusFilter}</span>
     </>,
   );
 
-  const activeFilters = [
-    // Mobile shows category inline, so only hidden filters get chips there;
-    // a folded search's words get one everywhere.
-    ...(needle && (isMobile || !searchOpen)
-      ? [
-          {
-            key: "query",
-            label: `«${query.trim()}»`,
-            clear: () => setQuery(""),
-          },
-        ]
-      : []),
-    ...(listPlace
-      ? [{ key: "place", label: listPlace, clear: () => setPlace("") }]
-      : []),
-    ...(statusChanged
-      ? [
-          {
-            key: "status",
-            label: statusSummary(status),
-            clear: () => setStatus(defaultStatus),
-          },
-        ]
-      : []),
-    ...(isMobile ? [] : categoryLabels(category)).map((value) => ({
-      key: value,
-      label: value,
-      clear: () => setCategory(withoutCategory(category, value)),
-    })),
-  ];
-  // Not a filter, so not a chip: a quiet action beside the count.
-  const showOutside = outsideHits > 0 && (
-    <button
-      type="button"
-      className="inline-flex min-h-7 items-center gap-1 text-xs font-medium whitespace-nowrap text-accent underline-offset-3 hover:text-accent-strong hover:underline"
-      aria-label={`Vis ${outsideHits} treff utenfor kartet`}
-      onClick={showSearchHits}
-    >
-      <ZoomOut size={13} aria-hidden="true" />
-      {`+${outsideHits} utenfor kartet`}
-    </button>
+  const shown = listedProjects.length;
+  const total = shown + outsideHits;
+  // Beside the map, the place the view is on, and how many match there.
+  const countPlace = listBounds && place ? place : "";
+  const inPlace = useMemo(
+    () =>
+      countPlace
+        ? searchHits.filter((project) =>
+            placesOf.get(project.id)?.includes(countPlace),
+          ).length
+        : 0,
+    [countPlace, placesOf, searchHits],
   );
+  const showInPlace = !!countPlace && inPlace !== shown;
+  // "Nytt" is about what's in view, and the place; not every match.
+  const showTotal =
+    density !== "feed" && total !== (showInPlace ? inPlace : shown);
+  // "Nytt" counts the projects in view whose news it shows.
+  const feedCount = (
+    <span
+      className="whitespace-nowrap"
+      role="status"
+      aria-label={`Nytt fra ${shown} ${shown === 1 ? "synlig prosjekt" : "synlige prosjekter"}`}
+    >
+      Nytt fra {shown} {shown === 1 ? "synlig prosjekt" : "synlige prosjekter"}
+    </span>
+  );
+  // Words that frame the map on what they count. Their press area reaches
+  // past the line, as tall as a finger needs.
+  const countLink =
+    "relative text-ink-soft underline decoration-border-strong underline-offset-3 transition-[text-decoration-color,color] duration-120 hover:text-ink hover:decoration-current after:absolute after:-inset-x-1 after:-inset-y-1.5 pointer-coarse:after:-inset-y-3";
+  // With matches outside the map: what's in view, in the place the view is
+  // on, then all of them; a press on either of the last frames them.
+  const listCount =
+    outsideHits > 0 ? (
+      <span className="text-ui inline-flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-muted tabular-nums">
+        {density === "feed" ? (
+          feedCount
+        ) : (
+          <span
+            className="whitespace-nowrap"
+            role="status"
+            aria-label={`${shown} ${shown === 1 ? "synlig prosjekt" : "synlige prosjekter"}`}
+          >
+            {shown} {shown === 1 ? "synlig" : "synlige"}
+            {/* A narrow list keeps the line whole with the shorter words. */}
+            <span className="@max-[560px]/list:hidden">
+              {shown === 1 ? " prosjekt" : " prosjekter"}
+            </span>
+          </span>
+        )}
+        {showInPlace && (
+          <span className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap">
+            <span aria-hidden="true">·</span>
+            <button
+              type="button"
+              className={cn(countLink, "flex min-w-0")}
+              aria-label={`${inPlace} i ${countPlace}, vis ${countPlace} på kartet`}
+              onClick={() => goToPlace(countPlace)}
+            >
+              {/* A long name gives way; the press area stays whole. */}
+              <span className="max-w-[12rem] truncate">
+                {inPlace} i {countPlace}
+              </span>
+            </button>
+          </span>
+        )}
+        {showTotal && (
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+            <span aria-hidden="true">·</span>
+            <button
+              type="button"
+              className={countLink}
+              aria-label={`${total} totalt, vis alle på kartet`}
+              onClick={showSearchHits}
+            >
+              {total} totalt
+            </button>
+          </span>
+        )}
+      </span>
+    ) : density === "feed" ? (
+      <span className="text-ui text-muted tabular-nums">{feedCount}</span>
+    ) : (
+      <span
+        className="text-ui whitespace-nowrap text-muted tabular-nums"
+        role="status"
+        aria-label={`${shown} ${shown === 1 ? "prosjekt" : "prosjekter"}`}
+      >
+        {shown} {shown === 1 ? "prosjekt" : "prosjekter"}
+      </span>
+    );
   const emptyActions = (
     <div className="flex flex-wrap justify-center gap-2">
-      {outsideHits > 0 ? (
+      {outsideHits > 0 && needle ? (
         <button className={secondaryAction} onClick={showSearchHits}>
           <ZoomOut size={15} aria-hidden="true" />
           Vis {outsideHits} treff
@@ -1545,9 +1652,12 @@ export default memo(function Explorer({
   useLayoutEffect(() => {
     newsLatest.current = news;
   });
-  // A card with something new opens at the oldest of it.
+  // A card with something new opens at the oldest of it, unless it shows
+  // an update or comment of its own to open at.
   const openCard = useCallback(
-    (id: string, section?: "discussion" | "updates") => {
+    (id: string, target?: CardTarget) => {
+      if (typeof target === "object") return openLatest.current(id, target);
+      const section = target;
       const item = newsLatest.current.get(id);
       openLatest.current(
         id,
@@ -1559,12 +1669,23 @@ export default memo(function Explorer({
   // The list's cards open at the middle height over the map, unless they
   // open at something further down, which needs the room.
   const openListCard = useCallback(
-    (id: string, section?: "discussion" | "updates") => {
-      if (section || newsLatest.current.get(id)?.first) openCard(id, section);
+    (id: string, target?: CardTarget) => {
+      if (target || newsLatest.current.get(id)?.first) openCard(id, target);
       else openLatest.current(id, {}, true);
     },
     [openCard],
   );
+  // Lagret keeps cards in "Nytt" too.
+  const cardDensity = density === "feed" ? "compact" : density;
+  const feed = useMemo(
+    () => (density === "feed" ? feedEntries(listedProjects, activity) : []),
+    [activity, density, listedProjects],
+  );
+  // A row opens at what it shows, over the map like a card.
+  const openFeedRow = useCallback((id: string, target: FeedTarget) => {
+    if (target.updateId || target.commentId) openLatest.current(id, target);
+    else openLatest.current(id, {}, true);
+  }, []);
   const saveLatest = useRef(toggleSave);
   useLayoutEffect(() => {
     saveLatest.current = toggleSave;
@@ -1576,6 +1697,12 @@ export default memo(function Explorer({
     hoveredId.current = next;
     mapApi.current?.highlight(next);
   }, []);
+  const listRows = useListMotion(
+    listedProjects,
+    projectKey,
+    listRef,
+    "data-card-id",
+  );
   const projectResults = (
     <section
       ref={listRef}
@@ -1595,82 +1722,72 @@ export default memo(function Explorer({
         )}
       >
         {isMobile ? mobileFilters : desktopFilters}
-        <div className="flex min-h-12 items-center justify-between gap-3 border-b border-border py-1.5">
+        {/* Too narrow for both, the views and order go under the count. */}
+        <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border py-1.5">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
             <h1 className="sr-only">Prosjekter</h1>
-            <span
-              className="text-ui whitespace-nowrap text-muted tabular-nums"
-              role="status"
-              aria-label={`${listedProjects.length} prosjekter`}
-            >
-              {listedProjects.length}{" "}
-              {listedProjects.length === 1 ? "prosjekt" : "prosjekter"}
-            </span>
-            {showOutside}
-            {activeFilters.length > 0 && (
-              <ul
-                className="flex flex-wrap items-center gap-1.5"
-                aria-label="Aktive filtre"
-              >
-                {activeFilters.map((filter) => (
-                  <li key={filter.key}>
-                    <button
-                      type="button"
-                      className={chip}
-                      aria-label={`Fjern filter: ${filter.label}`}
-                      onClick={filter.clear}
-                    >
-                      {filter.label}
-                      <X size={13} aria-hidden="true" />
-                    </button>
-                  </li>
-                ))}
-                {activeFilters.length > 1 && (
-                  <li>
-                    <button
-                      type="button"
-                      className="min-h-7 px-1.5 text-xs text-muted underline-offset-3 hover:text-ink hover:underline"
-                      onClick={resetFilters}
-                    >
-                      Nullstill filtre
-                    </button>
-                  </li>
-                )}
-              </ul>
-            )}
+            {listCount}
           </div>
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            {/* The switch at the edge, so the order coming and going, or a
+                longer name for it, never moves it. "Nytt" has its own order. */}
+            {density !== "feed" && sortFilter}
             {densitySwitch}
-            {sortFilter}
           </div>
         </div>
-        {listedProjects.length === 0 ? (
-          <EmptyState
-            level={2}
-            icon={
-              filtersChanged ? <Search size={22} /> : <MapPin size={22} />
-            }
-            title={filtersChanged ? "Ingen treff" : "Ingen prosjekter her"}
-          >
-            {emptyActions}
-          </EmptyState>
-        ) : (
-          <ol>
-            {listedProjects.map((project) => (
-              <ProjectCard
-                key={project.id}
-                project={project}
-                commentCount={activity[project.id]?.comments ?? 0}
-                density={density}
-                saved={savedIds.has(project.id)}
-                news={news.get(project.id)}
-                onOpen={openListCard}
-                onSave={saveCard}
+        {density === "feed" && listedProjects.length > 0 && (
+          <ol aria-label="Nytt">
+            {feed.map((entry) => (
+              <FeedRow
+                key={entry.project.id}
+                entry={entry}
+                news={news.get(entry.project.id)}
+                onOpen={openFeedRow}
                 onHover={hoverCard}
               />
             ))}
           </ol>
         )}
+        {/* Kept when empty, so rows filtered out can fade in it. */}
+        <ol className="relative" data-list-motion="">
+          {density !== "feed" && listRows.map((project) => (
+            <ProjectCard
+              key={project.id}
+              project={project}
+              commentCount={activity[project.id]?.comments ?? 0}
+              density={cardDensity}
+              saved={savedIds.has(project.id)}
+              news={news.get(project.id)}
+              onOpen={openListCard}
+              onSave={saveCard}
+              onHover={hoverCard}
+            />
+          ))}
+        </ol>
+        {listRows.length === 0 && (
+          // Fades in as the last rows fade out over it.
+          <div className="animate-panel-fade-in">
+            <EmptyState
+              level={2}
+              icon={
+                filtersChanged ? <Search size={22} /> : <MapPin size={22} />
+              }
+              title={filtersChanged ? "Ingen treff" : "Ingen prosjekter her"}
+            >
+              {emptyActions}
+            </EmptyState>
+          </div>
+        )}
+        <div className="flex justify-center pt-6">
+          <button
+            type="button"
+            className={cn(quietAction, "gap-1.5 text-muted hover:text-ink")}
+            onClick={() => openEditor()}
+          >
+            <Plus size={15} aria-hidden="true" />
+            Mangler et prosjekt?
+          </button>
+        </div>
       </div>
     </section>
   );
@@ -1701,9 +1818,7 @@ export default memo(function Explorer({
   const missingProject = (
     <div className="flex min-h-[250px] flex-col items-center justify-center gap-[18px] px-6 py-[55px] text-center text-muted">
       <MapPin size={28} />
-      <h2 className="text-body font-medium text-ink">
-        Prosjektet finnes ikke
-      </h2>
+      <h2 className="text-body font-medium text-ink">Prosjektet finnes ikke</h2>
       <button className={primaryCta} onClick={() => closePost()}>
         Tilbake til prosjektene
       </button>
@@ -1900,23 +2015,28 @@ export default memo(function Explorer({
       {
         id: "maximize",
         label: "Vis som helside",
-        icon: <ChevronsRight size={16} />,
+        icon: <Maximize2 size={16} />,
         onSelect: maximize,
       },
     ] as (OverflowAction | false | null | undefined | "")[]
   ).filter(
     (action): action is OverflowAction =>
-      Boolean(action) && headerOverflow.hidden.has((action as OverflowAction).id),
+      Boolean(action) &&
+      headerOverflow.hidden.has((action as OverflowAction).id),
   );
   const sidebarToggle = (
     <button
       type="button"
       className={cn(compactIconAction, "text-muted hover:text-ink")}
       aria-label={
-        sidebarMode === "collapsed" ? "Vis prosjektlisten" : "Skjul prosjektlisten"
+        sidebarMode === "collapsed"
+          ? "Vis prosjektlisten"
+          : "Skjul prosjektlisten"
       }
       data-tooltip={
-        sidebarMode === "collapsed" ? "Vis prosjektlisten" : "Skjul prosjektlisten"
+        sidebarMode === "collapsed"
+          ? "Vis prosjektlisten"
+          : "Skjul prosjektlisten"
       }
       aria-expanded={sidebarMode !== "collapsed"}
       aria-controls="project-panel"
@@ -1925,9 +2045,9 @@ export default memo(function Explorer({
       onClick={toggleCollapsed}
     >
       {sidebarMode === "collapsed" ? (
-        <ChevronsRight size={18} />
+        <PanelLeftOpen size={18} />
       ) : (
-        <ChevronsLeft size={18} />
+        <PanelLeftClose size={18} />
       )}
     </button>
   );
@@ -1993,7 +2113,7 @@ export default memo(function Explorer({
             <SavedProjects
               projects={savedProjects}
               activity={activity}
-              density={density}
+              density={cardDensity}
               news={news}
               onOpen={openCard}
               onSave={saveCard}
@@ -2070,7 +2190,9 @@ export default memo(function Explorer({
               {user && (
                 <button
                   className={cn(compactIconAction, "text-muted")}
-                  aria-label={canModerate ? "Nytt prosjekt" : "Foreslå prosjekt"}
+                  aria-label={
+                    canModerate ? "Nytt prosjekt" : "Foreslå prosjekt"
+                  }
                   onClick={() => openEditor()}
                 >
                   <Plus size={21} />
@@ -2227,7 +2349,8 @@ export default memo(function Explorer({
                 // Without the toggle, the logo gets the same room each side.
                 osmFocus ? "pr-6" : "pr-2",
                 "transition-shadow duration-320 ease-out-soft starting:shadow-none",
-                sidebarMode === "collapsed" && "shadow-[2px_2px_16px_rgb(20_28_24/0.12)]",
+                sidebarMode === "collapsed" &&
+                  "shadow-[2px_2px_16px_rgb(20_28_24/0.12)]",
               )}
               data-sidebar-tab=""
             >
@@ -2257,8 +2380,8 @@ export default memo(function Explorer({
                 // Left of the maximize button, the header's last, or last
                 // itself once that is in the menu.
                 headerOverflow.hidden.has("maximize")
-                  ? "left-[calc(var(--sidebar-width)-0.75rem-2.75rem)]"
-                  : "left-[calc(var(--sidebar-width)-0.75rem-5.625rem)]",
+                ? "left-[calc(var(--sidebar-width)-0.75rem-2.75rem)]"
+                : "left-[calc(var(--sidebar-width)-0.75rem-5.625rem)]",
               sidebarMode === "maximized" && "pointer-events-none opacity-0",
             )}
             style={
@@ -2317,18 +2440,18 @@ export default memo(function Explorer({
                 {inline(
                   "add",
                   user && (
-                  <button
-                    className={cn(compactIconAction, "text-muted")}
-                    aria-label={
-                      canModerate ? "Legg til prosjekt" : "Foreslå prosjekt"
-                    }
-                    data-tooltip={
-                      canModerate ? "Legg til prosjekt" : "Foreslå prosjekt"
-                    }
-                    onClick={() => openEditor()}
-                  >
-                    <Plus size={20} />
-                  </button>
+                    <button
+                      className={cn(compactIconAction, "text-muted")}
+                      aria-label={
+                        canModerate ? "Legg til prosjekt" : "Foreslå prosjekt"
+                      }
+                      data-tooltip={
+                        canModerate ? "Legg til prosjekt" : "Foreslå prosjekt"
+                      }
+                      onClick={() => openEditor()}
+                    >
+                      <Plus size={20} />
+                    </button>
                   ),
                 )}
                 {inline("theme", <ThemeToggle />)}
@@ -2434,7 +2557,11 @@ export default memo(function Explorer({
             onPanStart={onMapPan}
             bottomInset={isMobile ? mobileMapInset : undefined}
             controlsContainer={
-              isMobile ? (postOverMap ? postControlsSlot : controlsSlot) : undefined
+              isMobile
+                ? postOverMap
+                  ? postControlsSlot
+                  : controlsSlot
+                : undefined
             }
             selectedId={selectedId}
             onSelect={(id) =>

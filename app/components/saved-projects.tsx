@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { ArrowDownUp, Bookmark } from "lucide-react";
 import type { ProjectActivity } from "../lib/community";
 import type { Project } from "../lib/data";
-import type { ListDensity } from "../lib/explore-state";
+import type { CardDensity } from "../lib/explore-state";
 import { type ProjectNews, unreadCount } from "../lib/unread";
 import { cn } from "../lib/cn";
 import { sortChoice } from "../lib/ui";
@@ -31,7 +31,7 @@ export default function SavedProjects({
   /** The saved projects, in any order. */
   projects: Project[];
   activity: Record<string, ProjectActivity>;
-  density: ListDensity;
+  density: CardDensity;
   news: ReadonlyMap<string, ProjectNews>;
   onOpen: (id: string, section?: "discussion" | "updates") => void;
   onSave: (id: string) => void;

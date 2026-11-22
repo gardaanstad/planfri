@@ -9,6 +9,7 @@ import type {
   Locator,
   Page,
 } from "@playwright/test";
+import { expect } from "@playwright/test";
 export const origin = `http://127.0.0.1:${process.env.TEST_PORT}`;
 export const secret = "test-only-secret-never-use-in-production-72f9d1";
 export const db = drizzle(
@@ -200,4 +201,20 @@ export async function swipeDown(page: Page, target: Locator) {
     x: from.x,
     y: page.viewportSize()!.height - 20,
   });
+}
+
+/**
+ * Opens a project's comments: a project with updates opens on them. The
+ * server renders the tab, so a click can land before hydration.
+ */
+export async function openDiscussion(page: Page) {
+  const tab = page
+    .locator("#project-sections")
+    .getByRole("button", { name: /^Kommentarer/ });
+  await expect(async () => {
+    await tab.click();
+    await expect(tab).toHaveAttribute("aria-pressed", "true", {
+      timeout: 1000,
+    });
+  }).toPass();
 }

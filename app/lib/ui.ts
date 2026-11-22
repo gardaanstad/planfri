@@ -113,19 +113,28 @@ export const avatarTone = {
 } as const;
 
 export const statusTone = {
+  proposed: {
+    dot: "bg-status-proposed",
+    fill: "fill-status-proposed",
+    ring: "ring-status-proposed/25",
+    badge: "border-status-proposed/30 text-status-proposed-ink",
+  },
   planned: {
     dot: "bg-status-planned",
     fill: "fill-status-planned",
+    ring: "ring-status-planned/20",
     badge: "border-status-planned/25 text-status-planned-ink",
   },
   construction: {
     dot: "bg-status-construction",
     fill: "fill-status-construction",
+    ring: "ring-status-construction/20",
     badge: "border-status-construction/30 text-status-construction-ink",
   },
   completed: {
     dot: "bg-status-completed",
     fill: "fill-status-completed",
+    ring: "ring-status-completed/20",
     badge: "border-status-completed/25 text-status-completed-ink",
   },
 } as const;
