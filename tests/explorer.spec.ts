@@ -971,7 +971,11 @@ test.describe("desktop explorer", () => {
     await page.goBack();
     const titleTop = await first.getByRole("heading").boundingBox();
 
-    // The switch acts as the mouse button goes down.
+    // The switch acts as the mouse button goes down, and shows it at once.
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    expect(
+      await compact.evaluate((button) => getComputedStyle(button).transitionDuration),
+    ).toBe("0s");
     await compact.hover();
     await page.mouse.down();
     await expect(compact).toHaveAttribute("aria-pressed", "true");

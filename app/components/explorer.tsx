@@ -1425,7 +1425,8 @@ export default memo(function Explorer({
           key={value}
           type="button"
           className={cn(
-            "inline-flex size-7 items-center justify-center rounded-md text-muted pointer-coarse:size-8 transition-[color,background-color,box-shadow] duration-150 motion-reduce:transition-none",
+            // Instant: the pressed pill moves with the press, as the list does.
+            "inline-flex size-7 items-center justify-center rounded-md text-muted pointer-coarse:size-8",
             "hover:text-ink aria-pressed:bg-surface aria-pressed:text-ink aria-pressed:shadow-xs",
           )}
           aria-label={label}
