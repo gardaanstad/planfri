@@ -571,6 +571,12 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
         data-sheet={sheet}
         inert={!open}
         aria-hidden={!open}
+        // A tap on the scrim would hand focus to the drawer behind it, after
+        // the press, closing the sheet at once; its click closes it instead.
+        onMouseDown={(event) => {
+          if (sheet && event.target === event.currentTarget)
+            event.preventDefault();
+        }}
         onClick={(event) => {
           if (event.target === event.currentTarget) close();
         }}
