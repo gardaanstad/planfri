@@ -517,6 +517,9 @@ function ProjectMeta({ project }: { project: Project }) {
   );
 }
 
+/** The description's paragraphs; none when it's empty. */
+const paragraphs = (text: string) => text.split("\n\n").filter(Boolean);
+
 /** A full page has room for the whole description at once. */
 function WideIntro({ project }: { project: Project }) {
   return (
@@ -524,7 +527,7 @@ function WideIntro({ project }: { project: Project }) {
       className="max-w-170 space-y-3 text-body leading-[1.65] text-ink-soft [&>p]:whitespace-pre-wrap [&>p]:wrap-anywhere"
       data-project-header-hero=""
     >
-      {project.description.split("\n\n").map((paragraph, index) => (
+      {paragraphs(project.description).map((paragraph, index) => (
         <p key={index}>{paragraph}</p>
       ))}
     </div>
@@ -730,7 +733,7 @@ function ProjectIntro({ project }: { project: Project }) {
           data-photo={photo}
           data-overflows={overflows}
         >
-          {project.description.split("\n\n").map((paragraph, index) => (
+          {paragraphs(project.description).map((paragraph, index) => (
             <p key={index}>{paragraph}</p>
           ))}
         </div>

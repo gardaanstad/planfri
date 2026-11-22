@@ -65,7 +65,7 @@ test("only real images are stored; members' photos stay private", async ({
     ).toBe(200);
 });
 
-test("moderators add photos while creating a project; without one it shows no image", async ({
+test("moderators add photos while creating a project; without one it shows no image, and the description is optional", async ({
   page,
   context,
 }) => {
@@ -81,7 +81,8 @@ test("moderators add photos while creating a project; without one it shows no im
     await page.getByRole("button", { name: "Legg til prosjekt" }).click();
     const dialog = page.locator("[data-project-editor]");
     await dialog.getByLabel("Prosjektnavn").fill(title);
-    await dialog.getByLabel("Beskrivelse").fill("Et testprosjekt.");
+    // The description is optional: the project without a photo has none.
+    if (photo) await dialog.getByLabel("Beskrivelse").fill("Et testprosjekt.");
     await dialog.getByRole("button", { name: "Kategori", exact: true }).click();
     const categoryMenu = page.getByRole("listbox", { name: "Kategori", exact: true });
     await categoryMenu.getByRole("option", { name: "Samferdsel", exact: true }).click();
@@ -127,6 +128,7 @@ test("moderators add photos while creating a project; without one it shows no im
   await create(`Uten bilde ${randomUUID().slice(0, 6)}`, false);
   await expect(about).toBeVisible();
   await expect(about.locator("img")).toHaveCount(0);
+  await expect(about.locator("[data-project-header-hero] > p, [data-clamped] > p")).toHaveCount(0);
 });
 
 test("moderators add photos while editing a project and choose the cover", async ({

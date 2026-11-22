@@ -38,7 +38,7 @@ export const projectFields = z.object({
     .optional(),
   website: sourceUrl.optional(),
   example: z.boolean().optional(),
-  description: z.string().trim().min(1).max(10_000),
+  description: z.string().trim().max(10_000),
   center: point,
   geometry: z.array(point).min(2).max(2000),
   geometryType: z.enum(["area", "line"]),

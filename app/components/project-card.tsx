@@ -178,9 +178,11 @@ export default memo(function ProjectCard({
             <span className="ml-auto flex shrink-0 pl-2">{status}</span>
           </p>
           {title}
-          <p className="mt-1 line-clamp-2 text-sm leading-5 text-ink-soft">
-            {project.description.split("\n")[0]}
-          </p>
+          {project.description && (
+            <p className="mt-1 line-clamp-2 text-sm leading-5 text-ink-soft">
+              {project.description.split("\n")[0]}
+            </p>
+          )}
           <Photos project={project} onOpen={onOpen} />
           <div className="mt-3 flex items-center gap-4">
             <button

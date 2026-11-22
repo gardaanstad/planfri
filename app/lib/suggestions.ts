@@ -169,7 +169,7 @@ export const suggestionMutationSchema = z.discriminatedUnion("action", [
     id,
     /** Edit-then-approve: overrides for a new project or a tip. */
     title: z.string().trim().min(3).max(200).optional(),
-    description: z.string().trim().min(1).max(10_000).optional(),
+    description: z.string().trim().max(10_000).optional(),
     text: z.string().trim().min(1).max(10_000).optional(),
     /** A correction's fields to apply; all of them when omitted. */
     keys: z.array(z.enum(correctionKeys)).min(1).optional(),

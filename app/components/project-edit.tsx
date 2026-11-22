@@ -54,8 +54,7 @@ export const fields: Record<
     show: (p) =>
       p.description.length > 90
         ? `${p.description.slice(0, 90).trimEnd()} …`
-        : p.description,
-    error: (p) => (p.description ? undefined : "Skriv en beskrivelse"),
+        : p.description || "–",
   },
   images: {
     label: "Bilder",

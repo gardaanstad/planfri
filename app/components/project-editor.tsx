@@ -232,6 +232,7 @@ export default function ProjectEditor({
             label="Beskrivelse"
             control={`${ids}-description`}
             error={error("description")}
+            optional
           >
             <textarea
               {...control("description")}
