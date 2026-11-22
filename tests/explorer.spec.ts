@@ -227,10 +227,8 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await page
       .getByRole("button", { name: "Utvid prosjektlisten", exact: true })
       .click();
-    await page
-      .getByRole("group", { name: "Visning" })
-      .getByRole("button", { name: "Utvidet" })
-      .click();
+    await page.getByRole("button", { name: /^Visning/ }).click();
+    await page.getByRole("option", { name: "Utvidet" }).click();
     const card = page
       .getByRole("region", { name: "Prosjektliste", exact: true })
       .locator("[data-card-id]")
@@ -244,6 +242,72 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       .tap();
     await expect(page).toHaveURL(new RegExp(`/prosjekt/${id}`));
     await expect(page.getByRole("dialog", { name: /^Bilder av / })).toHaveCount(0);
+  });
+
+  test("the views are chosen from a sheet, beside a count that wraps on its own", async ({
+    page,
+  }) => {
+    // Zoomed in on central Oslo: the count names the view, Oslo and all.
+    await page.goto("/?kart=59.9100,10.7500,14");
+    await page
+      .getByRole("button", { name: "Utvid prosjektlisten", exact: true })
+      .click();
+    const list = page.getByRole("region", { name: "Prosjektliste", exact: true });
+    const inOslo = list.getByRole("button", { name: /^\d+ i Oslo, vis Oslo/ });
+    await expect(inOslo).toBeVisible();
+    await expect(page.getByRole("group", { name: "Visning" })).toHaveCount(0);
+    const views = page.getByRole("button", { name: /^Visning/ });
+    await expect(views).toHaveText("Visning");
+    const sort = page.getByRole("button", { name: /^Sorter prosjekter:/ });
+
+    // The count, the order and the views share a row; the count wraps
+    // within its own room, and no line of it starts with a dot.
+    const [viewsBox, sortBox, rowBox] = await Promise.all([
+      views.boundingBox(),
+      sort.boundingBox(),
+      inOslo.locator("xpath=ancestor::span[contains(@class,'overflow-hidden')][1]").boundingBox(),
+    ]);
+    expect(Math.abs(viewsBox!.y - sortBox!.y)).toBeLessThan(1);
+    expect(rowBox!.x + rowBox!.width).toBeLessThanOrEqual(sortBox!.x);
+    const lineStarts = await inOslo.evaluate((link) => {
+      const clip = link.closest(".overflow-hidden")!.getBoundingClientRect();
+      return [...link.closest(".flex-wrap")!.querySelectorAll("[aria-hidden]")]
+        .filter((dot) => dot.textContent?.trim() === "·")
+        .filter((dot) => Math.abs(dot.getBoundingClientRect().left - clip.left) < 1)
+        .length;
+    });
+    expect(lineStarts).toBe(0);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(320);
+
+    // The sheet lists the card layouts, then "Nytt".
+    await expect(async () => {
+      await views.click();
+      await expect(
+        page.getByRole("listbox", { name: "Visning", exact: true }),
+      ).toBeVisible({ timeout: 1000 });
+    }).toPass();
+    const sheet = page.getByRole("listbox", { name: "Visning", exact: true });
+    await expect(sheet.getByRole("option")).toHaveText([
+      "Kompakt",
+      "Utvidet",
+      "Nytt",
+    ]);
+    await expect(sheet.getByRole("option", { name: "Kompakt" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await shot(page, "mobile-views-sheet");
+
+    // Choosing "Nytt" closes the sheet; the order goes, the button stays.
+    await sheet.getByRole("option", { name: "Nytt" }).click();
+    await expect(sheet).toBeHidden();
+    await expect(list.locator("[data-feed-id]").first()).toBeVisible();
+    await expect(sort).toHaveCount(0);
+    await expect(views).toHaveText("Visning");
+    await expect(views).toHaveAccessibleName("Visning: Nytt");
+    await shot(page, "mobile-views-feed");
   });
 
   test("Les mer takes a project at the middle height to the full height", async ({
@@ -358,6 +422,39 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     // The handle opens it the rest of the way.
     await handle.click();
     await expectDrawerHeight(page, 1);
+  });
+
+  test("a scrolled list at the middle height scrolls back to its top before the drawer folds", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await swipeUp(
+      page,
+      page.getByRole("button", { name: "Utvid prosjektlisten", exact: true }),
+    );
+    await expectDrawerHeight(page, 0.58);
+    const list = page.locator("[data-explorer-drawer] [data-drawer-scroll]");
+    // As if scrolled at the full height and brought back down.
+    await list.evaluate((element) => {
+      element.scrollTop = 120;
+    });
+    await expect(list).toHaveAttribute("data-scrolled", "");
+    const box = (await list.boundingBox())!;
+    const x = box.x + box.width / 2;
+    const y = box.y + 40;
+    // A short swipe down scrolls the list, not the drawer.
+    await touchMove(page, { x, y }, { x, y: y + 80 }, { steps: 12 });
+    await expectDrawerHeight(page, 0.58);
+    await expect
+      .poll(() => list.evaluate((element) => element.scrollTop))
+      .toBeLessThan(120);
+    // Back at the top, the next swipe down folds it.
+    await list.evaluate((element) => {
+      element.scrollTop = 0;
+    });
+    await expect(list).not.toHaveAttribute("data-scrolled");
+    await touchMove(page, { x, y }, { x, y: y + 200 }, { steps: 12 });
+    await expectDrawerHeight(page, compact);
   });
 
   test("panning the map folds the list down from the middle height", async ({
@@ -620,9 +717,17 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     const map = page.locator("[data-project-map]");
     await expect(map).toHaveAttribute("data-map-style", "standard");
     await page.getByRole("button", { name: "Kartlag", exact: true }).tap();
-    await page.getByRole("button", { name: "Gatekart", exact: true }).tap();
+    // Phones choose from a sheet, not the desktop menu.
+    const sheet = page.getByRole("dialog", { name: "Kartlag" });
+    await expect(sheet).toBeVisible();
+    await expect(page.getByRole("group", { name: "Kartlag" })).toHaveCount(0);
+    await sheet.getByRole("button", { name: "Gatekart", exact: true }).tap();
     await expect(map).toHaveAttribute("data-map-style", "streets");
-    await expect(page.getByRole("group", { name: "Kartlag" })).toBeHidden();
+    await expect(sheet).toBeHidden();
+    await page.getByRole("button", { name: "Kartlag", exact: true }).tap();
+    await expect(
+      sheet.getByRole("button", { name: "Gatekart", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 
   test("review screenshots at 390px", async ({ page }) => {
@@ -1438,6 +1543,22 @@ test.describe("desktop explorer", () => {
     await expect
       .poll(() => mapParam(page))
       .toMatch(/^59\.9\d+,10\.7[45]\d+,13$/);
+  });
+
+  test("the list follows the map while it pans, before it settles", async ({
+    page,
+  }) => {
+    await page.goto(oslo);
+    await expect(card(page, project.title)).toBeVisible();
+    const view = (await page.locator(".leaflet-container").boundingBox())!;
+    const y = view.y + view.height / 2;
+    await page.mouse.move(view.x + view.width - 40, y);
+    await page.mouse.down();
+    await page.mouse.move(view.x + view.width - 760, y - 300, { steps: 12 });
+    // Still held, and the list has already moved on.
+    await expect(card(page, project.title)).toHaveCount(0);
+    await page.mouse.up();
+    await expect(card(page, project.title)).toHaveCount(0);
   });
 
   test("hovering a card highlights its shape, not the other way round", async ({

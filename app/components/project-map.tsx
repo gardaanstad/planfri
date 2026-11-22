@@ -44,7 +44,8 @@ import {
   osmStatusLabels,
 } from "../lib/osm-candidates";
 import { cn } from "../lib/cn";
-import { reducedMotion } from "../lib/media";
+import { mobileQuery, reducedMotion, useMediaQuery } from "../lib/media";
+import ActionSheet, { SwitchTrack, type SheetAction } from "./action-sheet";
 import { mapIconButton } from "../lib/ui";
 
 type MapLayer = "standard" | "streets" | "osm";
@@ -197,13 +198,15 @@ const layerOptions: ReadonlyArray<{
   },
 ];
 
+// Rows as in the other menus: a tint on hover, the chosen one checked.
 const layerOptionButton = cn(
-  "flex min-h-[54px] w-full items-center gap-[9px] rounded-[7px] border border-transparent p-2 text-left text-xs text-ink",
-  "transition-[color,border-color,box-shadow] duration-150",
-  "hover:bg-surface-muted hover:text-ink",
-  "aria-pressed:bg-accent/10 aria-pressed:text-accent-strong",
-  "motion-reduce:transition-none",
+  "flex min-h-11 w-full items-center gap-2.5 rounded-lg px-1.5 py-1 text-left text-ui text-ink -outline-offset-2",
+  "transition-colors duration-150 motion-reduce:transition-none",
+  "hover:bg-surface-muted focus-visible:bg-surface-muted aria-pressed:font-medium",
 );
+// A map layer's preview, or an overlay's icon in the same frame.
+const layerThumb =
+  "flex h-8 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-surface";
 
 // The outline's colour follows the base map: `.draw-shape` in project-map.css.
 const drawStroke = { className: "draw-shape", interactive: false };
@@ -317,7 +320,11 @@ export type MapApi = {
    */
   highlight: (id: string | null) => void;
 };
-export type MapViewChange = MapView & { bounds: ViewBounds };
+export type MapViewChange = MapView & {
+  bounds: ViewBounds;
+  /** Mid-pan or mid-zoom: the map hasn't settled on this view. */
+  moving?: boolean;
+};
 // Vector maps from OpenFreeMap: free, without keys or limits, and drawn
 // by the browser, so labels and lines are sharp at any pixel density and at
 // half zoom steps. Positron is a quiet grey base for the projects, and Dark
@@ -526,8 +533,10 @@ export default function ProjectMap({
   const baseStyle = darkBase ? darkStandardStyle : mapStyles[layer];
   const layerMenu = useRef<HTMLDivElement>(null);
   const layerButton = useRef<HTMLButtonElement>(null);
+  // Phones choose a layer from a sheet; the sheet minds its own focus.
+  const mobile = useMediaQuery(mobileQuery);
   useEffect(() => {
-    if (!layersOpen) return;
+    if (!layersOpen || mobile) return;
     layerMenu.current
       ?.querySelector<HTMLButtonElement>('[aria-pressed="true"]')
       ?.focus();
@@ -552,7 +561,7 @@ export default function ProjectMap({
       document.removeEventListener("pointerdown", dismiss);
       window.removeEventListener("keydown", escape, true);
     };
-  }, [layersOpen]);
+  }, [layersOpen, mobile]);
   useEffect(() => {
     handlers.current = {
       onSelect,
@@ -803,18 +812,36 @@ export default function ProjectMap({
         zoom: map.getZoom(),
       };
     };
-    const report = () => {
+    const report = (moving = false) => {
       if (resizing.current || syncing.current) return;
       const center = map.getCenter();
       const view: MapView = {
         center: [center.lat, center.lng],
         zoom: map.getZoom(),
       };
-      storeMapView(view);
-      handlers.current.onViewChange?.({ ...view, bounds: boundsAbove(inset()) });
+      if (!moving) storeMapView(view);
+      handlers.current.onViewChange?.({
+        ...view,
+        bounds: boundsAbove(inset()),
+        moving,
+      });
+    };
+    const settle = () => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      report();
+    };
+    // While it moves too, so the list follows the map, at most once a frame.
+    let frame = 0;
+    const move = () => {
+      frame ||= requestAnimationFrame(() => {
+        frame = 0;
+        report(true);
+      });
     };
     report();
-    map.on("moveend", report);
+    map.on("moveend", settle);
+    map.on("move", move);
     const syncSize = () => syncRef.current();
     // Leaflet drops new views while a zoom animates, so they wait for its end.
     const settled = (move: () => void) => {
@@ -904,7 +931,9 @@ export default function ProjectMap({
       },
     });
     return () => {
-      map.off("moveend", report);
+      cancelAnimationFrame(frame);
+      map.off("moveend", settle);
+      map.off("move", move);
       map.off("zoomend", pending);
     };
   }, [ready, draw]);
@@ -1658,6 +1687,27 @@ export default function ProjectMap({
       group.remove();
     };
   }, [points, ready, draw, geometryType, extendFromStart]);
+  const layerActions: SheetAction[] = [
+    ...layerOptions.map(({ value, label, swatch }) => ({
+      id: value,
+      label,
+      icon: <span className={cn(layerThumb, swatch)} />,
+      selected: layer === value,
+      onSelect: () => setLayer(value),
+    })),
+    ...overlays.map((overlay, index) => ({
+      id: `overlay-${index}`,
+      label: overlay.label,
+      icon: (
+        <span className={cn(layerThumb, "bg-surface-muted")}>
+          {overlay.icon}
+        </span>
+      ),
+      checked: overlay.on,
+      onSelect: overlay.onToggle,
+      divided: index === 0,
+    })),
+  ];
   const controls = (
     <div
       data-map-controls=""
@@ -1670,9 +1720,9 @@ export default function ProjectMap({
           : "bottom-10 max-sm:bottom-8",
       )}
     >
-      {layersOpen && !compact && (
+      {layersOpen && !compact && !mobile && (
         <div
-          className="flex w-61 flex-col gap-0.75 rounded-xl border border-border bg-surface p-2 shadow-[0_5px_20px_rgb(20_28_24/0.13)] motion-reduce:transition-none"
+          className="flex w-60 flex-col gap-0.5 rounded-xl border border-border bg-surface p-1.5 text-ui shadow-popover"
           ref={layerMenu}
           id="map-layer-options"
           role="group"
@@ -1688,7 +1738,12 @@ export default function ProjectMap({
               setLayersOpen(false);
           }}
         >
-          <strong className="p-2 text-2xs text-muted">Kartvisning</strong>
+          <span
+            aria-hidden="true"
+            className="px-2.5 pt-1.5 pb-1 text-body leading-5 font-semibold text-ink"
+          >
+            Kartlag
+          </span>
           {layerOptions.map(({ value, label, swatch }) => (
             <button
               type="button"
@@ -1701,18 +1756,13 @@ export default function ProjectMap({
                 layerButton.current?.focus();
               }}
             >
-              <span
-                className={cn(
-                  "h-8.5 w-10.5 shrink-0 rounded-sm border border-border bg-surface",
-                  swatch,
-                )}
-                aria-hidden="true"
-              />
+              <span className={cn(layerThumb, swatch)} aria-hidden="true" />
               {label}
               {layer === value && (
                 <Check
-                  className="ml-auto text-accent"
-                  size={16}
+                  className="mr-1 ml-auto shrink-0"
+                  size={15}
+                  strokeWidth={2.25}
                   aria-hidden="true"
                 />
               )}
@@ -1720,38 +1770,22 @@ export default function ProjectMap({
           ))}
           {overlays.length > 0 && (
             <>
-              <strong className="mt-1 border-t border-border p-2 pt-3 text-2xs text-muted">
-                Kartlag
-              </strong>
+              <hr className="mx-1 my-1 border-border" />
               {overlays.map((overlay) => (
                 <button
                   type="button"
                   key={overlay.label}
                   role="switch"
                   aria-checked={overlay.on}
-                  className={cn(layerOptionButton, "aria-checked:text-ink")}
+                  className={layerOptionButton}
                   onClick={overlay.onToggle}
                 >
-                  <span
-                    className="flex h-8.5 w-10.5 shrink-0 items-center justify-center rounded-sm border border-border bg-surface-muted text-ink"
-                    aria-hidden="true"
-                  >
+                  <span className={cn(layerThumb, "bg-surface-muted")} aria-hidden="true">
                     {overlay.icon}
                   </span>
                   {overlay.label}
-                  <span
-                    className={cn(
-                      "ml-auto flex h-5 w-8.5 shrink-0 items-center rounded-full p-0.5 transition-colors duration-150 motion-reduce:transition-none",
-                      overlay.on ? "bg-accent" : "bg-border-strong",
-                    )}
-                    aria-hidden="true"
-                  >
-                    <span
-                      className={cn(
-                        "size-4 rounded-full bg-surface shadow-xs transition-transform duration-150 motion-reduce:transition-none",
-                        overlay.on && "translate-x-3.5",
-                      )}
-                    />
+                  <span className="mr-1 ml-auto">
+                    <SwitchTrack on={overlay.on} />
                   </span>
                 </button>
               ))}
@@ -1759,22 +1793,34 @@ export default function ProjectMap({
           )}
         </div>
       )}
+      {layersOpen && !compact && mobile && (
+        <ActionSheet
+          label="Kartlag"
+          title="Kartlag"
+          actions={layerActions}
+          onClose={() => setLayersOpen(false)}
+        />
+      )}
       <button
         ref={layerButton}
         type="button"
         hidden={compact}
-        className={cn(mapIconButton, "relative")}
+        // No press effect: the menu opening is the response.
+        className={cn(
+          mapIconButton,
+          "relative active:scale-100 aria-expanded:bg-surface-muted",
+        )}
         aria-label="Kartlag"
-        aria-pressed={layersOpen}
+        aria-haspopup={mobile ? "dialog" : undefined}
         aria-expanded={layersOpen}
-        aria-controls={layersOpen ? "map-layer-options" : undefined}
+        aria-controls={layersOpen && !mobile ? "map-layer-options" : undefined}
         data-tooltip="Kartlag"
         onClick={() => setLayersOpen(!layersOpen)}
       >
         <Layers size={19} aria-hidden="true" />
         {overlays.some((overlay) => overlay.on) && (
           <span
-            className="absolute top-1.5 right-1.5 size-2.5 rounded-full border-2 border-surface bg-accent"
+            className="absolute top-1.5 right-1.5 size-2.5 rounded-full border-2 border-surface bg-ink"
             data-overlay-on=""
             aria-hidden="true"
           />

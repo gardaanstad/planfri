@@ -321,6 +321,36 @@ const mercator = ([lat, lng]: Point): Point => [
   lng,
   Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360)),
 ];
+// Projected once per project: the list checks every project on each frame
+// the map moves.
+const projected = new WeakMap<
+  Project,
+  { points: Point[]; min: Point; max: Point; dot: Point; center: Point }
+>();
+function projectedShape(project: Project) {
+  let shape = projected.get(project);
+  if (shape) return shape;
+  const points = project.geometry.map(mercator);
+  const min: Point = [Infinity, Infinity];
+  const max: Point = [-Infinity, -Infinity];
+  for (const [x, y] of points) {
+    min[0] = Math.min(min[0], x);
+    min[1] = Math.min(min[1], y);
+    max[0] = Math.max(max[0], x);
+    max[1] = Math.max(max[1], y);
+  }
+  shape = {
+    points,
+    min,
+    max,
+    dot: mercator(
+      project.geometry.length ? lineMidpoint(project.geometry) : project.center,
+    ),
+    center: mercator(project.center),
+  };
+  projected.set(project, shape);
+  return shape;
+}
 /**
  * Whether any part of the project as drawn lies inside `bounds`: a corner,
  * a side crossing it, or an area around all of it. Not its bounding box, so
@@ -334,15 +364,16 @@ export function projectInBounds(project: Project, bounds: ViewBounds) {
     x >= west && x <= east && y >= south && y <= north;
   const line = project.geometryType === "line";
   const dotted = line && bounds.zoom !== undefined && bounds.zoom < lineDotZoom;
-  if (!project.geometry.length || dotted)
-    return inside(
-      mercator(
-        project.geometry.length ? lineMidpoint(project.geometry) : project.center,
-      ),
-    );
+  const shape = projectedShape(project);
+  if (!project.geometry.length || dotted) return inside(shape.dot);
   // Zoomed out, an area's dot sits on its centre.
-  if (!line && inside(mercator(project.center))) return true;
-  const points = project.geometry.map(mercator);
+  if (!line && inside(shape.center)) return true;
+  const { points, min, max } = shape;
+  // Nowhere near the view, or all of it inside: no need to look closer.
+  if (min[0] > east || max[0] < west || min[1] > north || max[1] < south)
+    return false;
+  if (min[0] >= west && max[0] <= east && min[1] >= south && max[1] <= north)
+    return true;
   if (points.some(inside)) return true;
   // Liang–Barsky: whether the side from a to b crosses the view.
   const crosses = ([ax, ay]: Point, [bx, by]: Point) => {

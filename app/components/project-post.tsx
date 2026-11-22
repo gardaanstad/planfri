@@ -711,8 +711,8 @@ function ProjectAside({ project }: { project: Project }) {
 }
 
 /**
- * A few lines of the description above the image (more on desktop). "Les mer" grows the text and
- * reveals the facts.
+ * A few lines of the description, then "Les mer" and the image (more lines on desktop). "Les mer"
+ * grows the text and reveals the facts, pushing the image down.
  */
 function ProjectIntro({ project }: { project: Project }) {
   const [open, setOpen] = useState(false);
@@ -728,7 +728,6 @@ function ProjectIntro({ project }: { project: Project }) {
   const body = useRef<HTMLDivElement>(null);
   const text = useRef<HTMLDivElement>(null);
   const details = useRef<HTMLDivElement>(null);
-  const gallery = useRef<HTMLDivElement>(null);
   const end = useRef<HTMLDivElement>(null);
   // On a phone resting at the middle height, reading on takes the full height.
   const expandPanel = usePanelExpand();
@@ -796,10 +795,8 @@ function ProjectIntro({ project }: { project: Project }) {
       return;
     }
     const parts = [copy, more];
-    const movers = [
-      ...(gallery.current ? [gallery.current] : []),
-      ...laterElements(intro, scroller),
-    ];
+    // The toggle, the image and the rest of the post.
+    const movers = laterElements(intro, scroller);
     const reset = () => {
       flushSync(() => setMoving(false));
       for (const el of parts) {
@@ -817,11 +814,10 @@ function ProjectIntro({ project }: { project: Project }) {
     if (open) {
       // The text keeps its full layout under a clip until it can clamp. Its
       // box stays whole too, so the fade's mask still covers every line.
-      const style = getComputedStyle(copy);
-      const lines =
-        parseFloat(style.lineHeight) *
-        (Number(style.getPropertyValue("--intro-lines")) || 2);
-      const target = Math.min(lines, copyHeight);
+      // Where it lands is measured clamped, paragraph gaps and all.
+      copy.dataset.clamped = "true";
+      const target = copy.getBoundingClientRect().height;
+      copy.dataset.clamped = "false";
       // Collapsing returns to the top, so reading resumes from the start. The
       // jump there plays as part of the slide.
       const frame = [...scroller.children].find((child) =>
@@ -902,28 +898,18 @@ function ProjectIntro({ project }: { project: Project }) {
             <p key={index}>{paragraph}</p>
           ))}
         </div>
-        {photo && (
-          <div ref={gallery} className="mt-3.5">
-            <ImageGallery
-              images={photos}
-              label={`Bilder av ${project.title}`}
-              sizes="(max-width: 768px) 100vw, 560px"
-              className={cover}
-            />
-          </div>
-        )}
         {/* Spacing sits inside the clip, so the panel can close fully. */}
         <div
           ref={details}
           className={cn(
-            "flex flex-col gap-1 overflow-hidden",
+            "flex flex-col overflow-hidden",
             "data-[expanded=false]:max-h-0 *:shrink-0",
           )}
           data-expanded={open}
           inert={!open}
         >
-          <ProjectFacts project={project} className="mt-4 mb-2" />
-          <p className={cn(note, "mt-1")}>
+          <ProjectFacts project={project} className="mt-3 mb-0" />
+          <p className={cn(note, "mt-2")}>
             Sist redigert {formatDateYear(project.updated)}
           </p>
         </div>
@@ -932,8 +918,7 @@ function ProjectIntro({ project }: { project: Project }) {
         type="button"
         className={cn(
           stickyToggle,
-          // The same gap above and below the pill, photo or text above it.
-          "mt-2 mb-0",
+          "my-0.5",
           open && "sticky",
           "aria-expanded:[&>svg]:rotate-180",
         )}
@@ -947,6 +932,14 @@ function ProjectIntro({ project }: { project: Project }) {
         <ChevronDown size={16} aria-hidden="true" />
       </button>
       <div ref={end} aria-hidden="true" />
+      {photo && (
+        <ImageGallery
+          images={photos}
+          label={`Bilder av ${project.title}`}
+          sizes="(max-width: 768px) 100vw, 560px"
+          className={cn(cover, "mt-2")}
+        />
+      )}
     </div>
   );
 }
