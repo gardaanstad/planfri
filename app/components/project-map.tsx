@@ -25,6 +25,7 @@ import {
   type Point,
   type Project,
   statuses,
+  transportMode,
   type ViewBounds,
 } from "../lib/data";
 import {
@@ -53,6 +54,28 @@ const shapeStyle = (line: boolean, selected: boolean) => ({
   fillOpacity: selected ? 0.34 : 0.2,
 });
 const dotRadius = (selected: boolean) => (selected ? 8 : 6);
+// Rail and road read as on OpenStreetMap. A road is a band in its status
+// colour, white every other stretch inside a thin border; a railway is
+// square dashes with nothing between them.
+const roadWeight = (selected: boolean) => (selected ? 8.5 : 7);
+const roadStripes = (selected: boolean) => ({
+  weight: roadWeight(selected) - 2.5,
+  dashArray: "9, 9",
+});
+const railWeight = (selected: boolean) => (selected ? 6.5 : 5);
+const lineMode = (project: Project) =>
+  project.geometryType === "line" ? transportMode(project.categories) : null;
+const projectStyle = (project: Project, selected: boolean) => {
+  const base = shapeStyle(project.geometryType === "line", selected);
+  const mode = lineMode(project);
+  if (mode === "road") return { ...base, weight: roadWeight(selected) };
+  if (mode === "rail") {
+    const weight = railWeight(selected);
+    // Dashes as long as the line is wide, whatever its weight.
+    return { ...base, weight, dashArray: `${weight}, ${weight}` };
+  }
+  return base;
+};
 // Below this zoom areas collapse to dots and nearby projects group together.
 const clusterZoom = 12;
 // Screen distance within which projects join a group.
@@ -320,6 +343,8 @@ type DrawnProject = {
   shape: L.Polygon | L.Polyline;
   /** Alignments only: a casing under the line, and a wider band to hit. */
   casing?: L.Polyline;
+  /** Roads only: the white stretches inside the band. */
+  stripes?: L.Polyline;
   hit?: L.Polyline;
   dot: L.CircleMarker;
   /** An alignment's extent, which decides whether it can join a group. */
@@ -807,18 +832,21 @@ export default function ProjectMap({
       const color = statuses[project.status].color;
       const selected = project.id === selectedRef.current;
       const line = project.geometryType === "line";
+      const mode = lineMode(project);
       const options = {
         color,
         bubblingMouseEvents: false,
         fillColor: color,
         dashArray: project.status === "planned" ? "7, 5" : undefined,
-        ...shapeStyle(line, selected),
+        ...projectStyle(project, selected),
       };
-      // A casing in the base map's tone keeps thin alignments crisp.
-      const casing = line
+      // A casing in the base map's tone keeps thin alignments crisp. Rails
+      // go without, so the map shows between their dashes.
+      const casing =
+        line && mode !== "rail"
         ? L.polyline(project.geometry, {
             className: "project-casing",
-            weight: lineWeight(selected) + 4,
+            weight: options.weight + 4,
             opacity: 0.95,
             lineCap: "round",
             lineJoin: "round",
@@ -828,12 +856,31 @@ export default function ProjectMap({
       const shape = line
         ? L.polyline(project.geometry, {
             ...options,
-            lineCap: project.status === "planned" ? "butt" : "round",
+            lineCap:
+              project.status === "planned" || mode === "rail" ? "butt" : "round",
             lineJoin: "round",
-            dashArray: project.status === "planned" ? "8, 6" : undefined,
+            // Rail and road keep their pattern; colour tells the status.
+            dashArray: mode
+              ? options.dashArray
+              : project.status === "planned"
+                ? "8, 6"
+                : undefined,
           })
         : L.polygon(project.geometry, options);
-      shape.addTo(group).on("click", (event) => {
+      shape.addTo(group);
+      const stripes =
+        mode === "road"
+          ? L.polyline(project.geometry, {
+              className: "project-stripes",
+              color: "#fff",
+              opacity: 1,
+              lineCap: "butt",
+              lineJoin: "round",
+              interactive: false,
+              ...roadStripes(selected),
+            }).addTo(group)
+          : undefined;
+      shape.on("click", (event) => {
         L.DomEvent.stopPropagation(event);
         select(project, shape);
       });
@@ -924,14 +971,16 @@ export default function ProjectMap({
         project,
         shape,
         casing,
+        stripes,
         hit,
         dot,
         bounds: line ? L.latLngBounds(project.geometry) : undefined,
         anchor: map.project(line ? dot.getLatLng() : project.center, 0),
       };
     };
-    const remove = ({ shape, casing, hit, dot }: DrawnProject) => {
-      for (const layer of [casing, shape, hit]) if (layer) group.removeLayer(layer);
+    const remove = ({ shape, casing, stripes, hit, dot }: DrawnProject) => {
+      for (const layer of [casing, shape, stripes, hit])
+        if (layer) group.removeLayer(layer);
       dots.removeLayer(dot);
     };
     const eligible = ({ project, bounds }: DrawnProject, zoom: number) => {
@@ -1034,13 +1083,13 @@ export default function ProjectMap({
           clusters.removeLayer(marker);
           groupMarkers.delete(key);
         }
-      for (const { project, shape, casing, hit, dot } of drawn.values()) {
+      for (const { project, shape, casing, stripes, hit, dot } of drawn.values()) {
         const line = project.geometryType === "line";
         const ungrouped = !grouped.has(project.id);
         const dotted = zoom < (line ? lineDotZoom : clusterZoom);
         // Areas keep their outline under the dot; alignments give way to it.
         const shown = ungrouped && !(line && dotted);
-        for (const layer of [shape, casing, hit]) {
+        for (const layer of [shape, casing, stripes, hit]) {
           const element = layer?.getElement();
           if (element instanceof SVGElement)
             element.style.display = shown ? "" : "none";
@@ -1077,14 +1126,16 @@ export default function ProjectMap({
     const style = (id: string | null) => {
       const entry = id ? drawn.get(id) : undefined;
       if (!id || !entry) return;
-      const { project, shape, casing, hit, dot } = entry;
+      const { project, shape, casing, stripes, hit, dot } = entry;
       const isSelected = id === selectedRef.current;
       const emphasized = isSelected || id === highlightedRef.current;
       // The open project stays at full strength; the rest step back.
-      for (const layer of [shape, casing, dot])
+      for (const layer of [shape, casing, stripes, dot])
         layer?.getElement()?.classList.toggle("is-selected", isSelected);
-      shape.setStyle(shapeStyle(project.geometryType === "line", emphasized));
-      casing?.setStyle({ weight: lineWeight(emphasized) + 4 });
+      const shapeOptions = projectStyle(project, emphasized);
+      shape.setStyle(shapeOptions);
+      casing?.setStyle({ weight: shapeOptions.weight + 4 });
+      stripes?.setStyle(roadStripes(emphasized));
       dot.setRadius(dotRadius(emphasized));
       const group = groupOf.get(id);
       // Inside a group, the group lights up in its place.
@@ -1099,6 +1150,7 @@ export default function ProjectMap({
       const wasFocused = element === document.activeElement;
       casing?.bringToFront();
       shape.bringToFront();
+      stripes?.bringToFront();
       hit?.bringToFront();
       if (wasFocused && element instanceof SVGElement)
         element.focus({ preventScroll: true });
@@ -1128,9 +1180,10 @@ export default function ProjectMap({
       // New shapes land on top; the rest move to stack as if drawn afresh.
       if (added && kept) {
         const focused = document.activeElement;
-        for (const { casing, shape, hit } of order) {
+        for (const { casing, shape, stripes, hit } of order) {
           casing?.bringToFront();
           shape.bringToFront();
+          stripes?.bringToFront();
           hit?.bringToFront();
         }
         if (focused instanceof SVGElement && focused !== document.activeElement)

@@ -2,7 +2,9 @@ import { memo } from "react";
 import Image from "next/image";
 import {
   Bookmark,
+  CarFront,
   MapPin,
+  TrainFront,
   Megaphone,
   MessageCircle,
 } from "lucide-react";
@@ -14,12 +16,36 @@ import {
   projectPhotos,
   projectPlace,
   statuses,
+  transportMode,
 } from "../lib/data";
 import type { ListDensity } from "../lib/explore-state";
 import { type ProjectNews, unreadCount, unreadSummary } from "../lib/unread";
 import { cn } from "../lib/cn";
 import { keyboardFocused, statusTone } from "../lib/ui";
 import ImageGallery from "./image-gallery";
+
+/** Where; for rail and road, led by the mode. */
+function Place({ project }: { project: Project }) {
+  const mode = transportMode(project.categories);
+  if (!mode)
+    return (
+      <>
+        <MapPin size={13} className="shrink-0" aria-hidden="true" />
+        <span className="min-w-0 truncate">{projectPlace(project)}</span>
+      </>
+    );
+  const Icon = mode === "rail" ? TrainFront : CarFront;
+  return (
+    <>
+      <span className="inline-flex shrink-0 items-center gap-1 font-medium text-ink-soft">
+        <Icon size={13} className="shrink-0" aria-hidden="true" />
+        {mode === "rail" ? "Jernbane" : "Vei"}
+      </span>
+      <span aria-hidden="true">·</span>
+      <span className="min-w-0 truncate">{projectPlace(project)}</span>
+    </>
+  );
+}
 
 type Section = "discussion" | "updates";
 
@@ -173,8 +199,7 @@ export default memo(function ProjectCard({
         <>
           {/* Where, then where it stands. */}
           <p className={cn(meta, "gap-1")}>
-            <MapPin size={13} className="shrink-0" aria-hidden="true" />
-            <span className="min-w-0 truncate">{projectPlace(project)}</span>
+            <Place project={project} />
             <span className="ml-auto flex shrink-0 pl-2">{status}</span>
           </p>
           {title}
@@ -244,8 +269,7 @@ export default memo(function ProjectCard({
         <>
           <div className="min-w-0 flex-1">
             <p className={cn(meta, "gap-1")}>
-              <MapPin size={13} className="shrink-0" aria-hidden="true" />
-              <span className="min-w-0 truncate">{projectPlace(project)}</span>
+              <Place project={project} />
               {/* The place gives way, so this fits at any width. */}
               {fresh && <UnreadMark news={fresh} className="ml-auto pl-2" />}
             </p>

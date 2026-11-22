@@ -40,6 +40,15 @@ export type Category = MainCategory | Subcategory;
 export const mainCategories: MainCategory[] = categoryTree.map(
   (node) => node.name,
 );
+/** Rail and road lines are drawn and labelled by their mode. */
+export type TransportMode = "rail" | "road";
+export function transportMode(
+  categories: readonly string[],
+): TransportMode | null {
+  if (categories.includes("Jernbane")) return "rail";
+  if (categories.includes("Vei")) return "road";
+  return null;
+}
 /** Every category in display order: each main followed by its subcategories. */
 export const categories: Category[] = categoryTree.flatMap((node) => [
   node.name,
