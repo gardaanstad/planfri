@@ -217,7 +217,11 @@ export type MapApi = {
    * current zoom; zoomed far out, it zooms in to frame them.
    */
   center: (points: Point[], options?: { bottom?: number; maxZoom?: number }) => void;
-  show: (view: MapView) => void;
+  /**
+   * Shows the view; with `area`, zoomed out as far as needed for that area
+   * to stay in sight above a sheet that has grown since.
+   */
+  show: (view: MapView, area?: ViewBounds) => void;
   showNorway: () => void;
   /** The view down to `inset` pixels above the map's bottom edge. */
   boundsAbove: (inset: number) => ViewBounds;
@@ -757,10 +761,32 @@ export default function ProjectMap({
           else map.panTo(target, { duration: 0.45, easeLinearity: 0.2 });
         });
       },
-      show(view) {
-        settled(() =>
-          map.setView(view.center, view.zoom, { animate: !reducedMotion() }),
-        );
+      show(view, area) {
+        settled(() => {
+          const bottom = inset();
+          const bounds = area
+            ? L.latLngBounds([area.south, area.west], [area.north, area.east])
+            : null;
+          const zoom = bounds
+            ? Math.min(
+                view.zoom,
+                map.getBoundsZoom(bounds, false, L.point(0, bottom)),
+              )
+            : view.zoom;
+          // Centered in the part of the map the sheet leaves open.
+          const center =
+            bounds && zoom < view.zoom
+              ? map.unproject(
+                  map
+                    .project(bounds.getSouthWest(), zoom)
+                    .add(map.project(bounds.getNorthEast(), zoom))
+                    .divideBy(2)
+                    .add([0, bottom / 2]),
+                  zoom,
+                )
+              : view.center;
+          map.setView(center, zoom, { animate: !reducedMotion() });
+        });
       },
       showNorway: () => settled(() => showNorway(!reducedMotion())),
       boundsAbove,

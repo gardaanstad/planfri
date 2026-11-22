@@ -46,7 +46,6 @@ import {
 } from "../lib/data";
 import {
   defaultStatus,
-  type MapView,
   parseExploreState,
   sameValues,
   sortOptions,
@@ -453,9 +452,10 @@ export default memo(function Explorer({
   // Desktop: framing an open project moves the map, but the list behind the
   // panel keeps the area it was opened from, so it returns unchanged.
   const [frozenBounds, setFrozenBounds] = useState<Bounds | null>(null);
-  const postView = useRef<{ id: string; before: MapView | null } | null>(
-    null,
-  );
+  const postView = useRef<{
+    id: string;
+    before: MapViewChange | null;
+  } | null>(null);
   // Map moves after closing a project wait until history has stepped back:
   // replacing the URL mid-step makes Next.js reload the page.
   const afterPop = useRef<(() => void) | null>(null);
@@ -510,13 +510,14 @@ export default memo(function Explorer({
   });
 
   function enterPostView(id: string, frame = true) {
-    if (isMobile) return;
-    if (!postView.current && mapViewRef.current)
+    // Phones keep the view to return to; the list follows the map there.
+    if (!isMobile && !postView.current && mapViewRef.current)
       setFrozenBounds(mapViewRef.current.bounds);
     postView.current = {
       id,
       before: postView.current ? postView.current.before : mapViewRef.current,
     };
+    if (isMobile) return;
     const project = projects.find((item) => item.id === id);
     // Collapsed, the panel lies over the map's left edge.
     if (frame && project)
@@ -554,7 +555,13 @@ export default memo(function Explorer({
     postView.current = null;
     // Back to where the project was opened from; the list follows when the
     // map settles. Opened by link, the list takes the area around it.
-    if (view.before) mapApi.current?.show(view.before);
+    // Phones: the list holds what is in sight above the drawer, which may
+    // have grown since, so all of that area comes back into sight.
+    if (view.before)
+      mapApi.current?.show(
+        view.before,
+        isMobile ? view.before.bounds : undefined,
+      );
     else setFrozenBounds(null);
     requestAnimationFrame(() =>
       listRef.current
@@ -917,6 +924,8 @@ export default memo(function Explorer({
     setPostSnap(
       isMobile && overMap ? { id, point: middleSnapPoint } : null,
     );
+    // Before the map moves, so closing returns to where it was.
+    enterPostView(id);
     const project = projects.find((item) => item.id === id);
     if (isMobile && overMap) {
       // The list comes to the middle height behind it, and the map centers
@@ -936,7 +945,6 @@ export default memo(function Explorer({
     setPostId(id);
     setSelectedId(id);
     highlight(null);
-    enterPostView(id);
     window.history.pushState(
       { projectOverlay: true, suggestionsBelow: suggestionsOpen },
       "",
@@ -1028,6 +1036,8 @@ export default memo(function Explorer({
   function showPostOnMap(project: Project) {
     // Framed above the middle drawer height, so the list can show it too.
     const fit = () => mapApi.current?.fit(projectPoints(project));
+    // The project is framed instead of the view it was opened from.
+    if (postView.current) postView.current.before = null;
     const below = suggestionsOpen;
     closePost(false, () => {
       if (below) closeSuggestions();
