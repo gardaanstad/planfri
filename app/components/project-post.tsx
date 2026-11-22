@@ -377,6 +377,7 @@ function EditImages() {
       <ImagePicker
         cover
         max={21}
+        pasteScope="[data-project-post]"
         value={ownPhotos(edit.draft).map((photo) => photo.src)}
         onChange={(update) =>
           change((draft) =>

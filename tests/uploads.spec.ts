@@ -95,6 +95,17 @@ test("moderators add photos while creating a project; without one it shows no im
       await expect
         .poll(() => thumbnail.evaluate((img: HTMLImageElement) => img.naturalWidth))
         .toBeGreaterThan(0);
+      // A screenshot pasted while typing the description is added too.
+      await dialog.getByLabel("Beskrivelse").evaluate((field, base64) => {
+        const data = new DataTransfer();
+        const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+        data.items.add(new File([bytes], "skjermbilde.png", { type: "image/png" }));
+        field.dispatchEvent(
+          new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }),
+        );
+      }, png().toString("base64"));
+      await expect(dialog.getByRole("img", { name: "Bilde 2" })).toBeVisible();
+      await expect(dialog.getByLabel("Beskrivelse")).toHaveValue("Et testprosjekt.");
     }
     await dialog.getByText("Legg inn koordinater").click();
     for (const point of ["59.91, 10.75", "59.92, 10.76", "59.91, 10.77"]) {

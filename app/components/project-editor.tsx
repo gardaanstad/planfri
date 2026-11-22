@@ -248,6 +248,7 @@ export default function ProjectEditor({
           <Field id="images" label="Bilder" optional>
             <ImagePicker
               cover
+              pasteScope="[data-project-editor]"
               value={images}
               onChange={setImages}
               onBusy={setUploading}

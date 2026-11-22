@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { ImagePlus, LoaderCircle, Star, X } from "lucide-react";
 import { errorMessage } from "../lib/api-client";
@@ -7,11 +7,26 @@ import { cn } from "../lib/cn";
 import { uploadImage } from "../lib/upload-image";
 
 const tile = "relative aspect-4/3 overflow-hidden rounded-lg";
+const accepted = ["image/jpeg", "image/png", "image/webp"];
+
+/** Pickers taking pastes, latest last; a paste with no field focused goes to it. */
+const pasteTargets: HTMLElement[] = [];
+
+function isTextField(element: Element) {
+  return (
+    element instanceof HTMLTextAreaElement ||
+    (element instanceof HTMLInputElement &&
+      !["button", "checkbox", "file", "radio", "range", "submit"].includes(element.type)) ||
+    (element instanceof HTMLElement && element.isContentEditable)
+  );
+}
 
 /**
  * Picks images from the device and uploads them straight away; `value` holds
  * the uploaded URLs in order. Reports in-flight uploads through `onBusy`.
  * With `cover`, the first image is the cover and any other can take its place.
+ * With `pasteScope`, images pasted anywhere inside the closest element matching
+ * that selector are added too.
  */
 export default function ImagePicker({
   value,
@@ -19,10 +34,12 @@ export default function ImagePicker({
   onBusy,
   max = 10,
   cover = false,
+  pasteScope,
   id,
   className,
 }: {
   id?: string;
+  pasteScope?: string;
   cover?: boolean;
   value: string[];
   onChange: (update: (current: string[]) => string[]) => void;
@@ -31,6 +48,7 @@ export default function ImagePicker({
   className?: string;
 }) {
   const inputId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
   const [pending, setPending] = useState(0);
   const [error, setError] = useState("");
   const room = max - value.length - pending;
@@ -56,8 +74,43 @@ export default function ImagePicker({
     );
   }
 
+  const addRef = useRef(add);
+  useLayoutEffect(() => {
+    addRef.current = add;
+  });
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    const scope = pasteScope ? root?.closest<HTMLElement>(pasteScope) : null;
+    if (!root || !scope) return;
+    const area: HTMLElement = scope;
+    pasteTargets.push(root);
+    function paste(event: ClipboardEvent) {
+      const data = event.clipboardData;
+      if (!data || event.defaultPrevented) return;
+      const target = event.target instanceof Element ? event.target : null;
+      const inScope = target && area.contains(target);
+      const unfocused = !target || target === document.body;
+      if (!inScope && !(unfocused && pasteTargets.at(-1) === root)) return;
+      const files = Array.from(data.files).filter((file) =>
+        accepted.includes(file.type),
+      );
+      if (!files.length) return;
+      // Rich text copied from elsewhere carries a picture of itself; in a text
+      // field, the text is what was meant.
+      if (target && isTextField(target) && data.types.includes("text/plain"))
+        return;
+      event.preventDefault();
+      void addRef.current(files);
+    }
+    document.addEventListener("paste", paste);
+    return () => {
+      document.removeEventListener("paste", paste);
+      pasteTargets.splice(pasteTargets.indexOf(root), 1);
+    };
+  }, [pasteScope]);
+
   return (
-    <div id={id} className={className}>
+    <div ref={rootRef} id={id} className={className}>
       <ul className="grid list-none grid-cols-3 gap-2 p-0 max-xs:grid-cols-2">
         {value.map((src, index) => (
           <li key={src} className={cn(tile, "bg-surface-muted")}>
@@ -129,7 +182,7 @@ export default function ImagePicker({
               <input
                 id={inputId}
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                accept={accepted.join(",")}
                 multiple
                 className="sr-only"
                 onChange={(event) => {
