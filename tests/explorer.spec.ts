@@ -1471,6 +1471,34 @@ test.describe("desktop explorer", () => {
     await expect(tooltip).toHaveCount(0);
   });
 
+  test("shapes are drawn over the whole map while it pans, not just once it settles", async ({
+    page,
+  }) => {
+    await page.goto(oslo);
+    const map = page.locator(".leaflet-container");
+    const drawing = page.locator(".leaflet-overlay-pane > svg").first();
+    await expect(drawing).toBeVisible();
+    const view = (await map.boundingBox())!;
+    const covers = async () => {
+      const box = (await drawing.boundingBox())!;
+      return (
+        box.x <= view.x + 1 &&
+        box.y <= view.y + 1 &&
+        box.x + box.width >= view.x + view.width - 1 &&
+        box.y + box.height >= view.y + view.height - 1
+      );
+    };
+    expect(await covers()).toBe(true);
+    // Held down, so the map hasn't settled: far past the drawn margin.
+    await page.mouse.move(view.x + view.width - 100, view.y + view.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(view.x + 100, view.y + view.height / 2 - 200, {
+      steps: 12,
+    });
+    expect(await covers()).toBe(true);
+    await page.mouse.up();
+  });
+
   test("filtering draws only the shapes that come and go", async ({ page }) => {
     await page.goto(oslo);
     const kept = page.locator(`path[data-project-id="${project.id}"]`);
