@@ -975,8 +975,9 @@ export default function ProjectMap({
     const dotRenderer = dotSvg(map);
     const clusters = L.layerGroup().addTo(map);
     const drawn = drawnRef.current;
-    // Thin and dashed alignments get an invisible, wider band to hit.
-    const hitWeight = window.matchMedia("(pointer: coarse)").matches ? 28 : 18;
+    // Thin and dashed alignments get an invisible, wider band to hit: a
+    // finger lands within 24px of the line either side.
+    const hitWeight = window.matchMedia("(pointer: coarse)").matches ? 48 : 18;
     const select = (project: Project, shape: L.Path) => {
       const element = shape.getElement();
       // Focus comes back here when the project closes; a pointer shows no ring.

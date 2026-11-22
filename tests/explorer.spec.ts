@@ -138,6 +138,35 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     userAgent: devices["Pixel 7"].userAgent,
   });
 
+  test("a tap beside an alignment still opens it", async ({ page }) => {
+    await page.goto("/?kart=59.1200,5.5000,8");
+    const line = page.locator('path[data-project-id="rogfast"]');
+    await expect(line).toBeVisible();
+    // A point midway along the line, and the way across it there.
+    const { x, y, nx, ny } = await line.evaluate((element) => {
+      const path = element as SVGPathElement;
+      const matrix = path.getScreenCTM()!;
+      const screen = (length: number) =>
+        new DOMPoint(
+          path.getPointAtLength(length).x,
+          path.getPointAtLength(length).y,
+        ).matrixTransform(matrix);
+      const middle = path.getTotalLength() / 2;
+      const at = screen(middle);
+      const ahead = screen(middle + 1);
+      const length = Math.hypot(ahead.x - at.x, ahead.y - at.y);
+      return {
+        x: at.x,
+        y: at.y,
+        nx: -(ahead.y - at.y) / length,
+        ny: (ahead.x - at.x) / length,
+      };
+    });
+    // Well off the drawn line, inside the band around it.
+    await page.touchscreen.tap(x + nx * 22, y + ny * 22);
+    await expect(page).toHaveURL(/\/prosjekt\/rogfast\?/);
+  });
+
   test("projects open in their own drawer over the map and preserve map, history, and reading space", async ({
     page,
   }) => {
