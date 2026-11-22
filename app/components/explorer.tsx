@@ -607,6 +607,8 @@ export default memo(function Explorer({
         isMobile ? view.before.bounds : undefined,
       );
     else setFrozenBounds(null);
+    // The folded list shows only its filters, so it stays at its top.
+    if (isMobile && snapPoint === compactSnapPoint) return;
     requestAnimationFrame(() =>
       listRef.current
         ?.querySelector(`[data-card-id="${CSS.escape(view.id)}"]`)

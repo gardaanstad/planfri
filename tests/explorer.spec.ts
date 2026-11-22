@@ -240,6 +240,13 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expect(page).toHaveURL(atList);
     await expect(projectDrawer).toBeHidden();
     await expectDrawerHeight(page, compact);
+    // Folded, it stays at its top rather than scrolling to the project.
+    await page.waitForTimeout(100);
+    expect(
+      await page
+        .locator("[data-explorer-drawer] [data-drawer-scroll]")
+        .evaluate((element) => element.scrollTop),
+    ).toBe(0);
     await expect
       .poll(() =>
         page.evaluate(
