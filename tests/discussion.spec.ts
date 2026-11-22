@@ -608,6 +608,7 @@ test("the menu on your own comment deletes it, from a dropdown or a phone's shee
   await postComment(request, other, replyText, withReply);
   const alone = await postComment(request, author, `Alene ${randomUUID()}`);
   await page.goto(path);
+  await openDiscussion(page);
   const discussion = page.getByRole("region", {
     name: "Kommentarer",
     exact: true,
@@ -645,6 +646,8 @@ test("the menu on your own comment deletes it, from a dropdown or a phone's shee
   ).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
+  // On a phone the project opens anew in a drawer, on its updates.
+  await openDiscussion(page);
   const single = discussion.locator(`[data-comment-id="${alone}"]`);
   await single.getByRole("button", { name: "Valg for kommentaren" }).click();
   const sheet = page.getByRole("dialog", { name: "Valg for kommentaren" });

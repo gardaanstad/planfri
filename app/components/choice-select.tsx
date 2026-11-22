@@ -43,6 +43,11 @@ type ChoiceSelectBase = {
   triggerLabel?: string;
   /** Names the anchored menu above its options, as the phone sheet does. */
   menuTitle?: boolean;
+  /**
+   * Grows and shrinks to a new label smoothly, so what sits beside it in a
+   * row follows along rather than jumping.
+   */
+  smoothWidth?: boolean;
 };
 
 type ChoiceSelectProps =
@@ -57,6 +62,8 @@ type ChoiceSelectProps =
       onChange: (value: string[]) => void;
     });
 
+const widthMotion = "choice-width";
+
 export default function ChoiceSelect(props: ChoiceSelectProps) {
   const {
     label,
@@ -66,6 +73,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
     triggerClassName,
     triggerLabel,
     menuTitle = false,
+    smoothWidth = false,
   } = props;
   const multiple = props.multiple === true;
   const selectedValues = new Set(
@@ -98,6 +106,9 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
   const [sheet, setSheet] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  // The width it last rested at, for `smoothWidth`.
+  const restingWidth = useRef<number | null>(null);
+  const labelRef = useRef<HTMLSpanElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
@@ -224,6 +235,57 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
   }, [open, sheet]);
 
   // A sheet sliding away; its animations are let go once it has closed.
+  // Kept current while it rests, whatever resizes it.
+  useLayoutEffect(() => {
+    const element = root.current;
+    if (!smoothWidth || !element) return;
+    const observer = new ResizeObserver(() => {
+      if (!element.getAnimations().some((a) => a.id === widthMotion))
+        restingWidth.current = element.getBoundingClientRect().width;
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [smoothWidth]);
+  // A new label: from where it was (or is, midway), to its new width.
+  useLayoutEffect(() => {
+    const element = root.current;
+    if (!smoothWidth || !element) return;
+    const running = element
+      .getAnimations()
+      .filter((animation) => animation.id === widthMotion);
+    const from = running.length
+      ? element.getBoundingClientRect().width
+      : restingWidth.current;
+    running.forEach((animation) => animation.cancel());
+    labelRef.current
+      ?.getAnimations()
+      .forEach((animation) => animation.id === widthMotion && animation.cancel());
+    delete element.dataset.growing;
+    const to = element.getBoundingClientRect().width;
+    restingWidth.current = to;
+    if (from === null || Math.abs(from - to) < 1 || reducedMotion()) return;
+    const motion = element.animate(
+      [{ width: `${from}px` }, { width: `${to}px` }],
+      { duration: 240, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+    );
+    motion.id = widthMotion;
+    // Growing, the longer words would read cut short: they come in as the
+    // room opens, clipped rather than ending in "…".
+    const words = labelRef.current;
+    if (to > from && words) {
+      element.dataset.growing = "";
+      const fade = words.animate([{ opacity: 0 }, { opacity: 1 }], {
+        duration: 240,
+        easing: "cubic-bezier(0.55, 0, 0.75, 0.4)",
+      });
+      fade.id = widthMotion;
+      const done = () => {
+        if (!element.getAnimations().some((a) => a.id === widthMotion))
+          delete element.dataset.growing;
+      };
+      motion.finished.then(done, done);
+    }
+  }, [smoothWidth, shownLabel]);
   const leaving = useRef<Animation[] | null>(null);
   function close(animate = true) {
     trigger.current?.focus({ preventScroll: true });
@@ -513,7 +575,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
           // hover, press or open states, and no turning chevron.
           "[-webkit-tap-highlight-color:transparent]",
           "md:hover:border-border-strong md:hover:bg-surface-subtle",
-          "md:aria-expanded:border-accent/50",
+          "md:aria-expanded:border-border-strong",
           triggerClassName,
         )}
         aria-label={
@@ -538,7 +600,10 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
         }}
       >
         {icon}
-        <span className="min-w-0 overflow-hidden text-ellipsis">
+        <span
+          ref={labelRef}
+          className="min-w-0 overflow-hidden text-ellipsis group-data-growing/choice:text-clip"
+        >
           {shownLabel}
         </span>
         {multiple && selectedCount > 0 && (

@@ -2,6 +2,7 @@ import { Fragment, memo } from "react";
 import Image from "next/image";
 import { Bookmark, MapPin, Megaphone, MessageCircle } from "lucide-react";
 import {
+  finishYear,
   formatDate,
   getProjectUpdates,
   hasPhoto,
@@ -17,6 +18,8 @@ import { keyboardFocused, statusTone } from "../lib/ui";
 import ImageGallery from "./image-gallery";
 
 type Section = "discussion" | "updates";
+/** Where a project opens: a section, or an update or comment in it. */
+export type CardTarget = Section | { updateId?: string; commentId?: string };
 
 // Above the stretched card link, for the stat tooltips.
 const cardStat = "relative z-1 inline-flex items-center gap-1.25 tabular-nums";
@@ -123,7 +126,7 @@ export default memo(function ProjectCard({
         )}
       />
       {statuses[project.status].label}
-      {project.year && <span>· {project.year}</span>}
+      {finishYear(project) && <span>· {finishYear(project)}</span>}
     </span>
   );
   const commentWord = commentCount === 1 ? "kommentar" : "kommentarer";

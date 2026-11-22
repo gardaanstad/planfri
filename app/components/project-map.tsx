@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import {
   categoryLabels,
+  finishYear,
   cities,
   lineDotZoom,
   lineMidpoint,
@@ -50,7 +51,8 @@ type MapLayer = "standard" | "streets" | "osm";
 // Selected projects draw heavier; shared by the first render and selection.
 // Not yet built: planned dashed, proposed dotted.
 const dashes: Partial<Record<Status, { area: string; line: string }>> = {
-  proposed: { area: "2, 5", line: "1, 7" },
+  // Round caps add the stroke width to each dash: short dashes, wide gaps.
+  proposed: { area: "3, 9", line: "3, 12" },
   planned: { area: "7, 5", line: "8, 6" },
 };
 const lineWeight = (selected: boolean) => (selected ? 5 : 3.5);
@@ -132,7 +134,7 @@ function projectTooltip(project: Project) {
   meta.textContent = [
     categoryLabels(project.categories).join(", "),
     statuses[project.status].label,
-    project.year,
+    finishYear(project),
   ]
     .filter(Boolean)
     .join(" · ");

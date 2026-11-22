@@ -300,6 +300,7 @@ export const sampleProjects: Project[] = [
     city: "Oslo",
     categories: ["Samferdsel", "Sykkel og gange"],
     status: "proposed",
+    phaseDates: { proposed: "2025-09" },
     image: "",
     description: "Sammenhengende sykkelvei i begge retninger langs Ring 2.",
     center: [59.93, 10.75],

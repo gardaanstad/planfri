@@ -1,6 +1,6 @@
 import type { Comment, Project } from "./data";
 
-/** A project's newest comment, its text shortened, for the "Nytt" view. */
+/** One of a project's newest comments, its text shortened, for "Nytt". */
 export type LatestComment = {
   id: string;
   author: string;
@@ -12,7 +12,10 @@ export type LatestComment = {
 export type ProjectActivity = {
   comments: number;
   recent: number;
-  latest?: LatestComment;
+  /** Its newest comments, within a week of the newest, newest first. */
+  latest?: LatestComment[];
+  /** How many more there are within that week. */
+  latestMore?: number;
 };
 
 /**

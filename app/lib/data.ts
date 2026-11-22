@@ -110,6 +110,10 @@ export type ProjectUpdate = {
   /** Username of the member whose tip this was. Added on read, never stored. */
   via?: string;
 };
+/** The phases with a start date of their own; "Ferdig" has `year`. */
+export const datedPhases = ["proposed", "planned", "construction"] as const;
+export type DatedPhase = (typeof datedPhases)[number];
+export type PhaseDates = Partial<Record<DatedPhase, string>>;
 export type Project = {
   id: string;
   title: string;
@@ -130,7 +134,10 @@ export type Project = {
   center: Point;
   geometry: Point[];
   geometryType: "area" | "line";
+  /** When it's done, or due: a year. Foreslått projects have none. */
   year: string;
+  /** When each phase began, as a year or a month (`2024`, `2024-03`). */
+  phaseDates?: PhaseDates;
   updated: string;
   /** Set by the server when a moderator adds the project. */
   created?: string;
@@ -248,7 +255,7 @@ export function projectAddedAt(project: Project) {
 }
 // Map colours; Leaflet can't read CSS variables. Keep in sync with --color-status-*.
 export const statuses: Record<Status, { label: string; color: string }> = {
-  proposed: { label: "Forslag", color: "#a084b8" },
+  proposed: { label: "Foreslått", color: "#9ca39f" },
   planned: { label: "Planlagt", color: "#7383ba" },
   construction: { label: "Under bygging", color: "#d59a42" },
   completed: { label: "Ferdigstilt", color: "#4f9279" },
@@ -388,6 +395,15 @@ export function formatDate(date: string) {
 export function formatDateYear(date: string) {
   const { year, month, day } = dateParts(date);
   return `${day}. ${nbMonthsShort[month - 1]} ${year}`;
+}
+/** A phase date: `2024`, or `2024-03` as "mars 2024". */
+export function formatPhaseDate(date: string) {
+  const [year, month] = date.split("-");
+  return month ? `${nbMonthsShort[Number(month) - 1]} ${year}` : year;
+}
+/** The year a project is done or due; none while it's only proposed. */
+export function finishYear(project: Pick<Project, "status" | "year">) {
+  return project.status === "proposed" ? "" : project.year;
 }
 
 const relativeUnits = [

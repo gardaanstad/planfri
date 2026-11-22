@@ -32,19 +32,30 @@ const voteButton = cn(
 /** On a phone, where the replies' line is hidden, a tap on the name's line folds a thread. */
 const phoneQuery = "(width < 40rem)";
 
-/** Counts the given threads' roots and every reply beneath them. */
-function countThreadComments(comments: Comment[], thread: Comment[]) {
-  const included = new Set(thread.map((comment) => comment.id));
-  let size;
-  do {
-    size = included.size;
-    for (const comment of comments)
-      if (comment.parentId && included.has(comment.parentId))
-        included.add(comment.id);
-  } while (included.size > size);
-  return comments.filter(
-    (comment) => !comment.deleted && included.has(comment.id),
-  ).length;
+const sortOptions = [
+  { value: "relevant", label: "Aktuelt" },
+  { value: "top", label: "Topp" },
+  { value: "newest", label: "Nyeste" },
+];
+
+/** How a discussion's threads are ordered. */
+export function DiscussionSortSelect({
+  value,
+  onChange,
+}: {
+  value: DiscussionSort;
+  onChange: (sort: DiscussionSort) => void;
+}) {
+  return (
+    <ChoiceSelect
+      label="Sorter kommentarer"
+      value={value}
+      className={sortChoice}
+      icon={<ArrowDownUp size={14} />}
+      onChange={(next) => onChange(next as DiscussionSort)}
+      options={sortOptions}
+    />
+  );
 }
 
 export default function ProjectDiscussion({
@@ -53,6 +64,8 @@ export default function ProjectDiscussion({
   updates,
   updateId,
   initialCommentId,
+  sort: sortProp,
+  onSortChange,
   onReadUpdate,
   onNotify,
 }: {
@@ -66,6 +79,9 @@ export default function ProjectDiscussion({
    * update, and new comments written here reference it.
    */
   updateId?: string;
+  /** Set when the order is chosen elsewhere, beside the section's tabs. */
+  sort?: DiscussionSort;
+  onSortChange?: (sort: DiscussionSort) => void;
   onReadUpdate: (id: string) => void;
   onNotify: (message: string) => void;
 }) {
@@ -81,7 +97,9 @@ export default function ProjectDiscussion({
   const replyButtons = useRef(new Map<string, HTMLButtonElement>());
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const idPrefix = useId();
-  const [sort, setSort] = useState<DiscussionSort>("relevant");
+  const [ownSort, setOwnSort] = useState<DiscussionSort>("relevant");
+  const sort = sortProp ?? ownSort;
+  const setSort = onSortChange ?? setOwnSort;
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   // Threads collapsed to their author's line by a tap, on a phone.
   const [minimized, setMinimized] = useState<ReadonlySet<string>>(new Set());
@@ -195,9 +213,6 @@ export default function ProjectDiscussion({
     latest: updates[0]?.date,
     updateId,
   });
-  const commentCount = scoped
-    ? countThreadComments(comments, thread)
-    : comments.filter((comment) => !comment.deleted).length;
   function resizeComposer(element: HTMLTextAreaElement) {
     element.style.height = "auto";
     element.style.height = `${Math.min(element.scrollHeight, 260)}px`;
@@ -583,6 +598,31 @@ export default function ProjectDiscussion({
     );
   }
 
+  const loginLine = !user?.username && (
+    <p
+      className={cn(
+        "text-ui leading-normal text-muted max-md:text-xs",
+        scoped ? "pt-3" : "text-center",
+        !scoped && thread.length > 0 && "pb-1",
+      )}
+      data-login-to-comment=""
+    >
+      <button
+        type="button"
+        className="font-medium text-ink underline decoration-ink/35 underline-offset-3 transition-[text-decoration-color] duration-150 hover:decoration-current"
+        onClick={() =>
+          requireLogin("Du må være logget inn for å kommentere.", {
+            type: "comment",
+            projectId,
+          })
+        }
+      >
+        {user ? "Velg brukernavn" : "Logg inn"}
+      </button>{" "}
+      for å kommentere.
+    </p>
+  );
+
   return (
     <section
       aria-label={scoped ? "Kommentarer til oppdateringen" : "Kommentarer"}
@@ -640,31 +680,15 @@ export default function ProjectDiscussion({
           </button>
         </form>
       )}
-      {(!scoped || thread.length > 1) && (
-        <div
-          className={cn(
-            "mb-1 flex items-center justify-between gap-3 border-b border-border pb-2",
-            scoped ? "mt-3" : user?.username ? "mt-5" : "mt-0",
-          )}
-        >
-          <span className="text-ui whitespace-nowrap text-muted tabular-nums">
-            {commentCount} {commentCount === 1 ? "kommentar" : "kommentarer"}
-          </span>
-          <ChoiceSelect
-            label="Sorter kommentarer"
-            value={sort}
-            className={sortChoice}
-            icon={<ArrowDownUp size={14} />}
-            onChange={(value) => setSort(value as DiscussionSort)}
-            options={[
-              { value: "relevant", label: "Aktuelt" },
-              { value: "top", label: "Topp" },
-              { value: "newest", label: "Nyeste" },
-            ]}
-          />
+      {/* An update's own comments sort here; the project's beside its tabs. */}
+      {scoped && thread.length > 1 && !onSortChange && (
+        <div className="mt-3 mb-1 flex items-center justify-end border-b border-border pb-2">
+          <DiscussionSortSelect value={sort} onChange={setSort} />
         </div>
       )}
-      <div>
+      {/* Reading comes first; joining in is a quiet line among them. */}
+      {!scoped && thread.length > 0 && loginLine}
+      <div className={cn(!scoped && user?.username && "mt-5")}>
         {thread.map((comment) => renderComment(comment))}
         {thread.length === 0 &&
           (scoped ? (
@@ -673,33 +697,12 @@ export default function ProjectDiscussion({
             <EmptyState
               icon={<MessageCircle size={24} />}
               title="Ingen kommentarer ennå"
-            />
+            >
+              {loginLine}
+            </EmptyState>
           ))}
       </div>
-      {/* Reading comes first; joining in is a quiet line after them. */}
-      {!user?.username && (
-        <p
-          className={cn(
-            "text-ui leading-normal text-muted max-md:text-xs",
-            scoped ? "pt-3" : "pt-4",
-          )}
-          data-login-to-comment=""
-        >
-          <button
-            type="button"
-            className="font-medium text-ink underline decoration-ink/35 underline-offset-3 transition-[text-decoration-color] duration-150 hover:decoration-current"
-            onClick={() =>
-              requireLogin("Du må være logget inn for å kommentere.", {
-                type: "comment",
-                projectId,
-              })
-            }
-          >
-            {user ? "Velg brukernavn" : "Logg inn"}
-          </button>{" "}
-          for å kommentere.
-        </p>
-      )}
+      {scoped && loginLine}
     </section>
   );
 }

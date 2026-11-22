@@ -33,6 +33,7 @@ import {
   finalize,
   focusField,
   invalidFields,
+  PhaseDateInputs,
   primaryBarButton,
   quietBarButton,
 } from "./project-edit";
@@ -272,24 +273,34 @@ export default function ProjectEditor({
                 ))}
               </select>
             </Field>
-            <Field
-              id="year"
-              label={draft.status === "completed" ? "Ferdigstilt" : "Ferdigstilles"}
-              control={`${ids}-year`}
-              optional
-              error={error("year")}
-            >
-              <input
-                {...control("year")}
-                className={input}
-                inputMode="numeric"
-                maxLength={4}
-                placeholder="2030"
-                value={draft.year}
-                onChange={(event) => change({ year: event.target.value })}
-              />
-            </Field>
+            {draft.status !== "proposed" && (
+              <Field
+                id="year"
+                label={draft.status === "completed" ? "Ferdigstilt" : "Ferdigstilles"}
+                control={`${ids}-year`}
+                optional
+                error={error("year")}
+              >
+                <input
+                  {...control("year")}
+                  className={input}
+                  inputMode="numeric"
+                  maxLength={4}
+                  placeholder="2030"
+                  value={draft.year}
+                  onChange={(event) => change({ year: event.target.value })}
+                />
+              </Field>
+            )}
           </div>
+          <Field id="dates" label="Datoer" optional error={error("dates")}>
+            <PhaseDateInputs
+              idPrefix={`${ids}-dates`}
+              inputClassName={input}
+              value={draft.phaseDates}
+              onChange={(phaseDates) => change({ phaseDates })}
+            />
+          </Field>
           <Field id="categories" label="Kategori" error={error("categories")}>
             <CategoryPicker
               triggerClassName={cn(

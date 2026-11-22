@@ -6,6 +6,7 @@ import {
   type Page,
 } from "@playwright/test";
 import { seedProjects } from "../scripts/seed-data";
+import { getProjectUpdates } from "../app/lib/data";
 import {
   member,
   mutation,
@@ -503,7 +504,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await drag(page, status.getByRole("option").nth(1), 160);
     await expect(status).toBeHidden();
     await expect(
-      filters.getByRole("button", { name: "Prosjektstatus: Forslag, Planlagt, Under bygging, Ferdigstilt", exact: true }),
+      filters.getByRole("button", { name: "Prosjektstatus: Foreslått, Planlagt, Under bygging, Ferdigstilt", exact: true }),
     ).toBeVisible();
     // A list that scrolls closes from its top.
     await filters.getByRole("button", { name: /^Sted/ }).click();
@@ -683,7 +684,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     });
     await filters
       .getByRole("button", {
-        name: "Prosjektstatus: Forslag, Planlagt, Under bygging",
+        name: "Prosjektstatus: Foreslått, Planlagt, Under bygging",
         exact: true,
       })
       .click();
@@ -723,10 +724,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       .click();
     await page.keyboard.press("Escape");
     await page
-      .getByRole("button", {
-        name: "Fjern filter: Alle statuser",
-        exact: true,
-      })
+      .getByRole("button", { name: "Nullstill filtre", exact: true })
       .click();
     await swipeDown(
       page,
@@ -869,13 +867,13 @@ test.describe("desktop explorer", () => {
     listRegion(page).getByRole("button", { name: new RegExp(`^${title} · `) });
   const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
 
-  test("Nytt lists projects by what last happened, and opens at it", async ({
+  test("Nytt lists what last happened on each project, and opens at it", async ({
     page,
   }) => {
     await page.goto("/");
-    const nytt = page
-      .getByRole("group", { name: "Visning" })
-      .getByRole("button", { name: "Nytt" });
+    const views = page.getByRole("group", { name: "Visning" });
+    const nytt = views.getByRole("button", { name: "Nytt" });
+    const switchBox = await views.boundingBox();
     // The server renders the switch, so a click can land before hydration.
     await expect(async () => {
       await nytt.click();
@@ -883,26 +881,65 @@ test.describe("desktop explorer", () => {
         timeout: 1000,
       });
     }).toPass();
-    const rows = listRegion(page).locator("[data-feed-id]");
-    await expect(rows.first()).toBeVisible();
-    // Its order is what happened last, so there's no sort.
+    // Its order is what happened last, so the sort goes. The switch keeps
+    // its right edge and its height, and the pressed view names itself.
     await expect(
       page.getByRole("button", { name: /^Sorter prosjekter:/ }),
     ).toHaveCount(0);
-    const dates = await rows
-      .locator("time")
-      .evaluateAll((times) =>
-        times.map((time) => Date.parse(time.getAttribute("datetime")!)),
-      );
+    const after = (await views.boundingBox())!;
+    expect(
+      Math.abs(after.x + after.width - (switchBox!.x + switchBox!.width)),
+    ).toBeLessThan(1);
+    expect(after.height).toBe(switchBox!.height);
+    await expect(nytt.locator("[data-view-label]")).toHaveCSS("opacity", "1");
+    await expect(
+      views.getByRole("button", { name: "Kompakt" }).locator("[data-view-label]"),
+    ).toHaveCSS("opacity", "0");
+    await expect(
+      page.getByRole("status", {
+        name: /^Nytt fra \d+ (synlig prosjekt|synlige prosjekter)$/,
+      }),
+    ).toBeVisible();
+    const rows = listRegion(page).locator("[data-feed-id]");
+    await expect(rows.first()).toBeVisible();
+    await expect(listRegion(page).locator("[data-card-id]")).toHaveCount(0);
+    // Ordered by each row's newest happening, whose time comes first.
+    const dates = await rows.evaluateAll((items) =>
+      items.map((item) =>
+        Date.parse(item.querySelector("time")!.getAttribute("datetime")!),
+      ),
+    );
     expect(dates).toEqual([...dates].sort((a, b) => b - a));
     await shot(page, "list-feed");
-    // An update row opens the project at that update.
-    const row = listRegion(page).locator("[data-event=update]").first();
+    // Comments close together gather under their project, each its own
+    // press, opening at itself.
+    const group = rows.filter({ has: page.locator("[data-feed-comment]") }).first();
+    await expect(group.locator("[data-feed-comment]")).not.toHaveCount(1);
+    const second = group.locator("[data-feed-comment]").nth(1);
+    const commentId = await second.getAttribute("data-feed-comment");
+    await second.click();
+    await expect(
+      page.locator(`[data-comment-id="${commentId}"]`).first(),
+    ).toBeInViewport();
+    await page.goBack();
+    // What happened leads; the project is quietly above it. Other specs add
+    // updates, so the newest may be an update or a seeded comment.
+    const row = listRegion(page)
+      .locator("[data-event=update], [data-event=comment]")
+      .first();
     const id = await row.getAttribute("data-feed-id");
-    await row.getByRole("heading").getByRole("button").click();
+    const kind = await row.getAttribute("data-event");
+    const seed = seedProjects.find((item) => item.id === id);
+    if (seed)
+      await expect(row.locator("[data-feed-context]")).toHaveText(seed.title);
+    if (seed && kind === "update")
+      await expect(row).toContainText(getProjectUpdates(seed)[0].title);
+    await row.getByRole("button").first().click();
     await expect(page).toHaveURL(new RegExp(`/prosjekt/${id}`));
     await expect(
-      page.locator("#project-sections").getByRole("button", { name: /^Oppdateringer/ }),
+      page.locator("#project-sections").getByRole("button", {
+        name: kind === "update" ? /^Oppdateringer/ : /^Kommentarer/,
+      }),
     ).toHaveAttribute("aria-pressed", "true");
   });
 
@@ -910,23 +947,74 @@ test.describe("desktop explorer", () => {
     page,
   }) => {
     await page.goto(oslo);
-    const outside = page.getByRole("button", {
-      name: /^Vis \d+ prosjekter? utenfor kartet$/,
+    await expect(
+      page.getByRole("status", { name: /^\d+ synlige? prosjekte?r?$/ }),
+    ).toBeVisible();
+    const total = page.getByRole("button", {
+      name: /^\d+ totalt, vis alle på kartet$/,
     });
-    await expect(outside).toBeVisible();
+    await expect(total).toBeVisible();
     await expect(
       page
         .getByRole("region", { name: "Filtrer prosjekter", exact: true })
         .getByRole("button", { name: /^Sted: / }),
     ).not.toHaveText("Hele Norge");
-    await outside.click();
+    await shot(page, "list-count-outside");
+    await total.click();
     // Framed on every match, nothing is left outside.
-    await expect(outside).toHaveCount(0);
+    await expect(total).toHaveCount(0);
+    await expect(
+      page.getByRole("status", { name: /^\d+ prosjekter$/ }),
+    ).toBeVisible();
     await expect(
       page
         .getByRole("region", { name: "Filtrer prosjekter", exact: true })
         .getByRole("button", { name: /^Sted: / }),
     ).toHaveText("Hele Norge");
+  });
+
+  test("a place in view is counted too, and frames the map on it", async ({
+    page,
+  }) => {
+    // Zoomed in on central Oslo: fewer in view than in Oslo, fewer there
+    // than in all.
+    await page.goto("/?kart=59.9100,10.7500,14");
+    const inOslo = page.getByRole("button", {
+      name: /^\d+ i Oslo, vis Oslo på kartet$/,
+    });
+    await expect(inOslo).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /^\d+ totalt, vis alle på kartet$/ }),
+    ).toBeVisible();
+    const count = Number(
+      (await inOslo.getAttribute("aria-label"))!.match(/^\d+/)![0],
+    );
+    await shot(page, "list-count-place");
+    // "Nytt" counts what's in view and the place, not every match.
+    const nytt = page
+      .getByRole("group", { name: "Visning" })
+      .getByRole("button", { name: "Nytt" });
+    await expect(async () => {
+      await nytt.click();
+      await expect(nytt).toHaveAttribute("aria-pressed", "true", {
+        timeout: 1000,
+      });
+    }).toPass();
+    await expect(
+      page.getByRole("status", { name: /^Nytt fra \d+ synlige prosjekter$/ }),
+    ).toBeVisible();
+    await expect(inOslo).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /totalt, vis alle på kartet$/ }),
+    ).toHaveCount(0);
+    await inOslo.click();
+    // Framed on Oslo, all of Oslo is in view.
+    await expect(inOslo).toHaveCount(0);
+    await expect(
+      page.getByRole("status", {
+        name: new RegExp(`^Nytt fra ${count} synlige prosjekter$`),
+      }),
+    ).toBeVisible();
   });
 
   test("the end of the list offers a missing project", async ({ page }) => {
@@ -982,24 +1070,24 @@ test.describe("desktop explorer", () => {
     const count = page.getByRole("status", { name: /prosjekter?$/ });
     await count.click();
     await expect(search).toBeHidden();
-    // Left with words, the button stays marked and the words become a chip.
+    // Left with words, the button stays marked, and the filters can be reset.
     await button.click();
     await search.fill("Bergen");
     await count.click();
     await expect(search).toBeHidden();
     await expect(button).toHaveAttribute("data-active", "true");
-    const chip = page.getByRole("button", {
-      name: "Fjern filter: «Bergen»",
+    const reset = page.getByRole("button", {
+      name: "Nullstill filtre",
       exact: true,
     });
-    await expect(chip).toBeVisible();
+    await expect(reset).toBeVisible();
     await shot(page, "desktop-search-active");
     await button.click();
     await expect(search).toHaveValue("Bergen");
     await page.getByRole("button", { name: "Lukk søk", exact: true }).click();
     await expect(search).toBeHidden();
     await expect(button).not.toHaveAttribute("data-active");
-    await expect(chip).toBeHidden();
+    await expect(reset).toBeHidden();
   });
 
   test("the list switches between expanded cards and compact rows", async ({
@@ -1126,7 +1214,7 @@ test.describe("desktop explorer", () => {
     });
     // A dot per status shown, a ring for finished ones, hidden by default.
     const trigger = filters.getByRole("button", {
-      name: "Prosjektstatus: Forslag, Planlagt, Under bygging",
+      name: "Prosjektstatus: Foreslått, Planlagt, Under bygging",
       exact: true,
     });
     await expect(trigger.locator("[data-status-dots]")).toHaveAttribute(
@@ -1142,14 +1230,14 @@ test.describe("desktop explorer", () => {
       menu.getByRole("option", { selected: true }).locator("svg.lucide-check"),
     ).toHaveCount(3);
     await shot(page, "desktop-status-menu");
-    await menu.getByRole("option", { name: /^Forslag/ }).click();
+    await menu.getByRole("option", { name: /^Foreslått/ }).click();
     await menu.getByRole("option", { name: /^Planlagt/ }).click();
     // The last status shown stays shown.
     await menu.getByRole("option", { name: /^Under bygging/ }).click();
     await expect(menu.getByRole("option", { selected: true })).toHaveCount(1);
     await expect(page).toHaveURL(/status=construction/);
     // All of them is no filter.
-    await menu.getByRole("option", { name: /^Forslag/ }).click();
+    await menu.getByRole("option", { name: /^Foreslått/ }).click();
     await menu.getByRole("option", { name: /^Planlagt/ }).click();
     await menu.getByRole("option", { name: /^Ferdigstilt/ }).click();
     await expect(menu.getByRole("option", { selected: true })).toHaveCount(4);
@@ -1158,8 +1246,9 @@ test.describe("desktop explorer", () => {
     await expect(
       filters.locator("[data-status-dots]"),
     ).toHaveAttribute("data-status-dots", "all");
+    // Every status differs from the default: a filter to reset.
     await expect(
-      page.getByRole("button", { name: "Fjern filter: Alle statuser", exact: true }),
+      page.getByRole("button", { name: "Nullstill filtre", exact: true }),
     ).toBeVisible();
   });
 
@@ -1184,25 +1273,30 @@ test.describe("desktop explorer", () => {
       name: "Filtrer prosjekter",
       exact: true,
     });
-    const active = page.getByRole("list", { name: "Aktive filtre" });
+    const reset = page.getByRole("button", {
+      name: "Nullstill filtre",
+      exact: true,
+    });
     // No place filter: the map is the place.
-    await expect(active).toBeHidden();
+    await expect(reset).toBeHidden();
     await filters
       .getByRole("button", {
-        name: "Prosjektstatus: Forslag, Planlagt, Under bygging",
+        name: "Prosjektstatus: Foreslått, Planlagt, Under bygging",
         exact: true,
       })
       .click();
     const status = page.getByRole("listbox", { name: "Prosjektstatus", exact: true });
-    await status.getByRole("option", { name: /^Forslag/ }).click();
+    await status.getByRole("option", { name: /^Foreslått/ }).click();
     await status.getByRole("option", { name: /^Planlagt/ }).click();
     await page.keyboard.press("Escape");
-    await expect(
-      active.getByRole("button", {
-        name: "Fjern filter: Under bygging",
-        exact: true,
-      }),
-    ).toBeVisible();
+    // One filter set is enough to offer the reset. The status pill never
+    // reads as set: its dots say what's shown.
+    await expect(reset).toBeVisible();
+    const statusTrigger = filters.getByRole("button", {
+      name: "Prosjektstatus: Under bygging",
+      exact: true,
+    });
+    await expect(statusTrigger).toHaveCSS("font-weight", "500");
     // Main categories first; a chosen one opens its subcategories.
     const [main, sub] = project.categories;
     await filters.getByRole("button", { name: "Kategori", exact: true }).click();
@@ -1241,9 +1335,13 @@ test.describe("desktop explorer", () => {
     await subOption.click();
     await expect(subOption).toHaveAttribute("aria-selected", "true");
     await page.keyboard.press("Escape");
-    await expect(
-      active.getByRole("button", { name: /^Fjern filter/ }),
-    ).toHaveCount(2);
+    // A set filter's pill: a firmer edge and bolder words, no fill.
+    const categoryTrigger = filters.getByRole("button", { name: /^Kategori/ });
+    await expect(categoryTrigger).toHaveCSS("font-weight", "600");
+    await expect(categoryTrigger).toHaveCSS(
+      "background-color",
+      await statusTrigger.evaluate((el) => getComputedStyle(el).backgroundColor),
+    );
     await expect(page).toHaveURL(
       new RegExp(`status=construction&kategori=${main},${sub}`),
     );
@@ -1256,13 +1354,10 @@ test.describe("desktop explorer", () => {
     const listed = seedProjects.filter((seed) => ids.includes(seed.id));
     expect(listed.length).toBeGreaterThan(0);
     for (const seed of listed) expect(seed.categories).toContain(sub);
-    // The last subcategory's chip takes its main category along.
-    await active
-      .getByRole("button", { name: `Fjern filter: ${sub}` })
-      .click();
-    await expect(
-      active.getByRole("button", { name: /^Fjern filter/ }),
-    ).toHaveCount(1);
+    await categoryTrigger.click();
+    await subOption.click();
+    await page.keyboard.press("Escape");
+    await expect(page).not.toHaveURL(/kategori=/);
     await page.getByRole("button", { name: /^Sorter prosjekter:/ }).click();
     const sort = page.getByRole("listbox", {
       name: "Sorter prosjekter",
@@ -1315,15 +1410,15 @@ test.describe("desktop explorer", () => {
       listRegion(page).getByRole("heading", { name: "Ingen treff", exact: true }),
     ).toBeVisible();
     await page
-      .getByRole("button", { name: /^Vis \d+ treff utenfor kartet$/ })
+      .getByRole("button", { name: /^Vis \d+ treff$/ })
       .click();
     await expect(card(page, "Bybanen til Åsane")).toBeVisible();
     await expect.poll(() => mapParam(page)).toMatch(/^60\./);
     await expect(page).toHaveURL(/[?&]q=Bergen&/);
     await page.reload();
-    // Reopened, the words wait behind the button, and in a chip.
+    // Reopened, the words wait behind the button.
     await expect(
-      page.getByRole("button", { name: "Fjern filter: «Bergen»", exact: true }),
+      page.getByRole("button", { name: "Nullstill filtre", exact: true }),
     ).toBeVisible();
     await page.getByRole("button", { name: "Åpne søk", exact: true }).click();
     await expect(search).toHaveValue("Bergen");
@@ -1386,7 +1481,7 @@ test.describe("desktop explorer", () => {
     await page
       .getByRole("region", { name: "Filtrer prosjekter", exact: true })
       .getByRole("button", {
-        name: "Prosjektstatus: Forslag, Planlagt, Under bygging",
+        name: "Prosjektstatus: Foreslått, Planlagt, Under bygging",
         exact: true,
       })
       .click();

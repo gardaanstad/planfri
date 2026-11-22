@@ -34,6 +34,8 @@ export const seedProjects: Project[] = [
     city: "Oslo",
     categories: ["Byutvikling", "Bolig", "Byrom og park"],
     status: "construction",
+    // Planned and started, with no date for when it was first proposed.
+    phaseDates: { planned: "2019", construction: "2023-04" },
     image: "/images/bjorvika.jpg",
     imageCredit: "HAV Eiendom · Clemenskvartalet (illustrasjonsfoto)",
     imageSource: "https://haveiendom.no/portefolje/clemenskvartalet/",

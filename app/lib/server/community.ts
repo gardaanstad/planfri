@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { getDb } from "../db/client";
 import {
@@ -25,8 +25,9 @@ import { serverNow } from "./clock";
 const week = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * Comment counts per project, with each project's newest comment; one
- * project's if `projectId` is given.
+ * Comment counts per project, with each project's newest comments: those
+ * within a week of its newest, newest first. One project's if `projectId`
+ * is given.
  */
 async function readActivity(projectId?: string) {
   const db = getDb();
@@ -36,16 +37,26 @@ async function readActivity(projectId?: string) {
     ne(comment.text, ""),
     projectId ? eq(comment.projectId, projectId) : undefined,
   );
-  const newest = db
+  const withNewest = db
     .select({
+      id: comment.id,
       projectId: comment.projectId,
-      date: sql<string>`max(${comment.date})`.as("newest_date"),
+      author:
+        sql<string>`coalesce(${user.username}, ${comment.seedAuthor}, 'slettet_bruker')`.as(
+          "author",
+        ),
+      text: comment.text,
+      date: comment.date,
+      newest:
+        sql<string>`max(${comment.date}) over (partition by ${comment.projectId})`.as(
+          "newest",
+        ),
     })
     .from(comment)
+    .leftJoin(user, eq(comment.userId, user.id))
     .where(live)
-    .groupBy(comment.projectId)
-    .as("newest");
-  const [rows, latestRows] = await Promise.all([
+    .as("with_newest");
+  const [rows, recentRows] = await Promise.all([
     db
       .select({
         projectId: comment.projectId,
@@ -56,44 +67,44 @@ async function readActivity(projectId?: string) {
       .where(live)
       .groupBy(comment.projectId),
     db
-      .select({
-        id: comment.id,
-        projectId: comment.projectId,
-        author: sql<string>`coalesce(${user.username}, ${comment.seedAuthor}, 'slettet_bruker')`,
-        text: comment.text,
-        date: comment.date,
-      })
-      .from(comment)
-      .innerJoin(
-        newest,
-        and(
-          eq(comment.projectId, newest.projectId),
-          eq(comment.date, newest.date),
-          ne(comment.text, ""),
-        ),
+      .select()
+      .from(withNewest)
+      .where(
+        sql`${withNewest.date} = ${withNewest.newest} or ${withNewest.date} >= strftime('%Y-%m-%dT%H:%M:%S', ${withNewest.newest}, '-7 days')`,
       )
-      .leftJoin(user, eq(comment.userId, user.id))
-      .orderBy(comment.id),
+      .orderBy(desc(withNewest.date), withNewest.id),
   ]);
-  const latest = new Map<string, LatestComment>();
-  for (const { projectId, text, ...row } of latestRows)
-    if (!latest.has(projectId))
-      latest.set(projectId, {
-        ...row,
-        text:
-          text.length > latestLength
-            ? `${text.slice(0, latestLength).trimEnd()}…`
-            : text,
-      });
+  const recent = new Map<string, LatestComment[]>();
+  for (const { id, projectId, author, text, date } of recentRows) {
+    const list = recent.get(projectId) ?? [];
+    list.push({
+      id,
+      author,
+      date,
+      text:
+        text.length > latestLength
+          ? `${text.slice(0, latestLength).trimEnd()}…`
+          : text,
+    });
+    recent.set(projectId, list);
+  }
   return Object.fromEntries(
-    rows.map(({ projectId, ...counts }) => [
-      projectId,
-      { ...counts, latest: latest.get(projectId) },
-    ]),
+    rows.map(({ projectId, ...counts }) => {
+      const list = recent.get(projectId) ?? [];
+      return [
+        projectId,
+        {
+          ...counts,
+          latest: list.slice(0, latestShown),
+          latestMore: Math.max(0, list.length - latestShown),
+        },
+      ];
+    }),
   ) as Record<string, ProjectActivity>;
 }
-// Enough for two lines of the "Nytt" view.
+// Enough for two lines of a comment in "Nytt", and its few newest.
 const latestLength = 200;
+const latestShown = 3;
 
 /**
  * Everything the explorer shows. `suggestions` counts pending suggestions:

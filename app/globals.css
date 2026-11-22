@@ -40,8 +40,8 @@
   --color-diff-remove-ink: color-mix(in srgb, var(--color-danger) 88%, var(--color-ink));
   --color-diff-add: color-mix(in srgb, #2f8a4f 15%, var(--color-surface));
   --color-diff-add-ink: color-mix(in srgb, #2f8a4f 62%, var(--color-ink));
-  --color-status-proposed: #a084b8;
-  --color-status-proposed-ink: #7a5d92;
+  --color-status-proposed: #9ca39f;
+  --color-status-proposed-ink: #646d68;
   --color-status-planned: #7383ba;
   --color-status-planned-ink: #596999;
   --color-status-construction: #d59a42;
@@ -255,7 +255,7 @@
       --color-on-accent: #04140c;
       --color-on-danger: #1f0705;
       --color-scrim: #000000;
-      --color-status-proposed-ink: #c6addb;
+      --color-status-proposed-ink: #b0b7b3;
       --color-status-planned-ink: #a3b0dd;
       --color-status-construction-ink: #e3b062;
       --color-status-completed-ink: #7cc0a5;

@@ -4,6 +4,9 @@ import { AlertCircle, ArrowRight, RotateCcw } from "lucide-react";
 import {
   categoryLabels,
   centroid,
+  datedPhases,
+  formatPhaseDate,
+  type PhaseDates,
   ownPhotos,
   projectPlace,
   statuses,
@@ -20,6 +23,7 @@ export type FieldId =
   | "images"
   | "status"
   | "year"
+  | "dates"
   | "categories"
   | "place"
   | "developer"
@@ -75,6 +79,24 @@ export const fields: Record<
     show: (p) => p.year || "–",
     error: (p) => (/^(\d{4})?$/.test(p.year) ? undefined : "Bruk fire sifre"),
   },
+  dates: {
+    label: "Datoer",
+    keys: ["phaseDates"],
+    show: (p) =>
+      datedPhases
+        .filter((phase) => p.phaseDates?.[phase])
+        .map(
+          (phase) =>
+            `${phaseNames[phase]} ${formatPhaseDate(p.phaseDates![phase]!)}`,
+        )
+        .join(" · ") || "–",
+    error: (p) =>
+      datedPhases.every((phase) =>
+        /^\d{4}(-(0[1-9]|1[0-2]))?$/.test(p.phaseDates?.[phase] ?? "0000"),
+      )
+        ? undefined
+        : "Bruk år, eller måned.år",
+  },
   categories: {
     label: "Kategori",
     keys: ["categories"],
@@ -114,12 +136,43 @@ export const fields: Record<
 };
 const fieldOrder = Object.keys(fields) as FieldId[];
 
+/** What each dated phase's start is called in the editors. */
+export const phaseNames: Record<(typeof datedPhases)[number], string> = {
+  proposed: "Foreslått",
+  planned: "Planlagt",
+  construction: "Byggestart",
+};
+
+/** `2024-03` as typed in a field: `03.2024`. */
+const typedDate = (date: string) => date.split("-").reverse().join(".");
+
+/** What's typed (`2024`, `3.2024`) as stored (`2024-03`); unclear text stays. */
+function storedDate(text: string) {
+  const typed = text.trim();
+  const month = /^(\d{1,2})[./-](\d{4})$/.exec(typed);
+  if (month) return `${month[2]}-${month[1].padStart(2, "0")}`;
+  return typed;
+}
+
+function mapDates(
+  dates: PhaseDates | undefined,
+  map: (date: string) => string,
+) {
+  const next: PhaseDates = {};
+  for (const phase of datedPhases) {
+    const date = dates?.[phase] && map(dates[phase]);
+    if (date) next[phase] = date;
+  }
+  return next;
+}
+
 /** Fallback values read as empty fields while editing. */
 export function toDraft(project: Project): Project {
   return {
     ...project,
     district: project.district === project.city ? "" : project.district,
     developer: project.developer === unknownDeveloper ? "" : project.developer,
+    phaseDates: mapDates(project.phaseDates, typedDate),
   };
 }
 
@@ -132,7 +185,9 @@ export function finalize(project: Project): Project {
     description: project.description.trim(),
     city,
     district: project.district.trim() || city,
-    year: project.year.trim(),
+    // Only once it's more than a proposal does a project get a year.
+    year: project.status === "proposed" ? "" : project.year.trim(),
+    phaseDates: mapDates(project.phaseDates, storedDate),
     developer: project.developer.trim() || unknownDeveloper,
     website: project.website?.trim() || undefined,
   };
@@ -500,6 +555,48 @@ export function EditBar({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * When the project was proposed, planned and started: each optional, a year
+ * or a month (`3.2024`), side by side.
+ */
+export function PhaseDateInputs({
+  value,
+  onChange,
+  inputClassName,
+  idPrefix,
+}: {
+  value: PhaseDates | undefined;
+  onChange: (dates: PhaseDates) => void;
+  inputClassName: string;
+  idPrefix: string;
+}) {
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {datedPhases.map((phase) => (
+        <div key={phase} className="min-w-0">
+          <label
+            htmlFor={`${idPrefix}-${phase}`}
+            className="mb-1 block truncate text-2xs leading-4 text-muted"
+          >
+            {phaseNames[phase]}
+          </label>
+          <input
+            id={`${idPrefix}-${phase}`}
+            className={cn(inputClassName, "w-full tabular-nums")}
+            inputMode="decimal"
+            maxLength={7}
+            placeholder="åååå"
+            value={value?.[phase] ?? ""}
+            onChange={(event) =>
+              onChange({ ...value, [phase]: event.target.value })
+            }
+          />
+        </div>
+      ))}
     </div>
   );
 }

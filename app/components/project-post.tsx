@@ -24,7 +24,9 @@ import {
 import {
   arrangePhotos,
   categoryLabels,
+  finishYear,
   formatDateYear,
+  formatPhaseDate,
   getProjectUpdates,
   presetPlaces,
   type Project,
@@ -53,7 +55,8 @@ import {
 } from "../lib/ui";
 import DrawingMap from "./drawing-map";
 import ProjectPostHeader from "./project-post-header";
-import ProjectDiscussion from "./project-discussion";
+import ProjectDiscussion, { DiscussionSortSelect } from "./project-discussion";
+import type { DiscussionSort } from "../lib/discussion";
 import CategoryIcon from "./category-icon";
 import CategoryPicker from "./category-picker";
 import RelativeTime from "./relative-time";
@@ -66,6 +69,7 @@ import {
   changesToSave,
   EditBar,
   EditField,
+  PhaseDateInputs,
   editInput,
   editState,
   type EditStage,
@@ -166,13 +170,15 @@ function ProjectFacts({
         />
         {statuses[project.status].label}
       </Fact>
-      <Fact
-        label={
-          project.status === "completed" ? "Ferdigstilt" : "Ferdigstilles"
-        }
-      >
-        {project.year || "–"}
-      </Fact>
+      {project.status !== "proposed" && (
+        <Fact
+          label={
+            project.status === "completed" ? "Ferdigstilt" : "Ferdigstilles"
+          }
+        >
+          {project.year || "–"}
+        </Fact>
+      )}
       <Fact label={labels.length > 1 ? "Kategorier" : "Kategori"}>
         <span className="flex flex-wrap justify-end gap-x-3 gap-y-1">
           {labels.map((category) => (
@@ -264,18 +270,29 @@ function EditFacts() {
           ))}
         </select>
       </EditField>
-      <EditField
-        id="year"
-        label={draft.status === "completed" ? "Ferdigstilt" : "Ferdigstilles"}
-      >
-        <input
-          className={editInput}
-          aria-label="Årstall"
-          inputMode="numeric"
-          maxLength={4}
-          placeholder="2030"
-          value={draft.year}
-          onChange={(event) => change({ year: event.target.value })}
+      {/* A proposal has no year it's done. */}
+      {draft.status !== "proposed" && (
+        <EditField
+          id="year"
+          label={draft.status === "completed" ? "Ferdigstilt" : "Ferdigstilles"}
+        >
+          <input
+            className={editInput}
+            aria-label="Årstall"
+            inputMode="numeric"
+            maxLength={4}
+            placeholder="2030"
+            value={draft.year}
+            onChange={(event) => change({ year: event.target.value })}
+          />
+        </EditField>
+      )}
+      <EditField id="dates" wide>
+        <PhaseDateInputs
+          idPrefix={`edit-${draft.id}`}
+          inputClassName={editInput}
+          value={draft.phaseDates}
+          onChange={(phaseDates) => change({ phaseDates })}
         />
       </EditField>
       <EditField id="categories" wide>
@@ -540,59 +557,119 @@ function ProjectMeta({ project }: { project: Project }) {
           </a>
         )}
       </p>
-      <PhaseStrip project={project} />
+      <PhaseTimeline project={project} />
     </div>
   );
 }
 
-// The strip's own words: short, so four fit side by side on a phone.
+// The timeline's own words: short, so four fit side by side on a phone.
 const phaseLabels: Record<Status, string> = {
-  proposed: "Forslag",
+  proposed: "Foreslått",
   planned: "Planlagt",
   construction: "Under bygging",
   completed: "Ferdig",
 };
 
+/** When each phase began, or for "Ferdig" the year it's done or due. */
+function phaseDate(project: Project, status: Status) {
+  if (status === "completed") return finishYear(project);
+  const date = project.phaseDates?.[status];
+  return date ? formatPhaseDate(date) : "";
+}
+
+// Each step's place along the line: the ends at the edges, the middle two
+// centred on their dots.
+const phaseSpots = [
+  "left-0 text-left",
+  "left-1/3 -translate-x-1/2 text-center",
+  "left-2/3 -translate-x-1/2 text-center",
+  "right-0 text-right",
+];
+
 /**
- * The phases a project passes through, filled up to where it stands, in its
- * status colour. The last step carries the year it's done.
+ * The phases a project passes through, on a line across the panel: those
+ * behind it quiet, the one it's in marked in its status colour, those ahead
+ * hollow. Each step carries its date when it has one.
  */
-function PhaseStrip({ project }: { project: Project }) {
+function PhaseTimeline({ project }: { project: Project }) {
   const current = statusOrder.indexOf(project.status);
+  const dates = statusOrder.map((status) => phaseDate(project, status));
+  const dated = dates.some(Boolean);
+  const last = statusOrder.length - 1;
   return (
-    <ol
-      className="mt-2.5 grid grid-cols-4 gap-1"
-      aria-label="Fase"
-      data-phase-strip={project.status}
-    >
-      {statusOrder.map((status, index) => (
-        <li
-          key={status}
-          className="min-w-0"
-          aria-current={index === current ? "step" : undefined}
-        >
+    <div className="mt-3">
+      <div className="relative h-2.5" aria-hidden="true">
+        {statusOrder.slice(0, last).map((status, index) => (
           <span
+            key={status}
             className={cn(
-              "block h-1 rounded-full",
-              index <= current
-                ? statusTone[project.status].dot
-                : "bg-border-strong/70",
+              "absolute top-1/2 h-px w-1/3 -translate-y-1/2",
+              index < current ? "bg-ink-soft/40" : "bg-border",
             )}
+            style={{ left: `${(index * 100) / last}%` }}
           />
-          <span
+        ))}
+        {statusOrder.map((status, index) => (
+          <i
+            key={status}
             className={cn(
-              "mt-1.5 block truncate text-2xs leading-4",
-              index === current ? "font-medium text-ink" : "text-muted",
+              "absolute top-1/2 -translate-y-1/2 rounded-full",
+              index === 0
+                ? "translate-x-0"
+                : index === last
+                  ? "-translate-x-full"
+                  : "-translate-x-1/2",
+              index === current
+                ? [
+                    "size-2.5 ring-3",
+                    statusTone[project.status].dot,
+                    statusTone[project.status].ring,
+                  ]
+                : index < current
+                  ? "size-1.5 bg-ink-soft/60"
+                  : "size-1.5 border border-border-strong bg-surface",
             )}
+            style={{ left: `${(index * 100) / last}%` }}
+          />
+        ))}
+      </div>
+      <ol
+        className={cn("relative mt-1.5", dated ? "h-8" : "h-4")}
+        aria-label="Fase"
+        data-phase-strip={project.status}
+      >
+        {statusOrder.map((status, index) => (
+          <li
+            key={status}
+            className={cn(
+              "absolute top-0 text-2xs leading-4 whitespace-nowrap",
+              phaseSpots[index],
+            )}
+            aria-current={index === current ? "step" : undefined}
+            data-phase={status}
           >
-            {phaseLabels[status]}
-            {index === statusOrder.length - 1 && project.year && (
-              <span className="tabular-nums"> {project.year}</span>
+            <span
+              className={cn(
+                "block",
+                index === current
+                  ? "font-medium text-ink"
+                  : index < current
+                    ? "text-ink-soft"
+                    : "text-muted",
+              )}
+            >
+              {phaseLabels[status]}
+            </span>
+            {dates[index] && (
+              <span className="block text-muted tabular-nums">
+                <span className="sr-only">, </span>
+                {dates[index]}
+              </span>
             )}
-          </span>
-        </li>
-      ))}
-    </ol>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 
@@ -1281,6 +1358,8 @@ export default function ProjectPost({
   const { mutate, suggest } = useCommunity();
   const onUpdate = (next: Project) =>
     mutate({ action: "project", project: next, create: false });
+  const [discussionSort, setDiscussionSort] =
+    useState<DiscussionSort>("relevant");
   // A project with updates opens on them; a linked comment opens its tab.
   const [tab, setTab] = useState<string>(
     () =>
@@ -1597,7 +1676,7 @@ export default function ProjectPost({
               id="project-sections"
               aria-label="Prosjektinnhold"
             >
-              <div className="flex gap-6">
+              <div className="flex items-center gap-6">
                 {tabs.map(({ id, label, icon: Icon }) => (
                   <button
                     type="button"
@@ -1616,6 +1695,18 @@ export default function ProjectPost({
                     <span>{label}</span>
                   </button>
                 ))}
+                {/* The comments' order, on their tab's own line. */}
+                {tab === "discussion" &&
+                  (comments?.filter((comment) => !comment.deleted).length ??
+                    0) > 1 && (
+                    // Narrow, its icon alone; the menu names the order.
+                    <div className="ml-auto max-sm:[&_[data-slot=choice-trigger]>span]:sr-only">
+                      <DiscussionSortSelect
+                        value={discussionSort}
+                        onChange={setDiscussionSort}
+                      />
+                    </div>
+                  )}
               </div>
             </nav>
             <div
@@ -1632,6 +1723,8 @@ export default function ProjectPost({
                       comments={comments}
                       updates={updates}
                       initialCommentId={initialCommentId}
+                      sort={discussionSort}
+                      onSortChange={setDiscussionSort}
                       onReadUpdate={readUpdate}
                       onNotify={onNotify}
                     />
