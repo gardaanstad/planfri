@@ -26,7 +26,7 @@ export function useMediaQuery(query: string, serverValue = false) {
 
 /** Bottom sheets leave quicker than they arrive: a short slide down. */
 export const sheetLeave = {
-  duration: 120,
-  easing: "cubic-bezier(0.4, 0, 1, 1)",
+  duration: 90,
+  easing: "cubic-bezier(0.3, 0, 0.8, 0.4)",
   fill: "forwards",
 } as const;

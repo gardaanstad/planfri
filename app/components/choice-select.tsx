@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { flushSync } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import { cn } from "../lib/cn";
 import { mobileQuery, reducedMotion, sheetLeave } from "../lib/media";
@@ -243,12 +244,11 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
     );
     leaving.current = [out, fade];
     const done = () => {
-      setOpen(false);
-      // Hidden by the next frame; it opens again from rest.
-      requestAnimationFrame(() => {
-        leaving.current?.forEach((animation) => animation.cancel());
-        leaving.current = null;
-      });
+      // Hidden first, in the same frame, so letting go of the slide can't
+      // show it back at rest; it opens again from there.
+      flushSync(() => setOpen(false));
+      leaving.current?.forEach((animation) => animation.cancel());
+      leaving.current = null;
     };
     out.finished.then(done, done);
   }
