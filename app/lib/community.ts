@@ -34,7 +34,12 @@ export type CommunityData = {
 
 /** What each community mutation answers: only what it changed. */
 export type MutationResult =
-  | { action: "comment"; projectId: string; comments: Comment[]; activity: ProjectActivity }
+  | {
+      action: "comment" | "delete-comment";
+      projectId: string;
+      comments: Comment[];
+      activity: ProjectActivity;
+    }
   | { action: "vote"; commentId: string; value: number; votes: number }
   | { action: "save"; projectId: string; saved: boolean }
   | { action: "project"; project: Project };

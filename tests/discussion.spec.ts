@@ -531,3 +531,127 @@ test("a vote shows at once and goes back if the server refuses it", async ({
   await expect(count).toHaveText(String(before));
   await expect(page.getByText("Serveren svarte ikke.").first()).toBeVisible();
 });
+
+/** Posts a comment as `account` and returns its id. */
+async function postComment(
+  request: Parameters<typeof mutation>[0],
+  account: Awaited<ReturnType<typeof member>>,
+  text: string,
+  parentId?: string,
+) {
+  const response = await mutation(
+    request,
+    "/api/community",
+    { action: "comment", projectId: project.id, text, parentId },
+    account,
+  );
+  expect(response.ok()).toBe(true);
+  const { comments } = await response.json();
+  return comments.find((c: Comment) => c.text === text).id as string;
+}
+
+test("only a comment's author deletes it; one with replies stays as a placeholder until they go", async ({
+  request,
+}) => {
+  const author = await member({ username: uniqueName() });
+  const other = await member({ username: uniqueName() });
+  const root = await postComment(request, author, `Slett meg ${randomUUID()}`);
+  const reply = await postComment(request, other, `Svar ${randomUUID()}`, root);
+  const remove = (commentId: string, account: typeof author) =>
+    mutation(
+      request,
+      "/api/community",
+      { action: "delete-comment", commentId },
+      account,
+    );
+  expect((await remove(root, other)).status()).toBe(403);
+  expect(
+    (
+      await mutation(request, "/api/community", {
+        action: "delete-comment",
+        commentId: root,
+      })
+    ).status(),
+  ).toBe(401);
+  const deleted = await remove(root, author);
+  expect(deleted.ok()).toBe(true);
+  const { comments } = await deleted.json();
+  expect(comments.find((c: Comment) => c.id === root)).toMatchObject({
+    deleted: true,
+    author: "",
+    text: "",
+  });
+  expect(comments.find((c: Comment) => c.id === reply).parentId).toBe(root);
+  // Gone from its author's profile, and deleted only once.
+  const own = await (
+    await request.get(`/api/comments?author=${author.username}`)
+  ).json();
+  expect(own.comments).toEqual([]);
+  expect((await remove(root, author)).status()).toBe(404);
+  // The last reply going takes the placeholder with it.
+  const last = await (await remove(reply, other)).json();
+  expect(
+    last.comments.some((c: Comment) => c.id === root || c.id === reply),
+  ).toBe(false);
+});
+
+test("the menu on your own comment deletes it, from a dropdown or a phone's sheet", async ({
+  page,
+  context,
+  request,
+}) => {
+  const author = await member({ username: uniqueName() });
+  const other = await member({ username: uniqueName() });
+  await signIn(context, author);
+  const withReply = await postComment(request, author, `Med svar ${randomUUID()}`);
+  const replyText = `Svar ${randomUUID()}`;
+  await postComment(request, other, replyText, withReply);
+  const alone = await postComment(request, author, `Alene ${randomUUID()}`);
+  await page.goto(path);
+  const discussion = page.getByRole("region", {
+    name: "Kommentarer",
+    exact: true,
+  });
+  // Only your own comments have the menu.
+  await expect(
+    discussion
+      .locator('[data-comment-id="c1"]')
+      .first()
+      .locator("[data-comment-menu]")
+      .first(),
+  ).toHaveCount(0);
+  const thread = discussion.locator(`[data-comment-id="${withReply}"]`);
+  const menu = thread
+    .getByRole("button", { name: "Valg for kommentaren" })
+    .first();
+  await expect(async () => {
+    await menu.click();
+    await expect(page.getByRole("menuitem", { name: "Slett" })).toBeVisible({
+      timeout: 1000,
+    });
+  }).toPass();
+  await shot(page, "comment-menu");
+  await page.getByRole("menuitem", { name: "Slett" }).click();
+  const confirm = page.getByRole("dialog", { name: "Slette kommentaren?" });
+  await expect(confirm.getByText("Svarene blir stående.")).toBeVisible();
+  await shot(page, "comment-delete-confirm");
+  await confirm.getByRole("button", { name: "Slett", exact: true }).click();
+  await expect(thread.getByText("Slettet kommentar")).toBeVisible();
+  await expect(thread.getByText(replyText)).toBeVisible();
+  await thread.scrollIntoViewIfNeeded();
+  await shot(page, "comment-placeholder");
+  await expect(
+    thread.getByRole("button", { name: "Valg for kommentaren" }),
+  ).toHaveCount(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const single = discussion.locator(`[data-comment-id="${alone}"]`);
+  await single.getByRole("button", { name: "Valg for kommentaren" }).click();
+  const sheet = page.getByRole("dialog", { name: "Valg for kommentaren" });
+  await shot(page, "comment-menu-sheet");
+  await sheet.getByRole("button", { name: "Slett" }).click();
+  const phoneConfirm = page.getByRole("dialog", { name: "Slette kommentaren?" });
+  await expect(phoneConfirm.getByText("Svarene blir stående.")).toHaveCount(0);
+  await phoneConfirm.getByRole("button", { name: "Slett", exact: true }).click();
+  await expect(single).toHaveCount(0);
+});

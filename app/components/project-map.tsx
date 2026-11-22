@@ -59,6 +59,46 @@ const shapeStyle = (line: boolean, selected: boolean) => ({
   fillOpacity: selected ? 0.34 : 0.2,
 });
 const dotRadius = (selected: boolean) => (selected ? 8 : 6);
+
+type DotRenderer = L.SVG & {
+  _layers: Record<string, L.CircleMarker & { _point: L.Point; _path: SVGElement }>;
+  _reset(): void;
+  _onZoom(): void;
+  _onAnimZoom(event: L.ZoomAnimEvent): void;
+};
+
+/**
+ * An SVG renderer for dots that keep their size while the map zooms, like
+ * markers. Leaflet's own scales its drawing until the zoom ends, which blows
+ * a dot up into a blurry disc while the map zooms in to a project.
+ */
+function dotSvg(map: L.Map) {
+  const pane =
+    map.getPane("projectDots") ??
+    map.createPane("projectDots", map.getPane("overlayPane"));
+  // Over the shapes, in the overlay pane so their styles still apply.
+  pane.style.zIndex = "1";
+  const renderer = L.svg({ pane: "projectDots" }) as DotRenderer;
+  const dots = () => Object.values(renderer._layers);
+  // Flying and pinching: redrawn at the new scale on every frame.
+  renderer._onZoom = () => {
+    renderer._reset();
+    for (const dot of dots()) dot._path.style.transform = "";
+  };
+  // An animated zoom: each dot slides to where it lands, with the tiles.
+  renderer._onAnimZoom = ({ center, zoom }) => {
+    const internal = map as unknown as {
+      _latLngToNewLayerPoint(at: L.LatLng, zoom: number, center: L.LatLng): L.Point;
+    };
+    for (const dot of dots()) {
+      const offset = internal
+        ._latLngToNewLayerPoint(dot.getLatLng(), zoom, center)
+        .subtract(dot._point);
+      dot._path.style.transform = `translate(${offset.x}px, ${offset.y}px)`;
+    }
+  };
+  return renderer;
+}
 // Below this zoom areas collapse to dots and nearby projects group together.
 const clusterZoom = 12;
 // Screen distance within which projects join a group.
@@ -224,8 +264,8 @@ export type MapApi = {
    */
   center: (points: Point[], options?: { bottom?: number; maxZoom?: number }) => void;
   /**
-   * Shows the view; with `area`, zoomed out as far as needed for that area
-   * to stay in sight above a sheet that has grown since.
+   * Shows the view; with `area`, the middle of that area is centered above
+   * a sheet that may have grown since, at the view's zoom.
    */
   show: (view: MapView, area?: ViewBounds) => void;
   showNorway: () => void;
@@ -769,29 +809,20 @@ export default function ProjectMap({
       },
       show(view, area) {
         settled(() => {
+          // At the zoom it had, the middle of that area centered in the part
+          // of the map the sheet now leaves open.
           const bottom = inset();
-          const bounds = area
-            ? L.latLngBounds([area.south, area.west], [area.north, area.east])
-            : null;
-          const zoom = bounds
-            ? Math.min(
+          const center = area
+            ? map.unproject(
+                map
+                  .project([area.south, area.west], view.zoom)
+                  .add(map.project([area.north, area.east], view.zoom))
+                  .divideBy(2)
+                  .add([0, bottom / 2]),
                 view.zoom,
-                map.getBoundsZoom(bounds, false, L.point(0, bottom)),
               )
-            : view.zoom;
-          // Centered in the part of the map the sheet leaves open.
-          const center =
-            bounds && zoom < view.zoom
-              ? map.unproject(
-                  map
-                    .project(bounds.getSouthWest(), zoom)
-                    .add(map.project(bounds.getNorthEast(), zoom))
-                    .divideBy(2)
-                    .add([0, bottom / 2]),
-                  zoom,
-                )
-              : view.center;
-          map.setView(center, zoom, { animate: !reducedMotion() });
+            : view.center;
+          map.setView(center, view.zoom, { animate: !reducedMotion() });
         });
       },
       showNorway: () => settled(() => showNorway(!reducedMotion())),
@@ -824,6 +855,7 @@ export default function ProjectMap({
     if (!ready || !map) return;
     const group = L.layerGroup().addTo(map);
     const dots = L.layerGroup().addTo(map);
+    const dotRenderer = dotSvg(map);
     const clusters = L.layerGroup().addTo(map);
     const drawn = drawnRef.current;
     // Thin and dashed alignments get an invisible, wider band to hit.
@@ -913,7 +945,9 @@ export default function ProjectMap({
       const dot = L.circleMarker(
         line ? lineMidpoint(project.geometry) : project.center,
         {
-          className: "project-dot",
+          // Slides along with the tiles while the map zooms; see dotSvg.
+          className: "project-dot leaflet-zoom-animated",
+          renderer: dotRenderer,
           radius: dotRadius(selected),
           weight: 2,
           fillColor: color,
@@ -1136,6 +1170,50 @@ export default function ProjectMap({
         element.focus({ preventScroll: true });
       shape.closeTooltip();
     };
+    // A hovered card's project shows its tooltip centred over it: over the
+    // group it sits in, its dot, the midpoint of its line or the top of its
+    // area, kept on the map for an area larger than the view.
+    const hint = L.tooltip({
+      ...tooltipOptions,
+      sticky: false,
+      interactive: false,
+    });
+    let hintId: string | null = null;
+    const placeHint = () => {
+      const id = highlightedRef.current;
+      const entry = id ? drawn.get(id) : undefined;
+      if (!id || !entry || id === selectedRef.current) {
+        hint.remove();
+        hintId = null;
+        return;
+      }
+      const { project, shape, dot } = entry;
+      const group = groupOf.get(id);
+      const line = project.geometryType === "line";
+      const area = !group && !line && !dots.hasLayer(dot);
+      const bounds = area ? shape.getBounds() : undefined;
+      const at = group
+        ? group.getLatLng()
+        : bounds
+          ? L.latLng(
+              Math.min(bounds.getNorth(), map.getBounds().getNorth()),
+              bounds.getCenter().lng,
+            )
+          : dot.getLatLng();
+      // Clear of the marker or line the tooltip points at.
+      const lift = group
+        ? (group.getElement()?.offsetHeight ?? 32) / 2
+        : dots.hasLayer(dot)
+          ? dotRadius(true) + 1
+          : line
+            ? lineWeight(true) / 2
+            : 2;
+      hint.options.offset = [0, -(lift + 4)];
+      if (hintId !== id) hint.setContent(projectTooltip(project));
+      hintId = id;
+      hint.setLatLng(at);
+      if (!map.hasLayer(hint)) hint.addTo(map);
+    };
     // Projects that stay keep their layers; changed ones are drawn afresh.
     const drawProjects = (projects: Project[]) => {
       const wanted = new Map(projects.map((project) => [project.id, project]));
@@ -1170,19 +1248,29 @@ export default function ProjectMap({
       }
       cluster();
       style(highlightedRef.current);
+      placeHint();
     };
-    styleRef.current = style;
-    clusterRef.current = cluster;
+    styleRef.current = (id) => {
+      style(id);
+      placeHint();
+    };
+    clusterRef.current = () => {
+      cluster();
+      placeHint();
+    };
     drawProjectsRef.current = drawProjects;
-    map.on("zoomend", cluster);
+    const regroup = clusterRef.current;
+    map.on("zoomend", regroup);
     return () => {
-      map.off("zoomend", cluster);
+      map.off("zoomend", regroup);
+      hint.remove();
       clusterRef.current = () => {};
       styleRef.current = () => {};
       drawProjectsRef.current = () => {};
       groupOf.clear();
       group.remove();
       dots.remove();
+      dotRenderer.remove();
       clusters.remove();
       drawn.clear();
     };

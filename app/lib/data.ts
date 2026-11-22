@@ -153,6 +153,8 @@ export type Comment = {
   date: string;
   votes: number;
   parentId?: string;
+  /** Deleted by its author after others replied: kept, without author or text. */
+  deleted?: boolean;
 };
 /** Empty, or an old category tile: the project has no photo of its own. */
 export function hasPhoto(project: Pick<Project, "image">) {

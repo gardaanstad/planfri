@@ -84,6 +84,7 @@ import { OsmPanel, useOsmModeStored, useOsmReview } from "./osm-review";
 import ProjectPost from "./project-post";
 import ProjectCard from "./project-card";
 import { FeedRow, feedEntries } from "./activity-feed";
+import { useListMotion } from "./use-list-motion";
 import PanelResizer from "./panel-resizer";
 import SavedProjects from "./saved-projects";
 import { useUnread } from "./unread-provider";
@@ -134,10 +135,7 @@ import {
 import { openProfileEvent } from "../lib/profile-overlay";
 import ProfileOverlay from "./profile-overlay";
 import SuggestionList from "./suggestion-list";
-import {
-  MaximizeButton,
-  type SidebarMode,
-} from "./sidebar-panel";
+import { MaximizeButton, type SidebarMode } from "./sidebar-panel";
 import {
   iconButton,
   primaryButton,
@@ -186,6 +184,8 @@ const controlsSlotClasses = cn(
   "[&_[data-map-controls]]:bottom-[15px]!",
 );
 /** Hides the map controls in a slot while its drawer would cover them. */
+const projectKey = (project: Project) => project.id;
+
 function coverControls(slot: HTMLElement | null, motion: DrawerMotion) {
   if (!slot) return;
   const covered = motion.visible > window.innerHeight * middleSnapPoint + 2;
@@ -480,8 +480,7 @@ export default memo(function Explorer({
     allowed: canModerate,
     projects,
     // Clear of the bar and card over the top of the map.
-    onFrame: (points) =>
-      mapApi.current?.fit(points, { maxZoom: 14, top: 230 }),
+    onFrame: (points) => mapApi.current?.fit(points, { maxZoom: 14, top: 230 }),
     // The list slides aside or back as the mode turns on or off.
     beforeToggle: () => {
       if (!isMobile && !collapsedPref && !maximized) animateFrom();
@@ -489,8 +488,7 @@ export default memo(function Explorer({
   });
 
   const openSearch = useCallback(() => {
-    if (postId || profileName || modal || savedOnly || suggestionsOpen)
-      return;
+    if (postId || profileName || modal || savedOnly || suggestionsOpen) return;
     // Focus during the tap so mobile browsers also open the keyboard.
     flushSync(() => {
       setSearchOpen(true);
@@ -540,12 +538,9 @@ export default memo(function Explorer({
   const headerNavRef = useRef<HTMLElement>(null);
   const headerOverflow = useHeaderOverflow(
     headerNavRef,
-    [
-      "theme",
-      user && "add",
-      canModerate && "suggestions",
-      "maximize",
-    ].filter((id): id is string => Boolean(id)),
+    ["theme", user && "add", canModerate && "suggestions", "maximize"].filter(
+      (id): id is string => Boolean(id),
+    ),
   );
   /** The header's width plus the sidebar's border. */
   function headerWidth(all: boolean) {
@@ -560,8 +555,8 @@ export default memo(function Explorer({
     postView.current = null;
     // Back to where the project was opened from; the list follows when the
     // map settles. Opened by link, the list takes the area around it.
-    // Phones: the list holds what is in sight above the drawer, which may
-    // have grown since, so all of that area comes back into sight.
+    // Phones: the list may rest higher than it did, so the middle of what
+    // was in sight comes back above it, at the zoom it had.
     if (view.before)
       mapApi.current?.show(
         view.before,
@@ -654,7 +649,8 @@ export default memo(function Explorer({
 
   // Before the map reports its view (and on the server) the list covers
   // Norway. Maximized, the map is out of sight and the place filters instead.
-  const listBounds = maximized && !isMobile ? null : (frozenBounds ?? viewBounds);
+  const listBounds =
+    maximized && !isMobile ? null : (frozenBounds ?? viewBounds);
   const listPlace = maximized && !isMobile ? place : "";
   const {
     placesOf,
@@ -719,8 +715,7 @@ export default memo(function Explorer({
     onClosedOverMaximized: () => minimize(),
   });
   const panelClosing = !postId && leaving("project");
-  if (!postId && !panelClosing && panelPostId)
-    setPanelPostId(null);
+  if (!postId && !panelClosing && panelPostId) setPanelPostId(null);
   if (!profileName && !leaving("profile") && panelProfileName)
     setPanelProfileName(null);
   function projectsInView(view: MapViewChange) {
@@ -776,8 +771,7 @@ export default memo(function Explorer({
     placeHold.current = { name: found ? name : "", until: Date.now() + 1500 };
     if (isMobile) setSnapPoint(compactSnapPoint);
     // On phones, framed above the compact drawer it steps to.
-    if (found)
-      mapApi.current?.fit(extentPoints(found.extent), { maxZoom: 14 });
+    if (found) mapApi.current?.fit(extentPoints(found.extent), { maxZoom: 14 });
     else mapApi.current?.showNorway();
   }
   function pickPlace(name: string) {
@@ -909,9 +903,7 @@ export default memo(function Explorer({
   useLayoutEffect(() => {
     if (
       postId ||
-      (!meetPost.current &&
-        !meetPending.current &&
-        !raiseBehindPost.current)
+      (!meetPost.current && !meetPending.current && !raiseBehindPost.current)
     )
       return;
     meetPost.current = false;
@@ -920,15 +912,9 @@ export default memo(function Explorer({
     setSnapPoint(middleSnapPoint);
   }, [postId]);
 
-  function openPost(
-    id: string,
-    target: PostTarget = {},
-    overMap = false,
-  ) {
+  function openPost(id: string, target: PostTarget = {}, overMap = false) {
     setPostTarget(target);
-    setPostSnap(
-      isMobile && overMap ? { id, point: middleSnapPoint } : null,
-    );
+    setPostSnap(isMobile && overMap ? { id, point: middleSnapPoint } : null);
     // Before the map moves, so closing returns to where it was.
     enterPostView(id);
     const project = projects.find((item) => item.id === id);
@@ -972,7 +958,8 @@ export default memo(function Explorer({
       const trigger = projectTriggerRef.current;
       if (trigger?.isConnected && focusTrigger)
         trigger.focus({ preventScroll: true });
-      else if (isMobile) drawerHandleRef.current?.focus({ preventScroll: true });
+      else if (isMobile)
+        drawerHandleRef.current?.focus({ preventScroll: true });
       else searchTriggerRef.current?.focus({ preventScroll: true });
     });
     if (state.projectOverlay) {
@@ -1437,7 +1424,8 @@ export default memo(function Explorer({
           key={value}
           type="button"
           className={cn(
-            "inline-flex size-7 items-center justify-center rounded-md text-muted pointer-coarse:size-8 transition-[color,background-color,box-shadow] duration-150 motion-reduce:transition-none",
+            // Instant: the pressed pill moves with the press, as the list does.
+            "inline-flex size-7 items-center justify-center rounded-md text-muted pointer-coarse:size-8",
             "hover:text-ink aria-pressed:bg-surface aria-pressed:text-ink aria-pressed:shadow-xs",
           )}
           aria-label={label}
@@ -1608,6 +1596,12 @@ export default memo(function Explorer({
     hoveredId.current = next;
     mapApi.current?.highlight(next);
   }, []);
+  const listRows = useListMotion(
+    listedProjects,
+    projectKey,
+    listRef,
+    "data-card-id",
+  );
   const projectResults = (
     <section
       ref={listRef}
@@ -1677,17 +1671,7 @@ export default memo(function Explorer({
             {density !== "feed" && sortFilter}
           </div>
         </div>
-        {listedProjects.length === 0 ? (
-          <EmptyState
-            level={2}
-            icon={
-              filtersChanged ? <Search size={22} /> : <MapPin size={22} />
-            }
-            title={filtersChanged ? "Ingen treff" : "Ingen prosjekter her"}
-          >
-            {emptyActions}
-          </EmptyState>
-        ) : density === "feed" ? (
+        {density === "feed" && listedProjects.length > 0 ? (
           <ol aria-label="Nytt">
             {feed.map((entry) => (
               <FeedRow
@@ -1700,21 +1684,40 @@ export default memo(function Explorer({
             ))}
           </ol>
         ) : (
-          <ol>
-            {listedProjects.map((project) => (
-              <ProjectCard
-                key={project.id}
-                project={project}
-                commentCount={activity[project.id]?.comments ?? 0}
-                density={density}
-                saved={savedIds.has(project.id)}
-                news={news.get(project.id)}
-                onOpen={openListCard}
-                onSave={saveCard}
-                onHover={hoverCard}
-              />
-            ))}
-          </ol>
+          <>
+            {/* Kept when empty, so rows filtered out can fade in it. */}
+            <ol className="relative" data-list-motion="">
+              {listRows.map((project) => (
+                <ProjectCard
+                  key={project.id}
+                  project={project}
+                  commentCount={activity[project.id]?.comments ?? 0}
+                  density={density === "feed" ? "compact" : density}
+                  saved={savedIds.has(project.id)}
+                  news={news.get(project.id)}
+                  onOpen={openListCard}
+                  onSave={saveCard}
+                  onHover={hoverCard}
+                />
+              ))}
+            </ol>
+            {listRows.length === 0 && (
+              // Fades in as the last rows fade out over it.
+              <div className="animate-panel-fade-in">
+                <EmptyState
+                  level={2}
+                  icon={
+                    filtersChanged ? <Search size={22} /> : <MapPin size={22} />
+                  }
+                  title={
+                    filtersChanged ? "Ingen treff" : "Ingen prosjekter her"
+                  }
+                >
+                  {emptyActions}
+                </EmptyState>
+              </div>
+            )}
+          </>
         )}
         <div className="flex justify-center pt-6">
           <button
@@ -1756,9 +1759,7 @@ export default memo(function Explorer({
   const missingProject = (
     <div className="flex min-h-[250px] flex-col items-center justify-center gap-[18px] px-6 py-[55px] text-center text-muted">
       <MapPin size={28} />
-      <h2 className="text-body font-medium text-ink">
-        Prosjektet finnes ikke
-      </h2>
+      <h2 className="text-body font-medium text-ink">Prosjektet finnes ikke</h2>
       <button className={primaryCta} onClick={() => closePost()}>
         Tilbake til prosjektene
       </button>
@@ -1961,17 +1962,22 @@ export default memo(function Explorer({
     ] as (OverflowAction | false | null | undefined | "")[]
   ).filter(
     (action): action is OverflowAction =>
-      Boolean(action) && headerOverflow.hidden.has((action as OverflowAction).id),
+      Boolean(action) &&
+      headerOverflow.hidden.has((action as OverflowAction).id),
   );
   const sidebarToggle = (
     <button
       type="button"
       className={cn(compactIconAction, "text-muted hover:text-ink")}
       aria-label={
-        sidebarMode === "collapsed" ? "Vis prosjektlisten" : "Skjul prosjektlisten"
+        sidebarMode === "collapsed"
+          ? "Vis prosjektlisten"
+          : "Skjul prosjektlisten"
       }
       data-tooltip={
-        sidebarMode === "collapsed" ? "Vis prosjektlisten" : "Skjul prosjektlisten"
+        sidebarMode === "collapsed"
+          ? "Vis prosjektlisten"
+          : "Skjul prosjektlisten"
       }
       aria-expanded={sidebarMode !== "collapsed"}
       aria-controls="project-panel"
@@ -2125,7 +2131,9 @@ export default memo(function Explorer({
               {user && (
                 <button
                   className={cn(compactIconAction, "text-muted")}
-                  aria-label={canModerate ? "Nytt prosjekt" : "Foreslå prosjekt"}
+                  aria-label={
+                    canModerate ? "Nytt prosjekt" : "Foreslå prosjekt"
+                  }
                   onClick={() => openEditor()}
                 >
                   <Plus size={21} />
@@ -2282,7 +2290,8 @@ export default memo(function Explorer({
                 // Without the toggle, the logo gets the same room each side.
                 osmFocus ? "pr-6" : "pr-2",
                 "transition-shadow duration-320 ease-out-soft starting:shadow-none",
-                sidebarMode === "collapsed" && "shadow-[2px_2px_16px_rgb(20_28_24/0.12)]",
+                sidebarMode === "collapsed" &&
+                  "shadow-[2px_2px_16px_rgb(20_28_24/0.12)]",
               )}
               data-sidebar-tab=""
             >
@@ -2312,8 +2321,8 @@ export default memo(function Explorer({
                 // Left of the maximize button, the header's last, or last
                 // itself once that is in the menu.
                 headerOverflow.hidden.has("maximize")
-                  ? "left-[calc(var(--sidebar-width)-0.75rem-2.75rem)]"
-                  : "left-[calc(var(--sidebar-width)-0.75rem-5.625rem)]",
+                ? "left-[calc(var(--sidebar-width)-0.75rem-2.75rem)]"
+                : "left-[calc(var(--sidebar-width)-0.75rem-5.625rem)]",
               sidebarMode === "maximized" && "pointer-events-none opacity-0",
             )}
             style={
@@ -2372,18 +2381,18 @@ export default memo(function Explorer({
                 {inline(
                   "add",
                   user && (
-                  <button
-                    className={cn(compactIconAction, "text-muted")}
-                    aria-label={
-                      canModerate ? "Legg til prosjekt" : "Foreslå prosjekt"
-                    }
-                    data-tooltip={
-                      canModerate ? "Legg til prosjekt" : "Foreslå prosjekt"
-                    }
-                    onClick={() => openEditor()}
-                  >
-                    <Plus size={20} />
-                  </button>
+                    <button
+                      className={cn(compactIconAction, "text-muted")}
+                      aria-label={
+                        canModerate ? "Legg til prosjekt" : "Foreslå prosjekt"
+                      }
+                      data-tooltip={
+                        canModerate ? "Legg til prosjekt" : "Foreslå prosjekt"
+                      }
+                      onClick={() => openEditor()}
+                    >
+                      <Plus size={20} />
+                    </button>
                   ),
                 )}
                 {inline("theme", <ThemeToggle />)}
@@ -2489,7 +2498,11 @@ export default memo(function Explorer({
             onPanStart={onMapPan}
             bottomInset={isMobile ? mobileMapInset : undefined}
             controlsContainer={
-              isMobile ? (postOverMap ? postControlsSlot : controlsSlot) : undefined
+              isMobile
+                ? postOverMap
+                  ? postControlsSlot
+                  : controlsSlot
+                : undefined
             }
             selectedId={selectedId}
             onSelect={(id) =>

@@ -311,11 +311,11 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expect(page).toHaveURL(atList);
     await expect(drawer).toBeHidden();
     await expectDrawerHeight(page, 0.58);
-    // Back to the area it was opened from, zoomed out to keep all of it in
-    // sight above the list, which now rests higher than the folded one did.
+    // Back to the area it was opened from at the zoom it had, its middle
+    // above the list, which now rests higher than the folded one did.
     await expect
       .poll(() => new URL(page.url()).searchParams.get("kart"))
-      .toMatch(/^59\.\d+,10\.7500,12(\.5)?$/);
+      .toMatch(/^59\.\d+,10\.7500,13$/);
   });
 
   test("the list rests at the middle height, the map above it", async ({
@@ -1058,7 +1058,16 @@ test.describe("desktop explorer", () => {
     await page.goBack();
     const titleTop = await first.getByRole("heading").boundingBox();
 
-    // The switch acts as the mouse button goes down.
+    // Tag the photo, to tell whether it outlives the switches.
+    await first.locator("img").first().evaluate((img) => {
+      img.dataset.kept = "";
+    });
+
+    // The switch acts as the mouse button goes down, and shows it at once.
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    expect(
+      await compact.evaluate((button) => getComputedStyle(button).transitionDuration),
+    ).toBe("0s");
     await compact.hover();
     await page.mouse.down();
     await expect(compact).toHaveAttribute("aria-pressed", "true");
@@ -1078,6 +1087,15 @@ test.describe("desktop explorer", () => {
     await shot(page, "list-compact");
     await cards.nth(1).hover();
     await shot(page, "list-compact-hover");
+
+    // Back to expanded, the photos are the ones already shown, not loaded
+    // anew with a blank frame.
+    await expanded.click();
+    await expect(cards.first()).toHaveAttribute("data-density", "expanded");
+    await expect(
+      first.getByRole("group", { name: /^Bilder av / }).locator("img[data-kept]"),
+    ).toBeVisible();
+    await compact.click();
 
     // The choice is kept in this browser.
     await page.reload();
@@ -1335,6 +1353,29 @@ test.describe("desktop explorer", () => {
     expect(await list.evaluate((element) => element.scrollTop)).toBe(top);
   });
 
+  test("hovering a card shows its tooltip over the middle of its shape", async ({
+    page,
+  }) => {
+    await page.goto(oslo);
+    const tooltip = page.locator(".project-tooltip");
+    await card(page, project.title).hover();
+    await expect(tooltip).toHaveCount(1);
+    await expect(tooltip).toContainText(project.title);
+    const shape = (await page
+      .locator(`path[data-project-id="${project.id}"]`)
+      .boundingBox())!;
+    const box = (await tooltip.boundingBox())!;
+    // Centred just above the shape, pointing down at it.
+    expect(
+      Math.abs(box.x + box.width / 2 - (shape.x + shape.width / 2)),
+    ).toBeLessThan(2);
+    expect(box.y + box.height).toBeLessThanOrEqual(shape.y);
+    expect(box.y + box.height).toBeGreaterThan(shape.y - 16);
+    await shot(page, "card-hover-tooltip");
+    await page.mouse.move(1000, 790);
+    await expect(tooltip).toHaveCount(0);
+  });
+
   test("filtering draws only the shapes that come and go", async ({ page }) => {
     await page.goto(oslo);
     const kept = page.locator(`path[data-project-id="${project.id}"]`);
@@ -1381,6 +1422,15 @@ test.describe("desktop explorer", () => {
     // The project stays in its group instead of being pulled out of it.
     await expect(page.locator(`path[data-project-id="${project.id}"]`)).toBeHidden();
     await expect(page.locator(".project-cluster.is-highlighted")).toHaveCount(1);
+    // Its tooltip points at the group.
+    const tooltip = page.locator(".project-tooltip");
+    await expect(tooltip).toContainText(project.title);
+    const marker = (await group.boundingBox())!;
+    const box = (await tooltip.boundingBox())!;
+    expect(
+      Math.abs(box.x + box.width / 2 - (marker.x + marker.width / 2)),
+    ).toBeLessThan(2);
+    expect(box.y + box.height).toBeLessThanOrEqual(marker.y);
     await page.mouse.move(1000, 790);
     await expect(group).not.toHaveClass(/is-highlighted/);
     expect(

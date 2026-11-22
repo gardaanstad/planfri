@@ -259,12 +259,13 @@ export function CommunityProvider({
           });
         }
         case "comment":
+        case "delete-comment":
           update((data) => ({
             ...data,
             activity: { ...data.activity, [result.projectId]: result.activity },
           }));
           setList(projectComments(result.projectId), result.comments);
-          // The author's own list, if a profile shows it, has a new comment.
+          // The author's own list, if a profile shows it, has changed too.
           return reloadWatched((list) => list.startsWith("author:"));
         case "project":
           return update((data) => {
