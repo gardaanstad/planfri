@@ -432,8 +432,8 @@ type Props = {
   initialView?: MapView | null;
   onViewChange?: (view: MapViewChange) => void;
   onReady?: (api: MapApi) => void;
-  /** The user starts panning the map by hand. */
-  onPanStart?: () => void;
+  /** The user starts panning or zooming the map by hand: a drag, a pinch or a double tap. */
+  onGestureStart?: () => void;
   /**
    * The user moves the map by hand in any way: a drag, a pinch, the wheel,
    * a double tap, the keyboard or the zoom buttons.
@@ -474,7 +474,7 @@ export default function ProjectMap({
   initialView = null,
   onViewChange,
   onReady,
-  onPanStart,
+  onGestureStart,
   onUserMove,
   bottomInset,
   selectedId = null,
@@ -512,7 +512,7 @@ export default function ProjectMap({
     onSelect: (id: string | null) => void;
       onViewChange?: (view: MapViewChange) => void;
     onReady?: (api: MapApi) => void;
-    onPanStart?: () => void;
+    onGestureStart?: () => void;
     onUserMove?: () => void;
     bottomInset?: () => number;
     draw: boolean;
@@ -574,7 +574,7 @@ export default function ProjectMap({
       onSelect,
       onViewChange,
       onReady,
-      onPanStart,
+      onGestureStart,
       onUserMove,
       bottomInset,
       draw,
@@ -586,7 +586,7 @@ export default function ProjectMap({
     onSelect,
     onViewChange,
     onReady,
-    onPanStart,
+    onGestureStart,
     onUserMove,
     bottomInset,
     draw,
@@ -620,7 +620,7 @@ export default function ProjectMap({
     });
     map.on("dragstart", () => {
       handlers.current.onUserMove?.();
-      handlers.current.onPanStart?.();
+      handlers.current.onGestureStart?.();
     });
     // The container grows and shrinks as panels beside it open, close and
     // resize. The geography on screen stays where it is: the edge that moves
@@ -691,15 +691,19 @@ export default function ProjectMap({
     // Moves by hand other than a drag; the map's own framing moves it too,
     // so its events can't tell them apart.
     const userMove = () => handlers.current.onUserMove?.();
+    const gesture = () => {
+      userMove();
+      handlers.current.onGestureStart?.();
+    };
     const pinch = (event: TouchEvent) => {
-      if (event.touches.length > 1) userMove();
+      if (event.touches.length > 1) gesture();
     };
     const keyMove = (event: KeyboardEvent) => {
       if (/^(Arrow\w+|\+|-|=)$/.test(event.key)) userMove();
     };
     element.addEventListener("wheel", userMove, { passive: true });
     element.addEventListener("touchstart", pinch, { passive: true });
-    element.addEventListener("dblclick", userMove);
+    element.addEventListener("dblclick", gesture);
     element.addEventListener("keydown", keyMove);
     setReady(true);
     return () => {
@@ -708,7 +712,7 @@ export default function ProjectMap({
       element.removeEventListener("touchmove", claimTouch);
       element.removeEventListener("wheel", userMove);
       element.removeEventListener("touchstart", pinch);
-      element.removeEventListener("dblclick", userMove);
+      element.removeEventListener("dblclick", gesture);
       element.removeEventListener("keydown", keyMove);
       syncRef.current = () => {};
       mapRef.current = null;
