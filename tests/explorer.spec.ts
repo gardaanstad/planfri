@@ -776,7 +776,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     });
     await expect(status).toBeVisible();
     // A quick drag down closes it, from a list that doesn't scroll.
-    await drag(page, status.getByRole("option").nth(1), 160);
+    await drag(page, status.getByRole("option").first(), 180);
     await expect(sheet).toBeHidden();
     await expect(
       filters.getByRole("button", { name: "Filtre", exact: true }),
@@ -976,7 +976,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     const statusRow = sheet.getByRole("button", { name: /^Status/ });
     await expect(categoryRow).toHaveAttribute("aria-expanded", "false");
     await expect(statusRow).toHaveAttribute("aria-expanded", "false");
-    // A row opens its options and puts the other away.
+    // A row opens its options; the other row stays.
     await statusRow.click();
     const status = sheet.getByRole("listbox", {
       name: "Prosjektstatus",
@@ -984,7 +984,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     });
     await expectMenuFits(status);
     await expect(statusRow).toHaveAttribute("aria-expanded", "true");
-    await expect(categoryRow).toBeHidden();
+    await expect(categoryRow).toBeVisible();
     await expect(status.getByRole("option", { selected: true })).toHaveCount(
       3,
     );
@@ -995,12 +995,23 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expect(status.getByRole("option", { selected: true })).toHaveCount(
       4,
     );
-    // Chosen again, it folds back to both rows.
-    await statusRow.click();
-    await expect(status).toBeHidden();
-    await expect(categoryRow).toBeVisible();
+    // Another row opens in its place, below the first.
     await categoryRow.click();
-    await expect(statusRow).toBeHidden();
+    await expect(status).toBeHidden();
+    await expect(statusRow).toHaveAttribute("aria-expanded", "false");
+    await expect(
+      sheet.getByRole("listbox", { name: "Kategori", exact: true }),
+    ).toBeVisible();
+    const categoryBox = await categoryRow.boundingBox();
+    const statusBox = await statusRow.boundingBox();
+    expect(statusBox!.y).toBeGreaterThan(categoryBox!.y);
+    await expect(statusRow).toBeInViewport();
+    // Chosen again, it folds back to both rows.
+    await categoryRow.click();
+    await expect(
+      sheet.getByRole("listbox", { name: "Kategori", exact: true }),
+    ).toBeHidden();
+    await categoryRow.click();
     await sheet
       .getByRole("option", { name: project.categories[0], exact: true })
       .click();
