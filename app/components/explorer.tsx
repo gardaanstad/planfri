@@ -1580,7 +1580,7 @@ export default memo(function Explorer({
         // Beside the view switch, not at the edge: no overhang.
         "mr-0",
         "md:@max-[320px]/list:[&_[data-slot=choice-trigger]>span]:sr-only",
-        // Phones: beside "Visning", a narrow list keeps the icon alone.
+        // Phones: beside the view button, a narrow list keeps the icon alone.
         "max-md:@max-[360px]/list:[&_[data-slot=choice-trigger]>span]:sr-only",
         // Beside the longer count, a narrow list keeps its icon alone too.
         outsideHits > 0 &&
@@ -1591,11 +1591,10 @@ export default memo(function Explorer({
       options={sortOptions}
     />
   );
-  // Phones: one button, its views in a sheet.
+  // Phones: one button naming the view, its views in a sheet.
   const densityMenu = (
     <ChoiceSelect
       label="Visning"
-      triggerLabel="Visning"
       value={density}
       onChange={(value) => storeDensity(value as ListDensity)}
       className={sortChoice}
