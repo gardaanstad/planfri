@@ -93,6 +93,12 @@ type DotRenderer = L.SVG & {
   _onAnimZoom(event: L.ZoomAnimEvent): void;
 };
 
+type PanRenderer = L.Renderer & {
+  _bounds?: L.Bounds;
+  _zoom?: number;
+  _update(): void;
+};
+
 /**
  * An SVG renderer for dots that keep their size while the map zooms, like
  * markers. Leaflet's own scales its drawing until the zoom ends, which blows
@@ -636,6 +642,31 @@ export default function ProjectMap({
       if (event.cancelable && map.dragging.enabled()) event.preventDefault();
     };
     element.addEventListener("touchmove", claimTouch, { passive: false });
+    // Shapes are drawn and clipped to the view plus a margin, and Leaflet
+    // only redraws them once the map settles, so a long pan cut lines off at
+    // the old edge. Redraw while panning, but only on the frames where the
+    // view has left the drawn area, not on every one.
+    const renderers = new Set<PanRenderer>();
+    map.on("layeradd", ({ layer }) => {
+      if (layer instanceof L.Renderer) renderers.add(layer as PanRenderer);
+    });
+    map.on("layerremove", ({ layer }) => {
+      renderers.delete(layer as PanRenderer);
+    });
+    map.on("move", () => {
+      if (!renderers.size) return;
+      const size = map.getSize();
+      const view = L.bounds(
+        map.containerPointToLayerPoint([0, 0]),
+        map.containerPointToLayerPoint(size),
+      );
+      const zoom = map.getZoom();
+      for (const renderer of renderers) {
+        // Zooming scales the drawing instead; shapes are reprojected after.
+        if (renderer._zoom !== zoom || !renderer._bounds) continue;
+        if (!renderer._bounds.contains(view)) renderer._update();
+      }
+    });
     setReady(true);
     return () => {
       resize.disconnect();
