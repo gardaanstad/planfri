@@ -53,6 +53,46 @@ const shapeStyle = (line: boolean, selected: boolean) => ({
   fillOpacity: selected ? 0.34 : 0.2,
 });
 const dotRadius = (selected: boolean) => (selected ? 8 : 6);
+
+type DotRenderer = L.SVG & {
+  _layers: Record<string, L.CircleMarker & { _point: L.Point; _path: SVGElement }>;
+  _reset(): void;
+  _onZoom(): void;
+  _onAnimZoom(event: L.ZoomAnimEvent): void;
+};
+
+/**
+ * An SVG renderer for dots that keep their size while the map zooms, like
+ * markers. Leaflet's own scales its drawing until the zoom ends, which blows
+ * a dot up into a blurry disc while the map zooms in to a project.
+ */
+function dotSvg(map: L.Map) {
+  const pane =
+    map.getPane("projectDots") ??
+    map.createPane("projectDots", map.getPane("overlayPane"));
+  // Over the shapes, in the overlay pane so their styles still apply.
+  pane.style.zIndex = "1";
+  const renderer = L.svg({ pane: "projectDots" }) as DotRenderer;
+  const dots = () => Object.values(renderer._layers);
+  // Flying and pinching: redrawn at the new scale on every frame.
+  renderer._onZoom = () => {
+    renderer._reset();
+    for (const dot of dots()) dot._path.style.transform = "";
+  };
+  // An animated zoom: each dot slides to where it lands, with the tiles.
+  renderer._onAnimZoom = ({ center, zoom }) => {
+    const internal = map as unknown as {
+      _latLngToNewLayerPoint(at: L.LatLng, zoom: number, center: L.LatLng): L.Point;
+    };
+    for (const dot of dots()) {
+      const offset = internal
+        ._latLngToNewLayerPoint(dot.getLatLng(), zoom, center)
+        .subtract(dot._point);
+      dot._path.style.transform = `translate(${offset.x}px, ${offset.y}px)`;
+    }
+  };
+  return renderer;
+}
 // Below this zoom areas collapse to dots and nearby projects group together.
 const clusterZoom = 12;
 // Screen distance within which projects join a group.
@@ -818,6 +858,7 @@ export default function ProjectMap({
     if (!ready || !map) return;
     const group = L.layerGroup().addTo(map);
     const dots = L.layerGroup().addTo(map);
+    const dotRenderer = dotSvg(map);
     const clusters = L.layerGroup().addTo(map);
     const drawn = drawnRef.current;
     // Thin and dashed alignments get an invisible, wider band to hit.
@@ -907,7 +948,9 @@ export default function ProjectMap({
       const dot = L.circleMarker(
         line ? lineMidpoint(project.geometry) : project.center,
         {
-          className: "project-dot",
+          // Slides along with the tiles while the map zooms; see dotSvg.
+          className: "project-dot leaflet-zoom-animated",
+          renderer: dotRenderer,
           radius: dotRadius(selected),
           weight: 2,
           fillColor: color,
@@ -1230,6 +1273,7 @@ export default function ProjectMap({
       groupOf.clear();
       group.remove();
       dots.remove();
+      dotRenderer.remove();
       clusters.remove();
       drawn.clear();
     };
