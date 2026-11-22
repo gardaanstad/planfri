@@ -286,7 +286,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expect(inOslo).toBeVisible();
     await expect(page.getByRole("group", { name: "Visning" })).toHaveCount(0);
     const views = page.getByRole("button", { name: /^Visning/ });
-    await expect(views).toHaveText("Visning");
+    await expect(views).toHaveText("Kompakt");
     const sort = page.getByRole("button", { name: /^Sorter prosjekter:/ });
 
     // The count, the order and the views share a row; the count wraps
@@ -329,12 +329,12 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     );
     await shot(page, "mobile-views-sheet");
 
-    // Choosing "Nytt" closes the sheet; the order goes, the button stays.
+    // Choosing "Nytt" closes the sheet; the order goes, the button names it.
     await sheet.getByRole("option", { name: "Nytt" }).click();
     await expect(sheet).toBeHidden();
     await expect(list.locator("[data-feed-id]").first()).toBeVisible();
     await expect(sort).toHaveCount(0);
-    await expect(views).toHaveText("Visning");
+    await expect(views).toHaveText("Nytt");
     await expect(views).toHaveAccessibleName("Visning: Nytt");
     await shot(page, "mobile-views-feed");
   });
@@ -579,6 +579,42 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expectDrawerHeight(page, 0.58);
     // A finger across the map above the list, not on the list itself.
     await touchMove(page, { x: 160, y: 100 }, { x: 100, y: 140 }, { steps: 10 });
+    await expectDrawerHeight(page, compact);
+  });
+
+  test("zooming the map folds the list down from the middle height", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await expectDrawerHeight(page, compact);
+    const expand = page.getByRole("button", {
+      name: "Utvid prosjektlisten",
+      exact: true,
+    });
+    await swipeUp(page, expand);
+    await expectDrawerHeight(page, 0.58);
+    // Two fingers spread apart on the map above the list.
+    const session = await page.context().newCDPSession(page);
+    const pinch = (type: "touchStart" | "touchMove" | "touchEnd", spread = 0) =>
+      session.send("Input.dispatchTouchEvent", {
+        type,
+        touchPoints:
+          type === "touchEnd"
+            ? []
+            : [
+                { x: 180, y: 140 - spread, id: 0 },
+                { x: 180, y: 180 + spread, id: 1 },
+              ],
+      });
+    await pinch("touchStart");
+    for (let step = 1; step <= 8; step++) await pinch("touchMove", step * 6);
+    await pinch("touchEnd");
+    await session.detach();
+    await expectDrawerHeight(page, compact);
+    // As does a double tap.
+    await swipeUp(page, expand);
+    await expectDrawerHeight(page, 0.58);
+    await page.locator("[data-project-map]").dblclick({ position: { x: 120, y: 100 } });
     await expectDrawerHeight(page, compact);
   });
 

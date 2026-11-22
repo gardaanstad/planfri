@@ -146,6 +146,17 @@ export const statusTone = {
 export const panelTitle = "text-display max-md:text-[1.5rem]";
 
 /**
+ * A title that may run to several lines: breaks between words, never
+ * clipped; hyphenates only long compounds ("Jernbaneutbyggingen"), and breaks
+ * a word too long for its line anywhere, as a last resort. `anywhere` rather
+ * than `break-word`, so such a word also narrows the box it sits in (a
+ * button, a flex item) instead of pushing it wider. Pair it with
+ * `text-balance` or `text-pretty`, and a line clamp where the room is fixed.
+ */
+export const wrapTitle =
+  "wrap-anywhere hyphens-auto [hyphenate-limit-chars:10_4_4]";
+
+/**
  * How far a panel title's line sits below the top of its controls. On
  * desktop its capitals start as far below the panel's top as its first
  * letter is in from the side, within the 44px buttons' height; on phones,

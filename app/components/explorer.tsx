@@ -836,7 +836,7 @@ export default memo(function Explorer({
   /**
    * On phones, a touch on the map folds a project resting over it down to
    * its header, and the list behind it with it. A tap on a project opens
-   * that one instead (a drag from it still folds; see `onMapPan`).
+   * that one instead (a drag from it still folds; see `onMapGesture`).
    */
   function onMapTouch(event: ReactPointerEvent) {
     const target = event.target;
@@ -880,8 +880,10 @@ export default memo(function Explorer({
   function onMapMove() {
     if (postView.current) postView.current.before = null;
   }
-  /** On phones, panning the map folds the list down out of its way. */
-  function onMapPan() {
+  /**
+   * On phones, panning or zooming the map folds the list down out of its way.
+   */
+  function onMapGesture() {
     if (isMobile) foldPost();
     if (isMobile && !topLayer && snapPoint === middleSnapPoint)
       setSnapPoint(compactSnapPoint);
@@ -1580,7 +1582,7 @@ export default memo(function Explorer({
         // Beside the view switch, not at the edge: no overhang.
         "mr-0",
         "md:@max-[320px]/list:[&_[data-slot=choice-trigger]>span]:sr-only",
-        // Phones: beside "Visning", a narrow list keeps the icon alone.
+        // Phones: beside the view button, a narrow list keeps the icon alone.
         "max-md:@max-[360px]/list:[&_[data-slot=choice-trigger]>span]:sr-only",
         // Beside the longer count, a narrow list keeps its icon alone too.
         outsideHits > 0 &&
@@ -1591,11 +1593,10 @@ export default memo(function Explorer({
       options={sortOptions}
     />
   );
-  // Phones: one button, its views in a sheet.
+  // Phones: one button naming the view, its views in a sheet.
   const densityMenu = (
     <ChoiceSelect
       label="Visning"
-      triggerLabel="Visning"
       value={density}
       onChange={(value) => storeDensity(value as ListDensity)}
       className={sortChoice}
@@ -2749,7 +2750,7 @@ export default memo(function Explorer({
             initialView={initial.view}
             onViewChange={onMapView}
             onReady={onMapReady}
-            onPanStart={onMapPan}
+            onGestureStart={onMapGesture}
             onUserMove={onMapMove}
             bottomInset={isMobile ? mobileMapInset : undefined}
             controlsContainer={
