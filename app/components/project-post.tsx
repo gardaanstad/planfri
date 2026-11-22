@@ -458,25 +458,39 @@ function laterElements(node: Element, root: Element) {
  * from where it was, and each part's clip eases from its old height to its
  * new one. Only transforms and clips animate, so the post below the intro
  * (images, updates, discussion) is laid out once rather than 20 times.
+ * When `change` scrolls, `frame`, which holds the rest, slides back too, so
+ * the scroll eases on the same timing rather than adding a second motion.
  */
 function morph(
   parts: HTMLElement[],
   movers: HTMLElement[],
   change: () => void,
+  frame?: HTMLElement,
 ): Animation[] {
   const all = [...parts, ...movers];
-  const before = all.map((el) => ({
-    top: el.getBoundingClientRect().top,
-    height: el.offsetHeight,
-  }));
+  // Whole-pixel offsetHeight would leave the clips a fraction off.
+  const before = all.map((el) => el.getBoundingClientRect());
+  const frameTop = frame?.getBoundingClientRect().top ?? 0;
   change();
   const animations: Animation[] = [];
+  // Started first, so what the frame holds is measured from its start.
+  const scrolled = frame ? frameTop - frame.getBoundingClientRect().top : 0;
+  if (frame && Math.abs(scrolled) >= 0.5)
+    animations.push(
+      frame.animate(
+        [
+          { transform: `translateY(${scrolled}px)` },
+          { transform: "translateY(0)" },
+        ],
+        introMotion,
+      ),
+    );
   all.forEach((el, i) => {
     const dy = before[i].top - el.getBoundingClientRect().top;
     // A part's clip runs from its old height to its new one: inside its new
     // box when it grows, past it (a negative inset) when it shrinks. A part
     // can keep its box and give up the space with a negative margin instead.
-    const box = el.offsetHeight;
+    const box = el.getBoundingClientRect().height;
     const height = box + (parseFloat(el.style.marginBottom) || 0);
     const inset = i < parts.length ? box - before[i].height : 0;
     const end = i < parts.length ? box - height : 0;
@@ -630,11 +644,9 @@ function ProjectIntro({ project }: { project: Project }) {
     }
     const still = reducedMotion();
     if (!open) expandPanel?.();
-    if (open) {
-      // Collapsing returns to the top, so reading resumes from the start.
-      scroller.scrollTo({ top: 0, behavior: still ? "auto" : "smooth" });
-    }
     if (still) {
+      // Collapsing returns to the top, so reading resumes from the start.
+      if (open) scroller.scrollTop = 0;
       flushSync(() => {
         setOpen(!open);
         setClamped(open);
@@ -657,7 +669,7 @@ function ProjectIntro({ project }: { project: Project }) {
     };
     // Scroll anchoring would shift the post under the animation.
     scroller.style.overflowAnchor = "none";
-    const copyHeight = copy.offsetHeight;
+    const copyHeight = copy.getBoundingClientRect().height;
     let animations: Animation[];
     let done: () => void;
     if (open) {
@@ -667,16 +679,27 @@ function ProjectIntro({ project }: { project: Project }) {
       const lines =
         parseFloat(style.lineHeight) *
         (Number(style.getPropertyValue("--intro-lines")) || 2);
-      const target = Math.min(lines, copy.scrollHeight);
-      animations = morph(parts, movers, () => {
-        copy.style.marginBottom = `${target - copy.offsetHeight}px`;
-        for (const el of parts) el.style.overflow = "visible";
-        flushSync(() => {
-          setOpen(false);
-          setStuck(false);
-          setMoving(true);
-        });
-      });
+      const target = Math.min(lines, copyHeight);
+      // Collapsing returns to the top, so reading resumes from the start. The
+      // jump there plays as part of the slide.
+      const frame = [...scroller.children].find((child) =>
+        child.contains(intro),
+      ) as HTMLElement | undefined;
+      animations = morph(
+        parts,
+        movers,
+        () => {
+          copy.style.marginBottom = `${target - copyHeight}px`;
+          for (const el of parts) el.style.overflow = "visible";
+          flushSync(() => {
+            setOpen(false);
+            setStuck(false);
+            setMoving(true);
+          });
+          scroller.scrollTop = 0;
+        },
+        frame,
+      );
       // Clamped in the same frame the inline height goes, so nothing flashes.
       done = () => {
         flushSync(() => setClamped(true));
@@ -703,7 +726,7 @@ function ProjectIntro({ project }: { project: Project }) {
           {
             maskSize: [
               `100% ${copyHeight}px`,
-              `100% ${copy.offsetHeight + (parseFloat(copy.style.marginBottom) || 0)}px`,
+              `100% ${copy.getBoundingClientRect().height + (parseFloat(copy.style.marginBottom) || 0)}px`,
             ],
           },
           introMotion,
