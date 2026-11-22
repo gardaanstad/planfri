@@ -360,6 +360,39 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expectDrawerHeight(page, 1);
   });
 
+  test("a scrolled list at the middle height scrolls back to its top before the drawer folds", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await swipeUp(
+      page,
+      page.getByRole("button", { name: "Utvid prosjektlisten", exact: true }),
+    );
+    await expectDrawerHeight(page, 0.58);
+    const list = page.locator("[data-explorer-drawer] [data-drawer-scroll]");
+    // As if scrolled at the full height and brought back down.
+    await list.evaluate((element) => {
+      element.scrollTop = 120;
+    });
+    await expect(list).toHaveAttribute("data-scrolled", "");
+    const box = (await list.boundingBox())!;
+    const x = box.x + box.width / 2;
+    const y = box.y + 40;
+    // A short swipe down scrolls the list, not the drawer.
+    await touchMove(page, { x, y }, { x, y: y + 80 }, { steps: 12 });
+    await expectDrawerHeight(page, 0.58);
+    await expect
+      .poll(() => list.evaluate((element) => element.scrollTop))
+      .toBeLessThan(120);
+    // Back at the top, the next swipe down folds it.
+    await list.evaluate((element) => {
+      element.scrollTop = 0;
+    });
+    await expect(list).not.toHaveAttribute("data-scrolled");
+    await touchMove(page, { x, y }, { x, y: y + 200 }, { steps: 12 });
+    await expectDrawerHeight(page, compact);
+  });
+
   test("panning the map folds the list down from the middle height", async ({
     page,
   }) => {
@@ -621,9 +654,17 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     const map = page.locator("[data-project-map]");
     await expect(map).toHaveAttribute("data-map-style", "standard");
     await page.getByRole("button", { name: "Kartlag", exact: true }).tap();
-    await page.getByRole("button", { name: "Gatekart", exact: true }).tap();
+    // Phones choose from a sheet, not the desktop menu.
+    const sheet = page.getByRole("dialog", { name: "Kartlag" });
+    await expect(sheet).toBeVisible();
+    await expect(page.getByRole("group", { name: "Kartlag" })).toHaveCount(0);
+    await sheet.getByRole("button", { name: "Gatekart", exact: true }).tap();
     await expect(map).toHaveAttribute("data-map-style", "streets");
-    await expect(page.getByRole("group", { name: "Kartlag" })).toBeHidden();
+    await expect(sheet).toBeHidden();
+    await page.getByRole("button", { name: "Kartlag", exact: true }).tap();
+    await expect(
+      sheet.getByRole("button", { name: "Gatekart", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 
   test("review screenshots at 390px", async ({ page }) => {

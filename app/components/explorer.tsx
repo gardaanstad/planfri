@@ -2682,9 +2682,10 @@ export default memo(function Explorer({
                   visibleBottomClasses,
                   snapInstantly && "transition-none",
                   meetQuickly && "duration-340",
-                  // Let Base UI swipe the drawer before its content starts scrolling.
+                  // Let Base UI swipe the drawer before its content starts scrolling,
+                  // unless the content is scrolled already (`useScrolledMark`).
                   snapPoint !== 1 &&
-                    "[&_[data-drawer-scroll]]:overflow-y-hidden",
+                    "[&_[data-drawer-scroll]:not([data-scrolled])]:overflow-y-hidden",
                 )}
                 contentClassName={mobileDrawerInnerClasses}
                 initialFocus={false}
