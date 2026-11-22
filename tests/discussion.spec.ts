@@ -371,8 +371,8 @@ test("moderators edit the reference page and publish sourced updates without new
   await page.reload();
   await expect(
     page
-      .getByRole("link", { name: "Prosjektets nettside", exact: true })
-      .first(),
+      .locator("[data-project-meta]")
+      .getByRole("link", { name: "Nettside", exact: true }),
   ).toHaveAttribute("href", "https://example.org/details");
   await expect(
     page.getByRole("region", { name: "Om prosjektet" }),
