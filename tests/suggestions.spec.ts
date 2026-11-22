@@ -348,8 +348,7 @@ test("members suggest corrections and tips; moderators review a diff, approve, a
   await expect(page.getByText("Forslaget er sendt")).toBeVisible();
   await expect(bar).toHaveCount(0);
   // The project itself is unchanged until a moderator approves.
-  await page.getByRole("button", { name: "Les mer", exact: true }).click();
-  await expect(page.locator("[data-project-post]")).toContainText(
+  await expect(page.locator("[data-project-meta]")).toContainText(
     "Statens vegvesen",
   );
 
@@ -476,10 +475,7 @@ test("members suggest corrections and tips; moderators review a diff, approve, a
   expect(current.updates[0].via).toBe(person.username);
   const visitor = await browser.newPage();
   await visitor.setViewportSize({ width: 1280, height: 900 });
-  // The full page shows the facts beside the discussion.
   await visitor.goto(`/prosjekt/${project.id}?visning=full`);
-  const facts = visitor.getByRole("complementary", { name: "Prosjektfakta" });
-  await expect(facts).toContainText(`via @${person.username}`);
   await expect(visitor.locator("header").first()).not.toContainText(
     `@${person.username}`,
   );
@@ -597,4 +593,15 @@ test("members suggest new projects; moderators edit and publish them", async ({
   expect(published.contributors).toEqual([person.username]);
   expect((await request.get(published.image)).status()).toBe(200);
   await moderatorContext.close();
+
+  // A description that fits has nothing more to show.
+  const visitor = await browser.newPage();
+  await visitor.goto(`${origin}/prosjekt/${published.id}`);
+  await expect(visitor.locator("[data-project-post]")).toContainText(
+    "En ny bru over fjorden.",
+  );
+  await expect(
+    visitor.getByRole("button", { name: "Les mer", exact: true }),
+  ).toHaveCount(0);
+  await visitor.close();
 });
