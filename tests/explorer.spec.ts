@@ -654,9 +654,17 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     const map = page.locator("[data-project-map]");
     await expect(map).toHaveAttribute("data-map-style", "standard");
     await page.getByRole("button", { name: "Kartlag", exact: true }).tap();
-    await page.getByRole("button", { name: "Gatekart", exact: true }).tap();
+    // Phones choose from a sheet, not the desktop menu.
+    const sheet = page.getByRole("dialog", { name: "Kartlag" });
+    await expect(sheet).toBeVisible();
+    await expect(page.getByRole("group", { name: "Kartlag" })).toHaveCount(0);
+    await sheet.getByRole("button", { name: "Gatekart", exact: true }).tap();
     await expect(map).toHaveAttribute("data-map-style", "streets");
-    await expect(page.getByRole("group", { name: "Kartlag" })).toBeHidden();
+    await expect(sheet).toBeHidden();
+    await page.getByRole("button", { name: "Kartlag", exact: true }).tap();
+    await expect(
+      sheet.getByRole("button", { name: "Gatekart", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 
   test("review screenshots at 390px", async ({ page }) => {
@@ -1463,6 +1471,22 @@ test.describe("desktop explorer", () => {
     await expect
       .poll(() => mapParam(page))
       .toMatch(/^59\.9\d+,10\.7[45]\d+,13$/);
+  });
+
+  test("the list follows the map while it pans, before it settles", async ({
+    page,
+  }) => {
+    await page.goto(oslo);
+    await expect(card(page, project.title)).toBeVisible();
+    const view = (await page.locator(".leaflet-container").boundingBox())!;
+    const y = view.y + view.height / 2;
+    await page.mouse.move(view.x + view.width - 40, y);
+    await page.mouse.down();
+    await page.mouse.move(view.x + view.width - 760, y - 300, { steps: 12 });
+    // Still held, and the list has already moved on.
+    await expect(card(page, project.title)).toHaveCount(0);
+    await page.mouse.up();
+    await expect(card(page, project.title)).toHaveCount(0);
   });
 
   test("hovering a card highlights its shape, not the other way round", async ({
