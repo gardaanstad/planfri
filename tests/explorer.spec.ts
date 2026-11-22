@@ -138,6 +138,35 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     userAgent: devices["Pixel 7"].userAgent,
   });
 
+  test("a tap beside an alignment still opens it", async ({ page }) => {
+    await page.goto("/?kart=59.1200,5.5000,8");
+    const line = page.locator('path[data-project-id="rogfast"]');
+    await expect(line).toBeVisible();
+    // A point midway along the line, and the way across it there.
+    const { x, y, nx, ny } = await line.evaluate((element) => {
+      const path = element as SVGPathElement;
+      const matrix = path.getScreenCTM()!;
+      const screen = (length: number) =>
+        new DOMPoint(
+          path.getPointAtLength(length).x,
+          path.getPointAtLength(length).y,
+        ).matrixTransform(matrix);
+      const middle = path.getTotalLength() / 2;
+      const at = screen(middle);
+      const ahead = screen(middle + 1);
+      const length = Math.hypot(ahead.x - at.x, ahead.y - at.y);
+      return {
+        x: at.x,
+        y: at.y,
+        nx: -(ahead.y - at.y) / length,
+        ny: (ahead.x - at.x) / length,
+      };
+    });
+    // Well off the drawn line, inside the band around it.
+    await page.touchscreen.tap(x + nx * 22, y + ny * 22);
+    await expect(page).toHaveURL(/\/prosjekt\/rogfast\?/);
+  });
+
   test("projects open in their own drawer over the map and preserve map, history, and reading space", async ({
     page,
   }) => {
@@ -720,7 +749,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     });
     await expect(status).toBeVisible();
     // A quick drag down closes it, from a list that doesn't scroll.
-    await drag(page, status.getByRole("option").nth(1), 160);
+    await drag(page, status.getByRole("option").first(), 180);
     await expect(sheet).toBeHidden();
     await expect(
       filters.getByRole("button", { name: "Filtre", exact: true }),
@@ -920,7 +949,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     const statusRow = sheet.getByRole("button", { name: /^Status/ });
     await expect(categoryRow).toHaveAttribute("aria-expanded", "false");
     await expect(statusRow).toHaveAttribute("aria-expanded", "false");
-    // A row opens its options and puts the other away.
+    // A row opens its options; the other row stays.
     await statusRow.click();
     const status = sheet.getByRole("listbox", {
       name: "Prosjektstatus",
@@ -928,7 +957,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     });
     await expectMenuFits(status);
     await expect(statusRow).toHaveAttribute("aria-expanded", "true");
-    await expect(categoryRow).toBeHidden();
+    await expect(categoryRow).toBeVisible();
     await expect(status.getByRole("option", { selected: true })).toHaveCount(
       3,
     );
@@ -939,12 +968,23 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expect(status.getByRole("option", { selected: true })).toHaveCount(
       4,
     );
-    // Chosen again, it folds back to both rows.
-    await statusRow.click();
-    await expect(status).toBeHidden();
-    await expect(categoryRow).toBeVisible();
+    // Another row opens in its place, below the first.
     await categoryRow.click();
-    await expect(statusRow).toBeHidden();
+    await expect(status).toBeHidden();
+    await expect(statusRow).toHaveAttribute("aria-expanded", "false");
+    await expect(
+      sheet.getByRole("listbox", { name: "Kategori", exact: true }),
+    ).toBeVisible();
+    const categoryBox = await categoryRow.boundingBox();
+    const statusBox = await statusRow.boundingBox();
+    expect(statusBox!.y).toBeGreaterThan(categoryBox!.y);
+    await expect(statusRow).toBeInViewport();
+    // Chosen again, it folds back to both rows.
+    await categoryRow.click();
+    await expect(
+      sheet.getByRole("listbox", { name: "Kategori", exact: true }),
+    ).toBeHidden();
+    await categoryRow.click();
     await sheet
       .getByRole("option", { name: project.categories[0], exact: true })
       .click();
