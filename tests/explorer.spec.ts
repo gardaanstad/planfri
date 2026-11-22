@@ -621,9 +621,17 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     const map = page.locator("[data-project-map]");
     await expect(map).toHaveAttribute("data-map-style", "standard");
     await page.getByRole("button", { name: "Kartlag", exact: true }).tap();
-    await page.getByRole("button", { name: "Gatekart", exact: true }).tap();
+    // Phones choose from a sheet, not the desktop menu.
+    const sheet = page.getByRole("dialog", { name: "Kartlag" });
+    await expect(sheet).toBeVisible();
+    await expect(page.getByRole("group", { name: "Kartlag" })).toHaveCount(0);
+    await sheet.getByRole("button", { name: "Gatekart", exact: true }).tap();
     await expect(map).toHaveAttribute("data-map-style", "streets");
-    await expect(page.getByRole("group", { name: "Kartlag" })).toBeHidden();
+    await expect(sheet).toBeHidden();
+    await page.getByRole("button", { name: "Kartlag", exact: true }).tap();
+    await expect(
+      sheet.getByRole("button", { name: "Gatekart", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 
   test("review screenshots at 390px", async ({ page }) => {
