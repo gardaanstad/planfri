@@ -2,7 +2,7 @@ import { loadEnvConfig } from "@next/env";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { project, comment } from "../app/lib/db/schema";
-import { seedProjects, seedComments } from "../app/lib/data";
+import { seedProjects, seedComments } from "./seed-data";
 import { databaseConfig } from "../app/lib/db/config";
 loadEnvConfig(process.cwd());
 const { url, authToken } = databaseConfig();

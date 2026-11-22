@@ -10,10 +10,8 @@ import {
 } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { cn } from "../lib/cn";
+import { mobileQuery, reducedMotion } from "../lib/media";
 import { useSwipeDismiss } from "./use-swipe-dismiss";
-
-// Phones get a bottom sheet instead of an anchored menu.
-const sheetQuery = "(width < 48rem)";
 
 type Option = {
   value: string;
@@ -134,7 +132,8 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
     const popup = menu.current;
     const listbox = list.current;
     if (!popup || !listbox || !open) return;
-    const asSheet = window.matchMedia(sheetQuery).matches;
+    // Phones get a bottom sheet instead of an anchored menu.
+    const asSheet = window.matchMedia(mobileQuery).matches;
     setSheet(asSheet);
     // The top layer keeps menus clear of the drawer's clipped content.
     popup.showPopover();
@@ -820,7 +819,7 @@ function GroupOutline({ runs }: { runs: Run[] }) {
     const next = currentRuns();
     const animate =
       placed.current &&
-      !window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
+      !reducedMotion() &&
       !group.closest('[data-slot="choice-menu"][data-open="false"]');
     placed.current = true;
     const old = boxes.current;

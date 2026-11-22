@@ -1,12 +1,12 @@
 import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { seedProjects, type Comment } from "../app/lib/data";
+import type { Comment } from "../app/lib/data";
+import { seedProjects } from "../scripts/seed-data";
 import { discussionThreads } from "../app/lib/discussion";
-import { member, mutation, shot, signIn } from "./support";
+import { member, mutation, shot, signIn, uniqueName } from "./support";
 
 const project = seedProjects[0];
 const path = `/prosjekt/${project.id}`;
-const name = () => `test_${randomUUID().slice(0, 8)}`;
 
 test("recent activity includes old parent conversations with new nested replies", () => {
   const base = {
@@ -57,10 +57,29 @@ test("relevant sort puts threads active since the latest update first, each grou
   ).toEqual(["new-top", "old-low", "new-low", "old-top"]);
 });
 
+test("comments load per project or per author; an unchanged read comes back empty", async ({
+  request,
+}) => {
+  const { comments } = await (
+    await request.get(`/api/comments?project=${project.id}`)
+  ).json();
+  expect(comments.length).toBeGreaterThan(0);
+  expect(comments.every((c: Comment) => c.projectId === project.id)).toBe(true);
+  // Nobody else writes as a new author, so the read stays unchanged.
+  const url = `/api/comments?author=${uniqueName()}`;
+  const first = await request.get(url);
+  expect(await first.json()).toEqual({ comments: [] });
+  const again = await request.get(url, {
+    headers: { "If-None-Match": first.headers().etag },
+  });
+  expect(again.status()).toBe(304);
+  expect((await request.get("/api/comments")).status()).toBe(400);
+});
+
 test("project discussion accepts no update, validates references, and preserves legacy comments", async ({
   request,
 }) => {
-  const person = await member({ username: name() });
+  const person = await member({ username: uniqueName() });
   const text = `Overall ${randomUUID()}`;
   const response = await mutation(
     request,
@@ -127,7 +146,7 @@ test("commenting under an update references it in the main discussion and preser
   page,
   context,
 }) => {
-  await signIn(context, await member({ username: name() }));
+  await signIn(context, await member({ username: uniqueName() }));
   await page.goto(path);
   const discussion = page.getByRole("region", {
     name: "Kommentarer",
@@ -186,7 +205,7 @@ test("moderators edit the reference page and publish sourced updates without new
   request,
 }) => {
   const moderator = await member({
-    username: name(),
+    username: uniqueName(),
     email: "discussion-moderator@example.test",
   });
   const id = `test-project-${randomUUID()}`;
@@ -341,7 +360,7 @@ test("replies under an update stay in their thread in both sections", async ({
   page,
   context,
 }) => {
-  await signIn(context, await member({ username: name() }));
+  await signIn(context, await member({ username: uniqueName() }));
   await page.goto(path);
   await page.getByRole("button", { name: /^Oppdateringer/ }).click();
   const entry = page.locator("#update-u-byrom");
@@ -418,7 +437,7 @@ test("a reply closes on cancel or a click elsewhere, keeping its draft only for 
   page,
   context,
 }) => {
-  await signIn(context, await member({ username: name() }));
+  await signIn(context, await member({ username: uniqueName() }));
   await page.goto(path);
   const thread = page
     .getByRole("region", { name: "Kommentarer", exact: true })
@@ -444,7 +463,7 @@ test("a vote shows at once and goes back if the server refuses it", async ({
   page,
   context,
 }) => {
-  await signIn(context, await member({ username: name() }));
+  await signIn(context, await member({ username: uniqueName() }));
   let release: () => void = () => {};
   const held = new Promise<void>((resolve) => (release = resolve));
   await page.route("**/api/community", async (route) => {

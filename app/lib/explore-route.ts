@@ -11,3 +11,10 @@ export function isExplorerPath([first, ...rest]: string[]) {
 /** The segments of a pathname such as `/prosjekt/akerselva`. */
 export const pathSegments = (pathname: string) =>
   pathname.split("/").filter(Boolean);
+
+/** The decoded id after a route prefix such as "/prosjekt/", if on that route. */
+export function routeParam(pathname: string, prefix: string) {
+  return pathname.startsWith(prefix)
+    ? decodeURIComponent(pathname.slice(prefix.length).split("/")[0])
+    : undefined;
+}

@@ -1,5 +1,4 @@
 import { expect, test, type Page } from "@playwright/test";
-import { randomUUID } from "node:crypto";
 import { externalCache } from "../app/lib/db/schema";
 import type { Point, Project } from "../app/lib/data";
 import { buildOsmCandidates, type OverpassWay } from "../app/lib/osm-build";
@@ -13,9 +12,8 @@ import {
   type OsmFeed,
   osmTitles,
 } from "../app/lib/osm-candidates";
-import { cookieHeaders, db, member, mutation, shot, signIn } from "./support";
+import { cookieHeaders, db, member, mutation, shot, signIn, uniqueName } from "./support";
 
-const name = () => `osm_${randomUUID().slice(0, 8)}`;
 
 /** Evenly spaced points from one place to another. */
 function straight(from: Point, to: Point, count: number): Point[] {
@@ -345,10 +343,10 @@ test.describe("on the map", () => {
   test("only moderators read and hide candidates", async ({ request }) => {
     await seedFeed();
     const moderator = await member({
-      username: name(),
+      username: uniqueName(),
       email: "osm-api-moderator@example.test",
     });
-    const person = await member({ username: name() });
+    const person = await member({ username: uniqueName() });
     expect((await request.get("/api/osm-candidates")).status()).toBe(401);
     expect(
       (await request.get("/api/osm-candidates", { headers: cookieHeaders(person) })).status(),
@@ -390,7 +388,7 @@ test.describe("on the map", () => {
     };
     await page.goto("/");
     await check();
-    await signIn(context, await member({ username: name() }));
+    await signIn(context, await member({ username: uniqueName() }));
     await page.reload();
     await check();
   });
@@ -402,7 +400,7 @@ test.describe("on the map", () => {
     await seedFeed();
     await signIn(
       context,
-      await member({ username: name(), email: "osm-create-moderator@example.test" }),
+      await member({ username: uniqueName(), email: "osm-create-moderator@example.test" }),
     );
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/?kart=69.95,23.15,10");
@@ -484,7 +482,7 @@ test.describe("on the map", () => {
     await seedFeed();
     await signIn(
       context,
-      await member({ username: name(), email: "osm-filter-moderator@example.test" }),
+      await member({ username: uniqueName(), email: "osm-filter-moderator@example.test" }),
     );
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/?kart=70.02,24.15,10");
@@ -514,7 +512,7 @@ test.describe("on the map", () => {
     await seedFeed();
     await signIn(
       context,
-      await member({ username: name(), email: "osm-hide-moderator@example.test" }),
+      await member({ username: uniqueName(), email: "osm-hide-moderator@example.test" }),
     );
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/?kart=69.6,18.82,11");

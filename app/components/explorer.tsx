@@ -37,15 +37,8 @@ import {
 import {
   categoryLabels,
   categoryTree,
-  isMainCategory,
-  mainCategoryOf,
-  matchesCategories,
   type Bounds,
-  type Category,
-  type Comment,
-  type Point,
   type Project,
-  projectAddedAt,
   projectHref,
   projectInBounds,
   statuses,
@@ -53,7 +46,6 @@ import {
 } from "../lib/data";
 import {
   defaultStatus,
-  exploreSearch,
   type MapView,
   parseExploreState,
   sameValues,
@@ -73,7 +65,6 @@ import {
   placeContains,
   placeInView,
   places,
-  projectPlaces,
 } from "../lib/places";
 import { errorMessage } from "../lib/api-client";
 import { profileHref } from "../lib/profiles";
@@ -116,7 +107,21 @@ import {
   visibleBottomClasses,
 } from "./panel";
 import { takeLoginIntent } from "../lib/login-intent";
+import {
+  categorySummary,
+  lessUsedCategories,
+  projectPoints,
+  statusSummary,
+  withoutCategory,
+} from "../lib/project-filters";
+import { useProjectList } from "./use-project-list";
+import { usePanelLayers, type Layer } from "./use-panel-layers";
+import { panelWidth, useSidebarMode } from "./use-sidebar-mode";
+import { useUrlSync } from "./use-url-sync";
+import { replaceUrl, whenNextSettled } from "../lib/explore-history";
+import { routeParam } from "../lib/explore-route";
 import { cn } from "../lib/cn";
+import { mobileQuery, useMediaQuery } from "../lib/media";
 import ThemeToggle, { toggleTheme, useTheme } from "./theme-toggle";
 import {
   OverflowMenu,
@@ -127,12 +132,8 @@ import { openProfileEvent } from "../lib/profile-overlay";
 import ProfileOverlay from "./profile-overlay";
 import SuggestionList from "./suggestion-list";
 import {
-  animatePanelBack,
-  animatePanelOut,
-  animateVisibleWidth,
   MaximizeButton,
   type SidebarMode,
-  sidebarTiming,
 } from "./sidebar-panel";
 import {
   iconButton,
@@ -148,67 +149,6 @@ const densityOptions = [
   { value: "compact", label: "Kompakt", Icon: LayoutList },
 ] as const;
 
-// Tailwind's `max-md`: the drawer layout below 768px.
-const mobileQuery = "(width < 48rem)";
-/** The decoded id after a route prefix such as "/prosjekt/", if on that route. */
-export function routeParam(pathname: string, prefix: string) {
-  return pathname.startsWith(prefix)
-    ? decodeURIComponent(pathname.slice(prefix.length).split("/")[0])
-    : undefined;
-}
-/**
- * Replaces the URL but keeps this entry's state. Next.js ignores states it
- * wrote itself (and would later restore its own URL), so its marks go.
- */
-function replaceUrl(url: string) {
-  const state = { ...window.history.state };
-  delete state.__NA;
-  delete state._N;
-  window.history.replaceState(state, "", url);
-}
-/**
- * Runs once Next.js has written its state for the history entry stepped to,
- * which it does when the step's navigation commits (or after two seconds).
- */
-function whenNextSettled(run: () => void) {
-  const state = window.history.state;
-  const start = performance.now();
-  const check = () => {
-    if (window.history.state !== state || performance.now() - start > 2000)
-      run();
-    else requestAnimationFrame(check);
-  };
-  requestAnimationFrame(check);
-}
-/**
- * Waits, briefly, for the photos newly in view to decode, so the picture a
- * view transition takes of the new layout has them.
- */
-function imagesReady(container: HTMLElement) {
-  const pending = Array.from(container.querySelectorAll("img")).filter(
-    (image) => {
-      const rect = image.getBoundingClientRect();
-      return rect.width > 0 && rect.top < window.innerHeight && rect.bottom > 0;
-    },
-  );
-  return Promise.race([
-    Promise.all(
-      pending.map((image) => {
-        // Lazy ones would wait for a layout pass the transition holds back;
-        // the file is usually cached from the layout before.
-        image.loading = "eager";
-        return image.decode().catch(() => {});
-      }),
-    ),
-    new Promise((resolve) => setTimeout(resolve, 80)),
-  ]);
-}
-function subscribeMobile(callback: () => void) {
-  const media = window.matchMedia(mobileQuery);
-  media.addEventListener("change", callback);
-  return () => media.removeEventListener("change", callback);
-}
-const noComments: Comment[] = [];
 /** Where in a project to open: an update, a comment, or a section. */
 type PostTarget = {
   updateId?: string;
@@ -249,6 +189,20 @@ function coverControls(slot: HTMLElement | null, motion: DrawerMotion) {
   slot.style.transitionDelay = covered || motion.swiping ? "0ms" : "200ms";
   slot.toggleAttribute("data-covered", covered);
 }
+/** A drawer's slot for the map controls, which follow its motion. */
+function useControlsSlot() {
+  const [slot, setSlot] = useState<HTMLDivElement | null>(null);
+  const ref = useRef<HTMLDivElement | null>(null);
+  const node = useCallback((element: HTMLDivElement | null) => {
+    ref.current = element;
+    setSlot(element);
+  }, []);
+  const follow = useCallback(
+    (motion: DrawerMotion) => coverControls(ref.current, motion),
+    [],
+  );
+  return { slot, node, follow };
+}
 const primaryCta = cn(primaryButton, "rounded-lg px-4 text-xs");
 const secondaryAction = cn(
   secondaryButton,
@@ -264,53 +218,7 @@ const reviewedDot =
 const countBadge =
   "inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-accent px-1.25 text-2xs leading-none font-semibold text-on-accent tabular-nums";
 
-// Under "Vis flere" in the category filter.
-const lessUsedCategories = new Set<string>([
-  "Energi",
-  "Vann og avløp",
-  "Offentlige bygg",
-]);
-
-function categorySummary(values: string[]) {
-  const labels = categoryLabels(values);
-  return labels.length === 0
-    ? "Alle kategorier"
-    : labels.length === 1
-      ? labels[0]
-      : `${labels.length} kategorier`;
-}
-/**
- * The filter without one of its labels: a main goes with its subcategories,
- * and the last subcategory of a main takes the main along.
- */
-function withoutCategory(values: string[], label: Category) {
-  const main = mainCategoryOf(label);
-  const siblings = values.filter(
-    (value) => value !== main && mainCategoryOf(value as Category) === main,
-  );
-  const removeMain = isMainCategory(label) || siblings.length <= 1;
-  return values.filter(
-    (value) =>
-      value !== label &&
-      !(removeMain && mainCategoryOf(value as Category) === main),
-  );
-}
-const searchText = (project: Project) =>
-  `${project.title} ${project.city} ${project.district} ${project.categories.join(" ")} ${project.developer}`.toLocaleLowerCase(
-    "nb",
-  );
 const noProjects: Project[] = [];
-const projectPoints = (project: Project): Point[] =>
-  project.geometry.length ? project.geometry : [project.center];
-function statusSummary(values: string[]) {
-  const labels = statusOrder
-    .filter((value) => values.includes(value))
-    .map((value, i) =>
-      i === 0 ? statuses[value].label : statuses[value].label.toLowerCase(),
-    );
-  if (labels.length === 0 || labels.length === 3) return "Alle statuser";
-  return labels.join(", ");
-}
 
 // Desktop filters: compact pills that turn green once they narrow the list.
 const panelChoiceClasses = [
@@ -376,11 +284,7 @@ export default memo(function Explorer({
   /** From the request's user agent, so phones render mobile on the server. */
   mobileHint?: boolean;
 }) {
-  const isMobile = useSyncExternalStore(
-    subscribeMobile,
-    () => window.matchMedia(mobileQuery).matches,
-    () => mobileHint,
-  );
+  const isMobile = useMediaQuery(mobileQuery, mobileHint);
   // The drawer lives in a portal that only mounts in the browser. Until it
   // does, a static copy in the same place shows its contents, then both swap
   // in one render so nothing shifts or flashes.
@@ -424,7 +328,7 @@ export default memo(function Explorer({
   const {
     projects,
     saved,
-    comments,
+    activity,
     mutate,
     refresh,
     suggest,
@@ -483,6 +387,18 @@ export default memo(function Explorer({
     : collapsed
       ? "collapsed"
       : "normal";
+  const panelRef = useRef<HTMLElement>(null);
+  // While animating, the sidebar holds the larger of both layouts: full
+  // width while maximizing or restoring; out of the map's way while
+  // collapsing or expanding, so the map resizes once, not every frame.
+  const {
+    modeFrom,
+    animateFrom,
+    changeMode,
+    wide,
+    asideCollapsed,
+    explorerHidden,
+  } = useSidebarMode({ panelRef, sidebarMode, collapsed });
   // The place shown in "Velg sted". Beside the map it follows the view and
   // picking one moves the map there; maximized, it filters the list instead.
   const [place, setPlace] = useState(
@@ -515,7 +431,6 @@ export default memo(function Explorer({
   const searchTriggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const panelRef = useRef<HTMLElement>(null);
 
   // The map is the place filter: the list holds what its view covers.
   const mapApi = useRef<MapApi | null>(null);
@@ -538,8 +453,12 @@ export default memo(function Explorer({
     steppingBack.current = true;
     window.history.go(-steps);
   }
-  // A hovered card lights up its shape on the map.
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  // The hovered card's project, drawn highlighted on the map.
+  const hoveredId = useRef<string | null>(null);
+  function highlight(id: string | null) {
+    hoveredId.current = id;
+    mapApi.current?.highlight(id);
+  }
   // Moderators: OpenStreetMap railways and roads as candidates for projects.
   const osm = useOsmReview({
     allowed: canModerate,
@@ -559,7 +478,7 @@ export default memo(function Explorer({
     // Focus during the tap so mobile browsers also open the keyboard.
     flushSync(() => {
       setSearchOpen(true);
-      // A collapsed list comes back to be searched.
+      // A collapsed list comes back to be listedProjects.
       if (!isMobile && storedCollapsed()) storeCollapsed(false);
     });
     searchRef.current?.focus({ preventScroll: true });
@@ -573,47 +492,11 @@ export default memo(function Explorer({
     searchTriggerRef.current?.focus({ preventScroll: true });
   }
 
-  // Filters, the map position and the full-page view live in the query
-  // string, for sharing and reloads. Each change replaces the entry, so
-  // history only holds pages. The map's position is written once it has
-  // rested, not after every move.
-  const urlState = useRef({
-    query,
-    status,
-    category,
-    sort,
-    full: maximized,
-    place,
+  const { syncUrl, syncSoon, withSearch } = useUrlSync({
+    state: { query, status, category, sort, full: maximized, place },
+    view: () => mapViewRef.current ?? initial.view,
+    paused: () => steppingBack.current,
   });
-  const urlTimer = useRef(0);
-  /** The query string for a path in the explorer. */
-  const searchFor = useCallback(
-    () =>
-      exploreSearch({
-        ...urlState.current,
-        view: mapViewRef.current ?? initial.view,
-      }),
-    [initial.view],
-  );
-  const syncUrl = useCallback(() => {
-    window.clearTimeout(urlTimer.current);
-    urlTimer.current = 0;
-    // Mid-step the entry is changing; the step syncs the URL when it lands.
-    if (steppingBack.current) return;
-    const path = window.location.pathname;
-    const search = searchFor();
-    if (window.location.search !== search) replaceUrl(path + search);
-  }, [searchFor]);
-  useEffect(() => {
-    urlState.current = { query, status, category, sort, full: maximized, place };
-    syncUrl();
-  }, [query, status, category, sort, maximized, place, syncUrl]);
-  useEffect(() => () => window.clearTimeout(urlTimer.current), []);
-  /** A path in the explorer, with the current filters and map position. */
-  function withSearch(path: string) {
-    syncUrl();
-    return path + searchFor();
-  }
 
   function enterPostView(id: string, frame = true) {
     if (isMobile) return;
@@ -632,10 +515,7 @@ export default memo(function Explorer({
   }
   /** The width panels take beside the map. */
   function sidebarWidth() {
-    const set = parseFloat(
-      panelRef.current?.style.getPropertyValue("--panel-width") || "",
-    );
-    return set || Math.round(Math.min(Math.max(innerWidth * 0.36, 380), 540));
+    return panelWidth(panelRef.current);
   }
   // As the sidebar narrows, the list header's actions move into a menu,
   // last of all the maximize button; the sidebar is never narrower than
@@ -743,37 +623,6 @@ export default memo(function Explorer({
     };
   }, [openSearch]);
 
-  // "Aktuelt" ranks by discussion over the past week, then by latest update.
-  const [weekAgo] = useState(() =>
-    new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-  );
-  const recentComments = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const comment of comments)
-      if (comment.date >= weekAgo)
-        counts.set(comment.projectId, (counts.get(comment.projectId) ?? 0) + 1);
-    return counts;
-  }, [comments, weekAgo]);
-  const compareProjects = useCallback(
-    (a: Project, b: Project) =>
-      sort === "title"
-        ? a.title.localeCompare(b.title, "nb")
-        : sort === "added"
-          ? projectAddedAt(b).localeCompare(projectAddedAt(a))
-          : (recentComments.get(b.id) ?? 0) - (recentComments.get(a.id) ?? 0) ||
-            b.updated.localeCompare(a.updated),
-    [recentComments, sort],
-  );
-
-  const commentsByProject = useMemo(() => {
-    const groups = new Map<string, Comment[]>();
-    for (const comment of comments) {
-      const group = groups.get(comment.projectId);
-      if (group) group.push(comment);
-      else groups.set(comment.projectId, [comment]);
-    }
-    return groups;
-  }, [comments]);
   const savedIds = useMemo(() => new Set(saved), [saved]);
   const savedProjects = useMemo(
     () => projects.filter((project) => savedIds.has(project.id)),
@@ -784,62 +633,25 @@ export default memo(function Explorer({
   // Norway. Maximized, the map is out of sight and the place filters instead.
   const listBounds = maximized && !isMobile ? null : (frozenBounds ?? viewBounds);
   const listPlace = maximized && !isMobile ? place : "";
-  const placesOf = useMemo(
-    () =>
-      new Map(
-        projects.map((project) => [
-          project.id,
-          projectPlaces(project.city, project.center),
-        ]),
-      ),
-    [projects],
-  );
-  const inPlace = useCallback(
-    (project: Project) =>
-      listBounds
-        ? projectInBounds(project, listBounds)
-        : !listPlace || !!placesOf.get(project.id)?.includes(listPlace),
-    [listBounds, listPlace, placesOf],
-  );
-  const statusMatch = useCallback(
-    (project: Project) =>
-      status.length === 0 || status.includes(project.status),
-    [status],
-  );
-  const categoryMatch = useCallback(
-    (project: Project) =>
-      matchesCategories(project.categories, category),
-    [category],
-  );
-  // The map gets every match in Norway, unsorted, so re-ranking never redraws it.
-  const matching = useMemo(
-    () =>
-      projects.filter(
-        (project) => statusMatch(project) && categoryMatch(project),
-      ),
-    [categoryMatch, projects, statusMatch],
-  );
-  // An open project stays on the map even when the filters leave it out.
-  const mapProjects = useMemo(() => {
-    const open = projects.find((project) => project.id === selectedId);
-    return open && !matching.includes(open) ? [...matching, open] : matching;
-  }, [matching, projects, selectedId]);
-  const needle = query.trim().toLocaleLowerCase("nb");
-  // Search narrows the list, not the map; it can find places outside the view.
-  const searchHits = useMemo(
-    () =>
-      needle
-        ? matching.filter((project) => searchText(project).includes(needle))
-        : matching,
-    [matching, needle],
-  );
-  const searched = useMemo(
-    () => searchHits.filter(inPlace).sort(compareProjects),
-    [compareProjects, inPlace, searchHits],
-  );
-  const outsideHits =
-    needle && listBounds ? searchHits.length - searched.length : 0;
-  const listedProjects = searched;
+  const {
+    placesOf,
+    matching,
+    mapProjects,
+    needle,
+    searchHits,
+    listed: listedProjects,
+    outsideHits,
+  } = useProjectList({
+    projects,
+    activity,
+    query,
+    status,
+    category,
+    sort,
+    selectedId,
+    bounds: listBounds,
+    place: listPlace,
+  });
 
   // The project and profile panels keep theirs while sliding away.
   const [panelPostId, setPanelPostId] = useState(postId);
@@ -852,13 +664,6 @@ export default memo(function Explorer({
   // The panel stack over the explorer, bottom to top: layers in the sidebar
   // on desktop, drawers on phones. A header page (Lagret, Forslag, your
   // profile) can hold a project, which can hold a profile.
-  type Layer =
-    | "saved"
-    | "suggestions"
-    | "account"
-    | "project"
-    | "profile"
-    | "editor";
   const section: Layer | null = suggestionsOpen
     ? "suggestions"
     : modal === "profile"
@@ -873,110 +678,50 @@ export default memo(function Explorer({
     ...(editorOpen && user ? ["editor" as const] : []),
   ];
   const topLayer = liveLayers.at(-1) ?? null;
-  // Closed panels stay until they have animated away. A panel replaced by
-  // another in the same step (Lagret for the profile, say) goes at once on
-  // desktop; a phone holds its drawer under the new one until that is up.
-  const [exitingState, setExiting] = useState<Layer[]>([]);
-  let exiting = exitingState;
-  const [heldState, setHeld] = useState<Layer[]>([]);
-  let held = heldState;
-  // Whether each panel opened over a maximized sidebar: it then fades in
-  // where it is, and closing it keeps the sidebar maximized. One opened
-  // beside the map takes the sidebar back there when it closes.
-  const [openedMaximized, setOpenedMaximized] = useState<
-    Partial<Record<Layer, boolean>>
-  >(() =>
-    Object.fromEntries(liveLayers.map((layer) => [layer, maximized])),
-  );
-  const [restoreAfterClose, setRestoreAfterClose] = useState(false);
-  const [previousLayers, setPreviousLayers] = useState(liveLayers);
-  if (previousLayers.join() !== liveLayers.join()) {
-    const added = liveLayers.filter((layer) => !previousLayers.includes(layer));
-    const removed = previousLayers.filter(
-      (layer) => !liveLayers.includes(layer),
-    );
-    setPreviousLayers(liveLayers);
-    exiting = [
-      ...exiting.filter((layer) => !liveLayers.includes(layer)),
-      ...(added.length ? [] : removed),
-    ];
-    setExiting(exiting);
-    held = isMobile && added.length ? removed : [];
-    setHeld(held);
-    const opened = { ...openedMaximized };
-    for (const layer of added)
-      opened[layer] =
-        removed.length > 0 ? openedMaximized[removed[0]] : maximized;
-    setOpenedMaximized(opened);
-    if (
-      !added.length &&
-      maximized &&
-      removed.some((layer) => openedMaximized[layer] === false)
-    )
-      setRestoreAfterClose(true);
-  }
-  const layerOrder: Layer[] = [
-    "saved",
-    "suggestions",
-    "account",
-    "project",
-    "profile",
-    "editor",
-  ];
-  const layers = layerOrder.filter(
-    (layer) => liveLayers.includes(layer) || exiting.includes(layer),
-  );
-  const leaving = (layer: Layer) =>
-    exiting.includes(layer) || held.includes(layer);
+  const {
+    layers,
+    exiting,
+    held,
+    setHeld,
+    exited,
+    leaving,
+    openedMaximized,
+    rememberTrigger,
+  } = usePanelLayers({
+    live: liveLayers,
+    isMobile,
+    maximized,
+    panelRef,
+    // Closing a panel opened beside the map takes the sidebar back there.
+    onClosedOverMaximized: () => minimize(),
+  });
   const panelClosing = !postId && leaving("project");
   if (!postId && !panelClosing && panelPostId)
     setPanelPostId(null);
   if (!profileName && !leaving("profile") && panelProfileName)
     setPanelProfileName(null);
-  // Closing a panel returns focus to what opened it (projects do their own).
-  const layerTriggers = useRef(new Map<Layer, HTMLElement>());
-  const shownLayers = useRef<Layer[]>([]);
-  function rememberTrigger(layer: Layer) {
-    if (document.activeElement instanceof HTMLElement)
-      layerTriggers.current.set(layer, document.activeElement);
+  function projectsInView(view: MapViewChange) {
+    return projects.filter((project) => projectInBounds(project, view.bounds));
   }
-  useEffect(() => {
-    const gone = shownLayers.current.filter(
-      (layer) => layer !== "project" && !liveLayers.includes(layer),
-    );
-    shownLayers.current = liveLayers;
-    for (const layer of gone) {
-      const trigger = layerTriggers.current.get(layer);
-      layerTriggers.current.delete(layer);
-      if (trigger?.isConnected)
-        requestAnimationFrame(() => trigger.focus({ preventScroll: true }));
-    }
-  });
-
   function onMapView(view: MapViewChange) {
     mapViewRef.current = view;
-    const shown = projects.filter((project) =>
-      projectInBounds(project, view.bounds),
-    );
+    const shown = projectsInView(view);
     const key = shown.map((project) => project.id).join();
     if (key !== inViewKey.current) {
       inViewKey.current = key;
       setViewBounds(view.bounds);
     }
     if (!postView.current) setFrozenBounds(null);
-    followPlace(view);
-    window.clearTimeout(urlTimer.current);
-    urlTimer.current = window.setTimeout(syncUrl, 300);
+    followPlace(view, shown);
+    syncSoon();
   }
   /** Beside the map, "Velg sted" names the place the view shows. */
-  function followPlace(view: MapViewChange) {
+  function followPlace(view: MapViewChange, shown?: Project[]) {
     // Maximized, the place filters the list; an open project's framing
     // is passing. Under the full drawer the map is out of sight.
     if ((maximized && !isMobile) || postView.current) return;
     if (isMobile && snapRef.current === 1) return;
-    const shown = projects.filter((project) =>
-      projectInBounds(project, view.bounds),
-    );
+    shown ??= projectsInView(view);
     const previousZoom = lastZoom.current ?? view.zoom;
     lastZoom.current = view.zoom;
     const hold = placeHold.current;
@@ -1018,6 +763,8 @@ export default memo(function Explorer({
   }
   function onMapReady(api: MapApi) {
     mapApi.current = api;
+    // A card hovered while the map loaded.
+    api.highlight(hoveredId.current);
     // A place picked before the map was ready, or linked without a view.
     const fit = pendingFit.current;
     pendingFit.current = null;
@@ -1110,27 +857,16 @@ export default memo(function Explorer({
   // the list's, or a project's resting at the middle height above it. Above
   // the middle stop, where the drawer would cover them, they fade out
   // instead of riding up.
-  const [controlsSlot, setControlsSlot] = useState<HTMLDivElement | null>(
-    null,
-  );
-  const controlsSlotRef = useRef<HTMLDivElement | null>(null);
-  const controlsSlotNode = useCallback((node: HTMLDivElement | null) => {
-    controlsSlotRef.current = node;
-    setControlsSlot(node);
-  }, []);
-  const followDrawer = useCallback((motion: DrawerMotion) => {
-    coverControls(controlsSlotRef.current, motion);
-  }, []);
-  const [postControlsSlot, setPostControlsSlot] =
-    useState<HTMLDivElement | null>(null);
-  const postControlsSlotRef = useRef<HTMLDivElement | null>(null);
-  const postControlsSlotNode = useCallback((node: HTMLDivElement | null) => {
-    postControlsSlotRef.current = node;
-    setPostControlsSlot(node);
-  }, []);
-  const followPostDrawer = useCallback((motion: DrawerMotion) => {
-    coverControls(postControlsSlotRef.current, motion);
-  }, []);
+  const {
+    slot: controlsSlot,
+    node: controlsSlotNode,
+    follow: followDrawer,
+  } = useControlsSlot();
+  const {
+    slot: postControlsSlot,
+    node: postControlsSlotNode,
+    follow: followPostDrawer,
+  } = useControlsSlot();
   // Phones: a project resting at the middle height, the map above it.
   const postOverMap =
     isMobile &&
@@ -1188,7 +924,7 @@ export default memo(function Explorer({
     if (isMobile) setModal(null);
     setPostId(id);
     setSelectedId(id);
-    setHoveredId(null);
+    highlight(null);
     enterPostView(id);
     window.history.pushState(
       { projectOverlay: true, suggestionsBelow: suggestionsOpen },
@@ -1230,57 +966,12 @@ export default memo(function Explorer({
     }
   }
 
-  // Desktop: one mode for the whole sidebar, whichever panel is on top.
-  // The map keeps its size throughout, except when collapsing frees its
-  // left edge (see the effect below).
+  // A place to frame once the map has its new width (see the effect below).
   const pendingFit = useRef<string | null>(
     !initial.full && !initial.view && place ? place : null,
   );
-  // The mode a change is animating from; the layout holds both until then.
-  const [modeFrom, setModeFrom] = useState<SidebarMode | null>(null);
   /** Where the collapsed toggle rests: just right of the corner tab's logo. */
   const [toggleRest, setToggleRest] = useState(128);
-  function animateFrom() {
-    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches)
-      setModeFrom(sidebarMode);
-  }
-  /**
-   * Maximizing or restoring lays the sidebar out once, at its new size, and
-   * the browser morphs the layer in view from the old picture to the new: its
-   * edge slides, its content crossfades, the logo and header controls glide
-   * to their places. Nothing lays out per frame, and content never passes
-   * through the sizes in between. Without view transitions, the clip and
-   * width animate instead (see the layout effect below).
-   */
-  function changeMode(change: () => void, to: "maximize" | "restore") {
-    const aside = panelRef.current;
-    if (
-      !aside ||
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    )
-      return change();
-    if (!document.startViewTransition) {
-      animateFrom();
-      return change();
-    }
-    const layer = Array.from(
-      aside.querySelectorAll<HTMLElement>(
-        "[data-explorer-layer], [data-sidebar-layer]",
-      ),
-    ).findLast((element) => !element.hasAttribute("data-exiting"));
-    const root = document.documentElement;
-    root.dataset.sidebarTransition = to;
-    layer?.setAttribute("data-sidebar-transition-layer", "");
-    const transition = document.startViewTransition(async () => {
-      flushSync(change);
-      if (layer) await imagesReady(layer);
-    });
-    transition.finished.finally(() => {
-      if (root.dataset.sidebarTransition === to)
-        delete root.dataset.sidebarTransition;
-      layer?.removeAttribute("data-sidebar-transition-layer");
-    });
-  }
   // The place the map showed when maximized; restoring keeps the view unless
   // another was picked meanwhile. Opened maximized, the URL's view shows the
   // URL's place if it lies within it.
@@ -1309,135 +1000,6 @@ export default memo(function Explorer({
     if (maximized) restore();
     storeCollapsed(true);
   }
-  // While animating, the sidebar holds the larger of both layouts: full
-  // width while maximizing or restoring; out of the map's way while
-  // collapsing or expanding, so the map resizes once, not every frame.
-  const wide = sidebarMode === "maximized" || modeFrom === "maximized";
-  const asideCollapsed = collapsed || modeFrom === "collapsed";
-  const explorerHidden = sidebarMode === "collapsed" && !modeFrom;
-  useLayoutEffect(() => {
-    const aside = panelRef.current;
-    if (!modeFrom || !aside) return;
-    const sidebar = sidebarWidth();
-    const visible = (mode: SidebarMode, explorer: boolean) =>
-      mode === "maximized"
-        ? window.innerWidth
-        : mode === "collapsed" && explorer
-          ? 0
-          : sidebar;
-    const width = (mode: SidebarMode) =>
-      mode === "maximized" ? window.innerWidth : sidebar;
-    const elements = Array.from(
-      aside.querySelectorAll<HTMLElement>(
-        "[data-explorer-layer], [data-sidebar-layer]",
-      ),
-    );
-    // Only the layer in view lays out along the way; maximizing or
-    // restoring, its content moves with the edge instead of jumping after.
-    const inView = elements.findLast(
-      (element) => !element.hasAttribute("data-exiting"),
-    );
-    const resizes = modeFrom === "maximized" || sidebarMode === "maximized";
-    const animations = elements.map((element) => {
-      const explorer = element.hasAttribute("data-explorer-layer");
-      return animateVisibleWidth(
-        element,
-        visible(modeFrom, explorer),
-        visible(sidebarMode, explorer),
-        resizes && element === inView
-          ? [width(modeFrom), width(sidebarMode)]
-          : undefined,
-      );
-    });
-    // Collapsing or expanding, the toggle rides the list's edge, so it is
-    // never left over the map, and waits in the corner tab. Keyframe offsets
-    // are in eased progress, the same the edge moves by.
-    const toggle = aside.querySelector<HTMLElement>("[data-explorer-toggle]");
-    const rest = aside.querySelector<HTMLElement>("[data-toggle-rest]");
-    const slot = aside.querySelector<HTMLElement>("[data-toggle-slot]");
-    const modes = [modeFrom, sidebarMode];
-    if (
-      toggle &&
-      rest &&
-      slot &&
-      modes.includes("collapsed") &&
-      modes.includes("normal")
-    ) {
-      // Its place in the header, left of the maximize button.
-      const slotLeft =
-        slot.getBoundingClientRect().left - aside.getBoundingClientRect().left;
-      const end = `${slotLeft}px`;
-      const left = `${rest.offsetLeft}px`;
-      const meet = Math.min(
-        1,
-        Math.max(0, (slotLeft - rest.offsetLeft) / sidebar),
-      );
-      const frames =
-        sidebarMode === "collapsed"
-          ? [{ left: end }, { left, offset: meet }, { left }]
-          : [{ left }, { left, offset: 1 - meet }, { left: end }];
-      animations.push(
-        toggle.animate(frames, { ...sidebarTiming, fill: "forwards" }),
-      );
-    }
-    Promise.all(animations.map((animation) => animation.finished)).then(
-      () => setModeFrom(null),
-      () => {
-        /* Replaced by the next change. */
-      },
-    );
-    return () => animations.forEach((animation) => animation.cancel());
-  }, [modeFrom, sidebarMode]);
-  // Closing a panel opened beside the map takes the sidebar back there.
-  const restoreMode = useEffectEvent(() => minimize());
-  useLayoutEffect(() => {
-    if (!restoreAfterClose) return;
-    setRestoreAfterClose(false);
-    restoreMode();
-  }, [restoreAfterClose]);
-  // Closed panels animate away, then leave; opened again on the way, they
-  // come back from where they got to.
-  // Phones: drawers animate themselves, and report when they are gone.
-  const exits = useRef(new Map<Layer, Animation>());
-  useLayoutEffect(() => {
-    if (isMobile) return;
-    const aside = panelRef.current;
-    const reduced = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-    for (const [layer, exit] of exits.current) {
-      if (exiting.includes(layer)) continue;
-      exits.current.delete(layer);
-      const element = aside?.querySelector<HTMLElement>(
-        `[data-sidebar-layer="${layer}"]`,
-      );
-      if (element && previousLayers.includes(layer) && !reduced)
-        animatePanelBack(element, exit);
-      else exit.cancel();
-    }
-    for (const layer of exiting) {
-      if (exits.current.has(layer)) continue;
-      const element = aside?.querySelector<HTMLElement>(
-        `[data-sidebar-layer="${layer}"]`,
-      );
-      if (!element || reduced) {
-        setExiting((current) => current.filter((item) => item !== layer));
-        continue;
-      }
-      const exit = animatePanelOut(element, element.hasAttribute("data-full"));
-      exits.current.set(layer, exit);
-      exit.finished.then(
-        () => {
-          if (exits.current.get(layer) !== exit) return;
-          exits.current.delete(layer);
-          setExiting((current) => current.filter((item) => item !== layer));
-        },
-        () => {
-          /* Opened again. */
-        },
-      );
-    }
-  }, [exiting, previousLayers, isMobile]);
   const fitPending = useEffectEvent(() => {
     const fit = pendingFit.current;
     pendingFit.current = null;
@@ -1510,6 +1072,8 @@ export default memo(function Explorer({
   // Back from logging in, what was asked for goes ahead.
   useEffect(() => {
     if (!user?.username) return;
+    // The intent is kept in session storage, outside React.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (takeLoginIntent("suggest-project")) setEditorOpen(true);
     if (takeLoginIntent("account")) openProfile("settings");
     const save = takeLoginIntent("save");
@@ -1620,8 +1184,8 @@ export default memo(function Explorer({
             event.stopPropagation();
             closeSearch();
           }
-          if (event.key === "Enter" && searched.length === 1)
-            openPost(searched[0].id, {}, true);
+          if (event.key === "Enter" && listedProjects.length === 1)
+            openPost(listedProjects[0].id, {}, true);
         }}
       />
       <button
@@ -1995,13 +1559,12 @@ export default memo(function Explorer({
     saveLatest.current = toggleSave;
   });
   const saveCard = useCallback((id: string) => saveLatest.current(id), []);
-  const hoverCard = useCallback(
-    (id: string, hovering: boolean) =>
-      setHoveredId((current) =>
-        hovering ? id : current === id ? null : current,
-      ),
-    [],
-  );
+  const hoverCard = useCallback((id: string, hovering: boolean) => {
+    const current = hoveredId.current;
+    const next = hovering ? id : current === id ? null : current;
+    hoveredId.current = next;
+    mapApi.current?.highlight(next);
+  }, []);
   const projectResults = (
     <section
       ref={listRef}
@@ -2086,7 +1649,7 @@ export default memo(function Explorer({
               <ProjectCard
                 key={project.id}
                 project={project}
-                commentCount={commentsByProject.get(project.id)?.length ?? 0}
+                commentCount={activity[project.id]?.comments ?? 0}
                 density={density}
                 saved={savedIds.has(project.id)}
                 news={news.get(project.id)}
@@ -2119,7 +1682,6 @@ export default memo(function Explorer({
       onToggleFull={isMobile ? undefined : maximized ? minimize : maximize}
       saved={savedIds.has(post.id)}
       onSave={() => toggleSave(post.id)}
-      comments={commentsByProject.get(post.id) ?? noComments}
       onNotify={notify}
       onMap={isMobile ? () => showPostOnMap(post) : undefined}
     />
@@ -2419,7 +1981,7 @@ export default memo(function Explorer({
           <Panel {...frame} titled>
             <SavedProjects
               projects={savedProjects}
-              commentsByProject={commentsByProject}
+              activity={activity}
               density={density}
               news={news}
               onOpen={openCard}
@@ -2569,9 +2131,7 @@ export default memo(function Explorer({
           setSnapInstantly(true);
           setSnapPoint(middleSnapPoint);
         }}
-        onClosed={() =>
-          setExiting((current) => current.filter((item) => item !== layer))
-        }
+        onClosed={() => exited(layer)}
         onEnter={
           layer === "project"
             ? () => {
@@ -2865,7 +2425,6 @@ export default memo(function Explorer({
               isMobile ? (postOverMap ? postControlsSlot : controlsSlot) : undefined
             }
             selectedId={selectedId}
-            highlightedId={hoveredId}
             onSelect={(id) =>
               id ? openPost(id, {}, true) : setSelectedId(postId)
             }

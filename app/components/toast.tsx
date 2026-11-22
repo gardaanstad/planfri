@@ -3,11 +3,9 @@ import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { Toast } from "@base-ui/react/toast";
 import { Check, CircleAlert, X } from "lucide-react";
 import { cn } from "../lib/cn";
+import { mobileQuery, useMediaQuery } from "../lib/media";
 
 const manager = Toast.createToastManager();
-
-/** Phones get toasts at the top, clear of the drawer and bottom sheets. */
-const topQuery = "(width < 48rem)";
 
 type Options = {
   /** Offers "Angre"; the toast closes as it runs. */
@@ -41,12 +39,6 @@ export function notify(message: string, { undo, error }: Options = {}) {
   if (listening) show();
   else waiting.push(show);
   return id;
-}
-
-function subscribeTop(onChange: () => void) {
-  const query = window.matchMedia(topQuery);
-  query.addEventListener("change", onChange);
-  return () => query.removeEventListener("change", onChange);
 }
 
 /**
@@ -102,11 +94,8 @@ function Viewport() {
     () => modals.at(-1) ?? null,
     () => null,
   );
-  const top = useSyncExternalStore(
-    subscribeTop,
-    () => window.matchMedia(topQuery).matches,
-    () => false,
-  );
+  // Phones get toasts at the top, clear of the drawer and bottom sheets.
+  const top = useMediaQuery(mobileQuery);
   // The portal mounts its content after this renders, so the viewport
   // opens itself from its ref.
   const openViewport = useCallback((viewport: HTMLDivElement | null) => {

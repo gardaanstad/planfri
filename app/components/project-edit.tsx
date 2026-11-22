@@ -11,6 +11,7 @@ import {
   unknownDeveloper,
 } from "../lib/data";
 import { cn } from "../lib/cn";
+import { reducedMotion } from "../lib/media";
 import { controlBase, fieldControl, primaryButton } from "../lib/ui";
 
 export type FieldId =
@@ -164,7 +165,7 @@ export function focusField(id: FieldId, root: ParentNode = document) {
   if (!field) return;
   field.scrollIntoView({
     block: "center",
-    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    behavior: reducedMotion()
       ? "auto"
       : "smooth",
   });

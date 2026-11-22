@@ -56,7 +56,7 @@ export function UnreadProvider({
   initialUserId?: string;
 }) {
   const { user } = useAuth();
-  const { projects, comments } = useCommunity();
+  const { projects, activity } = useCommunity();
   const [state, setState] = useState({
     unread: initialUnread,
     userId: initialUserId,
@@ -82,14 +82,14 @@ export function UnreadProvider({
     [userId],
   );
   // The first community data is what the server counted with.
-  const initial = useRef({ projects, comments });
+  const initial = useRef({ projects, activity });
   useEffect(() => {
     if (!userId) return;
     const first = initial.current;
     if (
       state.userId === userId &&
       first.projects === projects &&
-      first.comments === comments
+      first.activity === activity
     )
       return;
     void load(() => apiRequest<Unread>("/api/seen")).catch(() => {
@@ -97,7 +97,7 @@ export function UnreadProvider({
     });
     // state.userId only tells whether the first read is still current.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [load, userId, projects, comments]);
+  }, [load, userId, projects, activity]);
 
   const unread = userId && state.userId === userId ? state.unread : null;
   const news = useMemo(

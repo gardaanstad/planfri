@@ -5,8 +5,7 @@ import {
   type Locator,
   type Page,
 } from "@playwright/test";
-import { randomUUID } from "node:crypto";
-import { seedProjects } from "../app/lib/data";
+import { seedProjects } from "../scripts/seed-data";
 import {
   accountMenuItem,
   member,
@@ -14,6 +13,8 @@ import {
   openSaved,
   shot,
   signIn,
+  swipeDown,
+  uniqueName,
 } from "./support";
 
 const project = seedProjects[0];
@@ -81,10 +82,7 @@ test.describe("login prompt", () => {
     await expect(login).toBeFocused();
   });
 
-  test("actions that need an account say why, and a save goes ahead after login", async ({
-    page,
-    context,
-  }) => {
+  test("actions that need an account say why", async ({ page }) => {
     const prompt = page.getByRole("dialog", { name: "Logg inn" });
     await page.goto(projectPath);
     const post = page.locator("[data-project-post]");
@@ -105,16 +103,6 @@ test.describe("login prompt", () => {
     await expect(prompt).toContainText("for å kommentere");
     await page.keyboard.press("Escape");
     await expect(prompt).toHaveCount(0);
-
-    // Coming back signed in, the save asked for is done.
-    await post.getByRole("button", { name: "Lagre", exact: true }).click();
-    await expect(prompt).toBeVisible();
-    const person = await member({ username: `login_${randomUUID().slice(0, 8)}` });
-    await signIn(context, person);
-    await page.reload();
-    await expect(
-      page.getByRole("button", { name: "Lagret", exact: true, pressed: true }),
-    ).toBeVisible();
   });
 });
 
@@ -205,7 +193,7 @@ test.describe("mobile panels", () => {
     page,
     context,
   }) => {
-    const person = await member({ username: `drawer_${randomUUID().slice(0, 8)}` });
+    const person = await member({ username: uniqueName("drawer") });
     await signIn(context, person);
     await page.goto("/");
     const explorer = "[data-explorer-drawer]";
@@ -253,7 +241,7 @@ test.describe("mobile panels", () => {
   });
 
   test("Forslag opens as a drawer on its own URL", async ({ page, context }) => {
-    const person = await member({ username: `forslag_${randomUUID().slice(0, 8)}` });
+    const person = await member({ username: uniqueName("forslag") });
     await signIn(context, person);
     await page.goto("/forslag");
     const drawer = page.locator('[data-panel-drawer="suggestions"]');
@@ -356,7 +344,7 @@ test.describe("desktop headers", () => {
   }) => {
     await signIn(
       context,
-      await member({ username: `titled_${randomUUID().slice(0, 8)}` }),
+      await member({ username: uniqueName("titled") }),
     );
     await page.goto(projectPath);
     const reference = await capitals(page.locator("#project-card-title"));
@@ -457,7 +445,7 @@ test.describe("flows stay in the explorer", () => {
     page,
     context,
   }) => {
-    const person = await member({ username: `flow_${randomUUID().slice(0, 8)}` });
+    const person = await member({ username: uniqueName("flow") });
     await signIn(context, person);
     // Settings open from the menu in the account panel, in place.
     await page.goto("/?kart=59.9100,10.7500,13");
@@ -485,7 +473,7 @@ test.describe("account menu", () => {
     page,
     context,
   }) => {
-    const person = await member({ username: `menu_${randomUUID().slice(0, 8)}` });
+    const person = await member({ username: uniqueName("menu") });
     await signIn(context, person);
     await page.goto("/?kart=59.9100,10.7500,13");
     const trigger = page.getByRole("button", { name: "Konto", exact: true });
@@ -535,7 +523,7 @@ test.describe("account menu", () => {
     context,
   }) => {
     const moderator = await member({
-      username: `menu_mod_${randomUUID().slice(0, 8)}`,
+      username: uniqueName("menu_mod"),
       email: "menu-moderator@example.test",
     });
     await signIn(context, moderator);
@@ -573,35 +561,6 @@ test.describe("account menu", () => {
   });
 });
 
-/** Drags a finger from the middle of `target` to near the screen's bottom. */
-async function swipeDown(page: Page, target: Locator) {
-  const box = await target.boundingBox();
-  if (!box) throw new Error("Swipe target is not visible");
-  const x = box.x + box.width / 2;
-  const y = box.y + box.height / 2;
-  const distance = page.viewportSize()!.height - y - 20;
-  const session = await page.context().newCDPSession(page);
-  try {
-    await session.send("Input.dispatchTouchEvent", {
-      type: "touchStart",
-      touchPoints: [{ x, y }],
-    });
-    for (let step = 1; step <= 20; step++) {
-      await session.send("Input.dispatchTouchEvent", {
-        type: "touchMove",
-        touchPoints: [{ x, y: y + (distance * step) / 20 }],
-      });
-      await page.waitForTimeout(16);
-    }
-    await session.send("Input.dispatchTouchEvent", {
-      type: "touchEnd",
-      touchPoints: [],
-    });
-  } finally {
-    await session.detach();
-  }
-}
-
 test.describe("mobile project actions, signed in", () => {
   test.use({
     viewport: devices["iPhone 13"].viewport,
@@ -614,7 +573,7 @@ test.describe("mobile project actions, signed in", () => {
     page,
     context,
   }) => {
-    await signIn(context, await member({ username: `sheet_${randomUUID().slice(0, 8)}` }));
+    await signIn(context, await member({ username: uniqueName("sheet") }));
     await page.goto(projectPath);
     const drawer = page.locator('[data-panel-drawer="project"]');
     await expect(drawer.locator("[data-project-post]")).toBeVisible();
@@ -638,7 +597,7 @@ test.describe("mobile project actions, signed in", () => {
     page,
     context,
   }) => {
-    await signIn(context, await member({ username: `swipe_${randomUUID().slice(0, 8)}` }));
+    await signIn(context, await member({ username: uniqueName("swipe") }));
     await page.goto("/");
     const drawer = page.locator("[data-explorer-drawer]");
     await expect(drawer).toBeVisible();

@@ -3,6 +3,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
 import { Moon, Sun } from "lucide-react";
 import { cn } from "../lib/cn";
+import { reducedMotion } from "../lib/media";
 import { iconButton } from "../lib/ui";
 import { parseTheme, themeColors, themeCookie, type Theme } from "../lib/theme";
 
@@ -53,7 +54,7 @@ function setTheme(theme: Theme) {
   // The page cross-fades from one palette to the other.
   if (
     !document.startViewTransition ||
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    reducedMotion()
   ) {
     apply();
     return;

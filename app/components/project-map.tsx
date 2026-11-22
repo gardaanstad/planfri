@@ -41,6 +41,7 @@ import {
   osmStatusLabels,
 } from "../lib/osm-candidates";
 import { cn } from "../lib/cn";
+import { reducedMotion } from "../lib/media";
 import { mapIconButton } from "../lib/ui";
 
 type MapLayer = "standard" | "streets";
@@ -217,10 +218,13 @@ export type MapApi = {
   beginResize: () => void;
   syncSize: () => void;
   endResize: () => void;
+  /**
+   * Draws the project like the selected one, e.g. while its list card is
+   * hovered. Outside React, so hovering re-renders nothing.
+   */
+  highlight: (id: string | null) => void;
 };
 export type MapViewChange = MapView & { bounds: ViewBounds };
-const reducedMotion = () =>
-  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 // Vector maps from OpenFreeMap: free, without keys or limits, and drawn
 // by the browser, so labels and lines are sharp at any pixel density and at
 // half zoom steps. Positron is a quiet grey base for the projects, and Dark
@@ -281,6 +285,20 @@ function basemapEnabled() {
   }
 }
 // Stable defaults, so drawing maps don't rebuild their layers on each render.
+/** The layers drawn for one project. */
+type DrawnProject = {
+  project: Project;
+  shape: L.Polygon | L.Polyline;
+  /** Alignments only: a casing under the line, and a wider band to hit. */
+  casing?: L.Polyline;
+  hit?: L.Polyline;
+  dot: L.CircleMarker;
+  /** An alignment's extent, which decides whether it can join a group. */
+  bounds?: L.LatLngBounds;
+  /** Where it groups, in zoom-0 pixels: distances at zoom z shrink by 2^z. */
+  anchor: L.Point;
+};
+
 const noProjects: Project[] = [];
 const noPoints: Point[] = [];
 const noSelect = () => {};
@@ -302,8 +320,6 @@ type Props = {
    */
   bottomInset?: () => number;
   selectedId?: string | null;
-  /** Drawn like the selected project, e.g. while its list card is hovered. */
-  highlightedId?: string | null;
   onSelect?: (id: string | null) => void;
   draw?: boolean;
   /** Small inline map: no layer menu. */
@@ -334,7 +350,6 @@ export default function ProjectMap({
   onPanStart,
   bottomInset,
   selectedId = null,
-  highlightedId = null,
   onSelect = noSelect,
   draw = false,
   compact = false,
@@ -348,10 +363,10 @@ export default function ProjectMap({
 }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const shapesRef = useRef(new Map<string, L.Polygon | L.Polyline>());
-  const dotsRef = useRef(new Map<string, L.CircleMarker>());
-  const casingsRef = useRef(new Map<string, L.Polyline>());
-  const hitsRef = useRef(new Map<string, L.Polyline>());
+  // Each project's layers, in drawing order, kept while the project is
+  // unchanged so filtering touches only the projects that come and go.
+  const drawnRef = useRef(new Map<string, DrawnProject>());
+  const drawProjectsRef = useRef<(projects: Project[]) => void>(() => {});
   // Regroups projects, e.g. so the selected one leaves its group.
   const clusterRef = useRef(() => {});
   // The group each grouped project is drawn in, as of the last grouping.
@@ -363,7 +378,7 @@ export default function ProjectMap({
   const initialPoints = useRef(points);
   const startView = useRef(initialView);
   const selectedRef = useRef(selectedId);
-  const highlightedRef = useRef(highlightedId);
+  const highlightedRef = useRef<string | null>(null);
   const handlers = useRef<{
     onSelect: (id: string | null) => void;
       onViewChange?: (view: MapViewChange) => void;
@@ -726,6 +741,13 @@ export default function ProjectMap({
         resizing.current = false;
         report();
       },
+      highlight(id) {
+        const previous = highlightedRef.current;
+        highlightedRef.current = id;
+        if (previous === id) return;
+        styleRef.current(previous);
+        styleRef.current(id);
+      },
     });
     return () => {
       map.off("moveend", report);
@@ -739,6 +761,7 @@ export default function ProjectMap({
     const group = L.layerGroup().addTo(map);
     const dots = L.layerGroup().addTo(map);
     const clusters = L.layerGroup().addTo(map);
+    const drawn = drawnRef.current;
     // Thin and dashed alignments get an invisible, wider band to hit.
     const hitWeight = window.matchMedia("(pointer: coarse)").matches ? 28 : 18;
     const select = (project: Project, shape: L.Path) => {
@@ -748,7 +771,7 @@ export default function ProjectMap({
         element.focus({ preventScroll: true, focusVisible: false } as FocusOptions);
       handlers.current.onSelect(project.id);
     };
-    for (const project of projects) {
+    const add = (project: Project): DrawnProject => {
       const color = statuses[project.status].color;
       const selected = project.id === selectedRef.current;
       const line = project.geometryType === "line";
@@ -760,18 +783,16 @@ export default function ProjectMap({
         ...shapeStyle(line, selected),
       };
       // A casing in the base map's tone keeps thin alignments crisp.
-      if (line)
-        casingsRef.current.set(
-          project.id,
-          L.polyline(project.geometry, {
+      const casing = line
+        ? L.polyline(project.geometry, {
             className: "project-casing",
             weight: lineWeight(selected) + 4,
             opacity: 0.95,
             lineCap: "round",
             lineJoin: "round",
             interactive: false,
-          }).addTo(group),
-        );
+          }).addTo(group)
+        : undefined;
       const shape = line
         ? L.polyline(project.geometry, {
             ...options,
@@ -784,12 +805,12 @@ export default function ProjectMap({
         L.DomEvent.stopPropagation(event);
         select(project, shape);
       });
-      shapesRef.current.set(project.id, shape);
       const element = shape.getElement();
+      let hit: L.Polyline | undefined;
       if (line && element instanceof SVGElement) {
         // The band takes the pointer; the drawn line keeps focus and styling.
         element.style.pointerEvents = "none";
-        const hit = L.polyline(project.geometry, {
+        hit = L.polyline(project.geometry, {
           className: "project-hit",
           opacity: 0,
           weight: hitWeight,
@@ -805,7 +826,6 @@ export default function ProjectMap({
           .on("mouseover", () => element.classList.add("is-hovered"))
           .on("mouseout", () => element.classList.remove("is-hovered"))
           .bindTooltip(projectTooltip(project), tooltipOptions);
-        hitsRef.current.set(project.id, hit);
       }
       if (element && !draw) {
         element.setAttribute("tabindex", "0");
@@ -868,35 +888,24 @@ export default function ProjectMap({
           });
         }
       });
-      dotsRef.current.set(project.id, dot);
-    }
-    const shapes = shapesRef.current;
-    const dotMarkers = dotsRef.current;
-    const casings = casingsRef.current;
-    const hits = hitsRef.current;
-    const lineBounds = new Map(
-      projects
-        .filter((project) => project.geometryType === "line")
-        .map((project) => [project.id, L.latLngBounds(project.geometry)]),
-    );
-    // Each project's anchor in zoom-0 pixels, where screen distances at
-    // zoom z shrink by 2^z.
-    const anchors = new Map(
-      projects.map((project) => [
-        project.id,
-        map.project(
-          lineBounds.has(project.id)
-            ? dotMarkers.get(project.id)!.getLatLng()
-            : project.center,
-          0,
-        ),
-      ]),
-    );
-    const eligible = (project: Project, zoom: number) => {
+      return {
+        project,
+        shape,
+        casing,
+        hit,
+        dot,
+        bounds: line ? L.latLngBounds(project.geometry) : undefined,
+        anchor: map.project(line ? dot.getLatLng() : project.center, 0),
+      };
+    };
+    const remove = ({ shape, casing, hit, dot }: DrawnProject) => {
+      for (const layer of [casing, shape, hit]) if (layer) group.removeLayer(layer);
+      dots.removeLayer(dot);
+    };
+    const eligible = ({ project, bounds }: DrawnProject, zoom: number) => {
       // The open project stands on its own; a hovered one lights up its
       // group instead.
       if (project.id === selectedRef.current) return false;
-      const bounds = lineBounds.get(project.id);
       return !(
         bounds &&
         zoom >= lineDotZoom &&
@@ -916,14 +925,14 @@ export default function ProjectMap({
       for (let level = clusterZoom - step; level > zoom; level -= step)
         levels.push(level);
       levels.push(zoom);
-      type Node = { members: Project[]; at: L.Point };
+      type Node = { members: DrawnProject[]; at: L.Point };
       let nodes: Node[] = [];
       const placed = new Set<string>();
       for (const level of levels) {
-        for (const project of projects)
-          if (!placed.has(project.id) && eligible(project, level)) {
-            placed.add(project.id);
-            nodes.push({ members: [project], at: anchors.get(project.id)! });
+        for (const entry of drawn.values())
+          if (!placed.has(entry.project.id) && eligible(entry, level)) {
+            placed.add(entry.project.id);
+            nodes.push({ members: [entry], at: entry.anchor });
           }
         const radius = clusterRadius / map.getZoomScale(level, 0);
         const used = new Set<Node>();
@@ -938,7 +947,7 @@ export default function ProjectMap({
           merged.push({
             members,
             at: members
-              .reduce((sum, project) => sum.add(anchors.get(project.id)!), L.point(0, 0))
+              .reduce((sum, entry) => sum.add(entry.anchor), L.point(0, 0))
               .divideBy(members.length),
           });
         }
@@ -955,7 +964,8 @@ export default function ProjectMap({
       const grouped = new Set<string>();
       const kept = new Set<string>();
       if (zoom < clusterZoom)
-        for (const { members: list, at } of groupsAt(zoom)) {
+        for (const { members, at } of groupsAt(zoom)) {
+          const list = members.map((entry) => entry.project);
           const key = list
             .map((project) => project.id)
             .sort()
@@ -992,25 +1002,20 @@ export default function ProjectMap({
           clusters.removeLayer(marker);
           groupMarkers.delete(key);
         }
-      for (const project of projects) {
+      for (const { project, shape, casing, hit, dot } of drawn.values()) {
         const line = project.geometryType === "line";
         const ungrouped = !grouped.has(project.id);
         const dotted = zoom < (line ? lineDotZoom : clusterZoom);
         // Areas keep their outline under the dot; alignments give way to it.
         const shown = ungrouped && !(line && dotted);
-        for (const layer of [
-          shapes.get(project.id),
-          casings.get(project.id),
-          hits.get(project.id),
-        ]) {
+        for (const layer of [shape, casing, hit]) {
           const element = layer?.getElement();
           if (element instanceof SVGElement)
             element.style.display = shown ? "" : "none";
           if (!shown) layer?.closeTooltip();
         }
-        const dot = dotMarkers.get(project.id);
-        if (dot && ungrouped && dotted) dots.addLayer(dot);
-        else if (dot) dots.removeLayer(dot);
+        if (ungrouped && dotted) dots.addLayer(dot);
+        else dots.removeLayer(dot);
       }
     };
     // Zooms in far enough to frame the group, at least one step, in the
@@ -1038,20 +1043,17 @@ export default function ProjectMap({
       else map.flyTo(center, zoom, { duration: 0.6 });
     };
     const style = (id: string | null) => {
-      if (!id) return;
-      const project = projects.find((item) => item.id === id);
-      if (!project) return;
+      const entry = id ? drawn.get(id) : undefined;
+      if (!id || !entry) return;
+      const { project, shape, casing, hit, dot } = entry;
       const isSelected = id === selectedRef.current;
       const emphasized = isSelected || id === highlightedRef.current;
-      const shape = shapes.get(id);
-      const casing = casings.get(id);
-      const dot = dotMarkers.get(id);
       // The open project stays at full strength; the rest step back.
       for (const layer of [shape, casing, dot])
         layer?.getElement()?.classList.toggle("is-selected", isSelected);
-      shape?.setStyle(shapeStyle(project.geometryType === "line", emphasized));
+      shape.setStyle(shapeStyle(project.geometryType === "line", emphasized));
       casing?.setStyle({ weight: lineWeight(emphasized) + 4 });
-      dot?.setRadius(dotRadius(emphasized));
+      dot.setRadius(dotRadius(emphasized));
       const group = groupOf.get(id);
       // Inside a group, the group lights up in its place.
       group
@@ -1061,33 +1063,68 @@ export default function ProjectMap({
           groupOf.get(highlightedRef.current ?? "") === group,
         );
       if (!emphasized || group) return;
-      const element = shape?.getElement();
+      const element = shape.getElement();
       const wasFocused = element === document.activeElement;
       casing?.bringToFront();
-      shape?.bringToFront();
-      hits.get(id)?.bringToFront();
+      shape.bringToFront();
+      hit?.bringToFront();
       if (wasFocused && element instanceof SVGElement)
         element.focus({ preventScroll: true });
-      shape?.closeTooltip();
+      shape.closeTooltip();
+    };
+    // Projects that stay keep their layers; changed ones are drawn afresh.
+    const drawProjects = (projects: Project[]) => {
+      const wanted = new Map(projects.map((project) => [project.id, project]));
+      let changed = false;
+      for (const [id, entry] of drawn)
+        if (wanted.get(id) !== entry.project) {
+          remove(entry);
+          drawn.delete(id);
+          changed = true;
+        }
+      const kept = drawn.size;
+      const order = [...wanted.values()].map(
+        (project) => drawn.get(project.id) ?? add(project),
+      );
+      const added = order.length > kept;
+      changed ||= added;
+      // Grouping and stacking follow the order the projects come in.
+      const before = [...drawn.keys()].join();
+      drawn.clear();
+      for (const entry of order) drawn.set(entry.project.id, entry);
+      if (!changed && before === [...drawn.keys()].join()) return;
+      // New shapes land on top; the rest move to stack as if drawn afresh.
+      if (added && kept) {
+        const focused = document.activeElement;
+        for (const { casing, shape, hit } of order) {
+          casing?.bringToFront();
+          shape.bringToFront();
+          hit?.bringToFront();
+        }
+        if (focused instanceof SVGElement && focused !== document.activeElement)
+          focused.focus({ preventScroll: true });
+      }
+      cluster();
+      style(highlightedRef.current);
     };
     styleRef.current = style;
     clusterRef.current = cluster;
+    drawProjectsRef.current = drawProjects;
     map.on("zoomend", cluster);
-    cluster();
-    style(highlightedRef.current);
     return () => {
       map.off("zoomend", cluster);
       clusterRef.current = () => {};
       styleRef.current = () => {};
+      drawProjectsRef.current = () => {};
       groupOf.clear();
       group.remove();
       dots.remove();
       clusters.remove();
-      shapes.clear();
-      dotMarkers.clear();
-      casings.clear();
-      hits.clear();
+      drawn.clear();
     };
+  }, [ready, draw]);
+  useEffect(() => {
+    drawProjectsRef.current(projects);
   }, [projects, ready, draw]);
   // Only the projects whose state changed are touched.
   useEffect(() => {
@@ -1099,13 +1136,6 @@ export default function ProjectMap({
     styleRef.current(previous);
     styleRef.current(selectedId);
   }, [selectedId]);
-  useEffect(() => {
-    const previous = highlightedRef.current;
-    highlightedRef.current = highlightedId;
-    if (previous === highlightedId) return;
-    styleRef.current(previous);
-    styleRef.current(highlightedId);
-  }, [highlightedId]);
   useEffect(() => {
     osmSelect.current = osm?.onSelect;
   });

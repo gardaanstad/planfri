@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import Explorer, { routeParam } from "./explorer";
-import { isExplorerPath, pathSegments } from "../lib/explore-route";
+import Explorer from "./explorer";
+import { isExplorerPath, pathSegments, routeParam } from "../lib/explore-route";
 
 export default function ExplorerShell({ mobileHint }: { mobileHint: boolean }) {
   const pathname = usePathname();

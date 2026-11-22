@@ -3,7 +3,12 @@ import { deflateSync } from "node:zlib";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { user, session } from "../app/lib/db/schema";
-import type { APIRequestContext, BrowserContext, Page } from "@playwright/test";
+import type {
+  APIRequestContext,
+  BrowserContext,
+  Locator,
+  Page,
+} from "@playwright/test";
 export const origin = `http://127.0.0.1:${process.env.TEST_PORT}`;
 export const secret = "test-only-secret-never-use-in-production-72f9d1";
 export const db = drizzle(
@@ -138,4 +143,61 @@ export async function openSaved(page: Page) {
 export async function openOwnProfile(page: Page) {
   await page.getByRole("button", { name: "Konto", exact: true }).click();
   await accountMenuItem(page, /Din profil/).click();
+}
+
+/** A name no other test uses, valid as a username. */
+export const uniqueName = (prefix = "test") =>
+  `${prefix}_${randomUUID().slice(0, 8)}`;
+
+type Point = { x: number; y: number };
+/** The middle of a visible element, in page coordinates. */
+export async function middleOf(target: Locator): Promise<Point> {
+  const box = await target.boundingBox();
+  if (!box) throw new Error("Touch target is not visible");
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+/**
+ * Moves one finger in a straight line, `steps` moves `stepMs` apart, as real
+ * touch input; `before` runs while the finger is still down.
+ */
+export async function touchMove(
+  page: Page,
+  from: Point,
+  to: Point,
+  {
+    steps = 20,
+    stepMs = 16,
+    before,
+  }: { steps?: number; stepMs?: number; before?: () => Promise<void> } = {},
+) {
+  const session = await page.context().newCDPSession(page);
+  const send = (
+    type: "touchStart" | "touchMove" | "touchEnd",
+    touchPoints: Point[],
+  ) =>
+    session.send("Input.dispatchTouchEvent", { type, touchPoints });
+  try {
+    await send("touchStart", [from]);
+    for (let step = 1; step <= steps; step++) {
+      await send("touchMove", [
+        {
+          x: from.x + ((to.x - from.x) * step) / steps,
+          y: from.y + ((to.y - from.y) * step) / steps,
+        },
+      ]);
+      await page.waitForTimeout(stepMs);
+    }
+    await before?.();
+    await send("touchEnd", []);
+  } finally {
+    await session.detach();
+  }
+}
+/** Drags a finger from the middle of `target` to near the screen's bottom. */
+export async function swipeDown(page: Page, target: Locator) {
+  const from = await middleOf(target);
+  await touchMove(page, from, {
+    x: from.x,
+    y: page.viewportSize()!.height - 20,
+  });
 }

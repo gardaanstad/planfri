@@ -11,6 +11,7 @@ import Image from "next/image";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import type { ProjectImage } from "../lib/data";
 import { cn } from "../lib/cn";
+import { reducedMotion } from "../lib/media";
 
 const track = cn(
   "flex h-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain",
@@ -51,9 +52,7 @@ function useSlides(count: number, start = 0, snappy = false) {
             `[data-arrow="${end === "prev" ? "next" : "prev"}"]`,
           )
           ?.focus({ preventScroll: true });
-      const still = window.matchMedia(
-        "(prefers-reduced-motion: reduce)",
-      ).matches;
+      const still = reducedMotion();
       const glide =
         smooth &&
         !still &&

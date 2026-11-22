@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { ZodError } from "zod";
 import { readSession, siteURL } from "../auth";
 import { memberViewOn } from "../member-view";
@@ -15,6 +16,20 @@ export function json(data: unknown, status = 200) {
   return Response.json(data, {
     status,
     headers: { "Cache-Control": "private, no-store" },
+  });
+}
+/**
+ * JSON with an ETag: a client that sends back the tag of what it holds gets
+ * an empty 304 when nothing changed, sparing the transfer and its parsing.
+ */
+export function conditionalJson(request: Request, data: unknown) {
+  const body = JSON.stringify(data);
+  const etag = `"${createHash("sha1").update(body).digest("base64url")}"`;
+  const headers = { "Cache-Control": "private, no-store", ETag: etag };
+  if (request.headers.get("if-none-match") === etag)
+    return new Response(null, { status: 304, headers });
+  return new Response(body, {
+    headers: { ...headers, "Content-Type": "application/json" },
   });
 }
 export async function api(action: () => Promise<Response>) {

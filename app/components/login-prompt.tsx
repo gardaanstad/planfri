@@ -4,12 +4,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { safeReturnPath } from "../lib/account-rules";
 import { cn } from "../lib/cn";
+import { reducedMotion } from "../lib/media";
 import { iconButton } from "../lib/ui";
 import { openedByKeyboard } from "./action-sheet";
 import GoogleSignIn from "./google-sign-in";
 
-const reduced = () =>
-  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /**
  * Asks a guest to log in, saying why. A bottom sheet on phones, like the
@@ -54,7 +53,7 @@ export default function LoginPrompt({
     const panel = sheet.current;
     if (closing.current) return;
     closing.current = true;
-    if (!dialog || !panel || reduced()) return onClose();
+    if (!dialog || !panel || reducedMotion()) return onClose();
     const mobile = getComputedStyle(panel).getPropertyValue("--sheet") === "1";
     const options = { duration: mobile ? 220 : 140, easing: "ease-in", fill: "forwards" as const };
     const out = panel.animate(

@@ -1,7 +1,8 @@
 "use client";
 import { useMemo, useState } from "react";
 import { ArrowDownUp, Bookmark } from "lucide-react";
-import type { Comment, Project } from "../lib/data";
+import type { ProjectActivity } from "../lib/community";
+import type { Project } from "../lib/data";
 import type { ListDensity } from "../lib/explore-state";
 import { type ProjectNews, unreadCount } from "../lib/unread";
 import { cn } from "../lib/cn";
@@ -20,7 +21,7 @@ const time = (date?: string) => (date ? Date.parse(date) || 0 : 0);
  */
 export default function SavedProjects({
   projects,
-  commentsByProject,
+  activity,
   density,
   news,
   onOpen,
@@ -29,7 +30,7 @@ export default function SavedProjects({
 }: {
   /** The saved projects, in any order. */
   projects: Project[];
-  commentsByProject: ReadonlyMap<string, Comment[]>;
+  activity: Record<string, ProjectActivity>;
   density: ListDensity;
   news: ReadonlyMap<string, ProjectNews>;
   onOpen: (id: string, section?: "discussion" | "updates") => void;
@@ -94,7 +95,7 @@ export default function SavedProjects({
               <ProjectCard
                 key={project.id}
                 project={project}
-                commentCount={commentsByProject.get(project.id)?.length ?? 0}
+                commentCount={activity[project.id]?.comments ?? 0}
                 density={density}
                 saved
                 news={news.get(project.id)}

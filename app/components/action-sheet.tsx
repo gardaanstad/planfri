@@ -2,11 +2,10 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { LogIn } from "lucide-react";
 import { cn } from "../lib/cn";
+import { reducedMotion } from "../lib/media";
 import { keyboardFocused } from "../lib/ui";
 import { useSwipeDismiss } from "./use-swipe-dismiss";
 
-const reduced = () =>
-  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /** Whether a sheet's trigger was reached by keyboard rather than a tap. */
 export const openedByKeyboard = (trigger: Element | null) =>
@@ -105,7 +104,7 @@ export default function ActionSheet({
       onClose();
       then?.();
     };
-    if (!dialog || !panel || !animate || reduced()) return done();
+    if (!dialog || !panel || !animate || reducedMotion()) return done();
     const options = { duration: 200, easing: "ease-in", fill: "forwards" as const };
     const out = panel.animate(
       [{ transform: "none" }, { transform: "translateY(100%)" }],

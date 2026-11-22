@@ -16,6 +16,7 @@ import {
   ChevronDown,
   MapPin,
   MessageCircle,
+  LoaderCircle,
   MessagesSquare,
   Plus,
 } from "lucide-react";
@@ -32,15 +33,16 @@ import {
   type Status,
   statuses,
   statusOrder,
-  type Comment,
   ownPhotos,
   unknownDeveloper,
 } from "../lib/data";
 import { applyChanges } from "../lib/suggestions";
 import { useAuth } from "./auth-provider";
-import { useCommunity } from "./community-provider";
+import { useComments, useCommunity } from "./community-provider";
+import { projectComments } from "../lib/community";
 import { errorMessage } from "../lib/api-client";
 import { cn } from "../lib/cn";
+import { reducedMotion } from "../lib/media";
 import {
   composer,
   composerField,
@@ -126,7 +128,6 @@ type Props = {
   /** Phones: the header's actions sit in a sheet. */
   mobile?: boolean;
   onToggleFull?: () => void;
-  comments: Comment[];
   onNotify: (message: string) => void;
 };
 const factRow =
@@ -391,6 +392,18 @@ function EditImages() {
   );
 }
 
+function CommentsLoading() {
+  return (
+    <p role="status" className="flex min-h-32 items-center justify-center text-muted">
+      <LoaderCircle
+        size={20}
+        className="animate-spin motion-reduce:animate-none"
+        aria-label="Henter kommentarer"
+      />
+    </p>
+  );
+}
+
 const stickyGap = 12;
 
 /** Whether a sticky toggle's own spot, marked by `marker`, is below the fold. */
@@ -611,7 +624,7 @@ function ProjectIntro({ project }: { project: Project }) {
       last.animations.forEach((animation) => animation.cancel());
       last.done();
     }
-    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const still = reducedMotion();
     if (!open) expandPanel?.();
     if (open) {
       // Collapsing returns to the top, so reading resumes from the start.
@@ -807,7 +820,7 @@ function CommentsDock({
     };
   }, [open]);
   function close() {
-    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const still = reducedMotion();
     flushSync(onClose);
     const toggle = document.querySelector<HTMLElement>(
       `[data-comments-toggle][aria-controls="update-comments-${id}"]`,
@@ -1131,9 +1144,10 @@ export default function ProjectPost({
   saved,
   onSave,
   onMap,
-  comments,
   onNotify,
 }: Props) {
+  // Loaded as the project opens, unless the page was rendered with them.
+  const comments = useComments(projectComments(project.id));
   const contentRef = useRef<HTMLDivElement>(null);
   const articleRef = useRef<HTMLElement>(null);
   const tabScroll = useRef<Record<string, number>>({});
@@ -1318,7 +1332,7 @@ export default function ProjectPost({
   }
   const updates = getProjectUpdates(project);
   const referenceCounts = new Map<string, number>();
-  for (const comment of comments)
+  for (const comment of comments ?? [])
     if (comment.updateId)
       referenceCounts.set(
         comment.updateId,
@@ -1512,14 +1526,18 @@ export default function ProjectPost({
                   id="project-panel-discussion"
                   hidden={tab !== "discussion"}
                 >
-                  <ProjectDiscussion
-                    projectId={project.id}
-                    comments={comments}
-                    updates={updates}
-                    initialCommentId={initialCommentId}
-                    onReadUpdate={readUpdate}
-                    onNotify={onNotify}
-                  />
+                  {comments ? (
+                    <ProjectDiscussion
+                      projectId={project.id}
+                      comments={comments}
+                      updates={updates}
+                      initialCommentId={initialCommentId}
+                      onReadUpdate={readUpdate}
+                      onNotify={onNotify}
+                    />
+                  ) : (
+                    <CommentsLoading />
+                  )}
                 </div>
                 <section
                   id="project-panel-updates"
@@ -1633,16 +1651,19 @@ export default function ProjectPost({
                             {/* Clip, not hidden: the mobile dock inside must stay sticky.
                                 The margin leaves room for focus outlines. */}
                             <div className="-mx-1.5 min-h-0 overflow-clip px-1.5">
-                              {update.id in openComments && (
-                                <ProjectDiscussion
-                                  projectId={project.id}
-                                  comments={comments}
-                                  updates={updates}
-                                  updateId={update.id}
-                                  onReadUpdate={readUpdate}
-                                  onNotify={onNotify}
-                                />
-                              )}
+                              {update.id in openComments &&
+                                (comments ? (
+                                  <ProjectDiscussion
+                                    projectId={project.id}
+                                    comments={comments}
+                                    updates={updates}
+                                    updateId={update.id}
+                                    onReadUpdate={readUpdate}
+                                    onNotify={onNotify}
+                                  />
+                                ) : (
+                                  <CommentsLoading />
+                                ))}
                               {update.id in openComments && (
                                 <CommentsDock
                                   id={update.id}

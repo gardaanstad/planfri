@@ -1,4 +1,5 @@
 import { readSession } from "@/app/lib/auth";
+import type { MutationResult } from "@/app/lib/community";
 import { mutationSchema } from "@/app/lib/community-rules";
 import {
   addComment,
@@ -10,6 +11,7 @@ import {
 } from "@/app/lib/server/community";
 import {
   api,
+  conditionalJson,
   HttpError,
   moderates,
   json,
@@ -19,7 +21,8 @@ import {
 export function GET(request: Request) {
   return api(async () => {
     const session = await readSession(request.headers);
-    return json(
+    return conditionalJson(
+      request,
       await readCommunity(
         session?.user.id,
         !!session && moderates(session.user, request.headers),
@@ -27,29 +30,42 @@ export function GET(request: Request) {
     );
   });
 }
+/** Each change answers with only what it changed. */
 export function POST(request: Request) {
   return api(async () => {
     const body = mutationSchema.parse(await readBody(request));
     const member = await requireUser(request);
     await throttle(member.id);
+    let result: MutationResult;
     switch (body.action) {
       case "project":
         if (!moderates(member, request.headers))
           throw new HttpError(403, "Bare moderatorer kan endre prosjekter.");
-        await saveProject(body.project, body.create);
+        result = {
+          action: "project",
+          project: await saveProject(body.project, body.create),
+        };
         break;
       case "vote":
-        await castVote(member.id, body.commentId, body.value);
+        result = {
+          action: "vote",
+          commentId: body.commentId,
+          value: body.value,
+          votes: await castVote(member.id, body.commentId, body.value),
+        };
         break;
       case "save":
         await setSaved(member.id, body.projectId, body.saved);
+        result = { action: "save", projectId: body.projectId, saved: body.saved };
         break;
       case "comment":
-        await addComment(member.id, body);
+        result = {
+          action: "comment",
+          projectId: body.projectId,
+          ...(await addComment(member.id, body)),
+        };
         break;
     }
-    return json(
-      await readCommunity(member.id, moderates(member, request.headers)),
-    );
+    return json(result);
   });
 }

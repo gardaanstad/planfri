@@ -1,12 +1,12 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { seedProjects, type Project } from "../app/lib/data";
+import type { Project } from "../app/lib/data";
+import { seedProjects } from "../scripts/seed-data";
 import type { SuggestionLists } from "../app/lib/suggestions";
 import { eq } from "drizzle-orm";
 import { project as projectTable } from "../app/lib/db/schema";
-import { cookieHeaders, db, member, mutation, origin, png, signIn } from "./support";
+import { cookieHeaders, db, member, mutation, origin, png, signIn, uniqueName } from "./support";
 
-const name = () => `test_${randomUUID().slice(0, 8)}`;
 type Account = Awaited<ReturnType<typeof member>>;
 
 /** A fresh project, so suggestions never change what other tests read. */
@@ -52,10 +52,10 @@ test("suggestions are authorized, validated and applied on the server", async ({
   request,
 }) => {
   const moderator = await member({
-    username: name(),
+    username: uniqueName(),
     email: "suggestion-api-moderator@example.test",
   });
-  const person = await member({ username: name() });
+  const person = await member({ username: uniqueName() });
   const project = await freshProject(request, moderator);
   const submit = (suggestion: unknown, account?: Account) =>
     mutation(
@@ -94,7 +94,7 @@ test("suggestions are authorized, validated and applied on the server", async ({
     multipart: { file: { name: "a.png", mimeType: "image/png", buffer: png() } },
   });
   const image = (await uploaded.json()).src as string;
-  const stranger = await member({ username: name() });
+  const stranger = await member({ username: uniqueName() });
   expect(
     (
       await submit(
@@ -214,10 +214,10 @@ test("members suggest photos; approval credits and publishes them", async ({
   request,
 }) => {
   const moderator = await member({
-    username: name(),
+    username: uniqueName(),
     email: "suggestion-photo-moderator@example.test",
   });
-  const person = await member({ username: name() });
+  const person = await member({ username: uniqueName() });
   const project = await freshProject(request, moderator);
   const upload = async (account: Account) =>
     (
@@ -240,7 +240,7 @@ test("members suggest photos; approval credits and publishes them", async ({
     );
   const photo = await upload(person);
   // Someone else's private photo can't be suggested.
-  const stranger = await member({ username: name() });
+  const stranger = await member({ username: uniqueName() });
   expect((await submit({ image: photo }, stranger)).status()).toBe(400);
   // Credits are the server's to give.
   expect(
@@ -279,7 +279,7 @@ test("members suggest photos; approval credits and publishes them", async ({
 });
 
 test("members are limited to ten suggestions an hour", async ({ request }) => {
-  const person = await member({ username: name() });
+  const person = await member({ username: uniqueName() });
   const tip = {
     kind: "update",
     projectId: seedProjects[1].id,
@@ -314,10 +314,10 @@ test("members suggest corrections and tips; moderators review a diff, approve, a
   request,
 }) => {
   const moderator = await member({
-    username: name(),
+    username: uniqueName(),
     email: "suggestion-moderator@example.test",
   });
-  const person = await member({ username: name() });
+  const person = await member({ username: uniqueName() });
   const project = await freshProject(request, moderator);
 
   const memberContext = await browser.newContext({ baseURL: origin });
@@ -516,10 +516,10 @@ test("members suggest new projects; moderators edit and publish them", async ({
   request,
 }) => {
   const moderator = await member({
-    username: name(),
+    username: uniqueName(),
     email: "suggestion-project-moderator@example.test",
   });
-  const person = await member({ username: name() });
+  const person = await member({ username: uniqueName() });
   const title = `Foreslått bru ${randomUUID().slice(0, 6)}`;
   const memberContext = await browser.newContext({ baseURL: origin });
   await signIn(memberContext, person);

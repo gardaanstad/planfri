@@ -7,7 +7,8 @@ import { cn } from "../lib/cn";
 import RelativeTime from "./relative-time";
 import { type Profile } from "../lib/profiles";
 import { projectHref } from "../lib/data";
-import { useCommunity } from "./community-provider";
+import { useComments, useCommunity } from "./community-provider";
+import { authorComments } from "../lib/community";
 import { useAuth } from "./auth-provider";
 import { iconButton } from "../lib/ui";
 import ProfileAvatar from "./profile-avatar";
@@ -52,15 +53,16 @@ export function ProfileContent({
   onOpenComment?: (projectId: string, commentId: string) => void;
 }) {
   const id = useId();
-  const { comments, projects } = useCommunity();
+  const { projects } = useCommunity();
   const { user } = useAuth();
   const ownProfile = user?.username === initialProfile.username;
   const profile = ownProfile
     ? { ...initialProfile, bio: user.bio || "", location: user.location || "" }
     : initialProfile;
-  const contributions = comments
-    .filter((comment) => comment.author === profile.username)
-    .sort((a, b) => b.date.localeCompare(a.date));
+  const comments = useComments(authorComments(profile.username));
+  const contributions = [...(comments ?? [])].sort((a, b) =>
+    b.date.localeCompare(a.date),
+  );
   const projectTitles = new Map(projects.map((item) => [item.id, item.title]));
   const joined = new Intl.DateTimeFormat("nb-NO", {
     month: "long",
@@ -125,7 +127,7 @@ export function ProfileContent({
         >
           Kommentarer
         </h2>
-        {contributions.length ? (
+        {!comments ? null : contributions.length ? (
           <ol>
             {contributions.map((comment) => {
               const title = projectTitles.get(comment.projectId);

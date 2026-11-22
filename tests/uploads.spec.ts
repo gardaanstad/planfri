@@ -1,9 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { seedProjects } from "../app/lib/data";
-import { cookieHeaders, member, mutation, origin, png, shot, signIn } from "./support";
+import { seedProjects } from "../scripts/seed-data";
+import { cookieHeaders, member, mutation, origin, png, shot, signIn, uniqueName } from "./support";
 
-const name = () => `test_${randomUUID().slice(0, 8)}`;
 
 test("only real images are stored; members' photos stay private", async ({
   request,
@@ -13,7 +12,7 @@ test("only real images are stored; members' photos stay private", async ({
       headers: { Origin: origin, ...cookieHeaders(account) },
       multipart: { file: { name: "a.png", mimeType: "image/png", buffer } },
     });
-  const person = await member({ username: name() });
+  const person = await member({ username: uniqueName() });
   const own = await upload(person, png());
   expect(own.status()).toBe(201);
   // Until a moderator approves the suggestion that uses it, a member's
@@ -23,12 +22,12 @@ test("only real images are stored; members' photos stay private", async ({
   const mine = await request.get(pending, { headers: cookieHeaders(person) });
   expect(mine.status()).toBe(200);
   expect(mine.headers()["cache-control"]).toBe("private, no-store");
-  const stranger = await member({ username: name() });
+  const stranger = await member({ username: uniqueName() });
   expect(
     (await request.get(pending, { headers: cookieHeaders(stranger) })).status(),
   ).toBe(404);
   const moderator = await member({
-    username: name(),
+    username: uniqueName(),
     email: "upload-api-moderator@example.test",
   });
   expect(
@@ -71,7 +70,7 @@ test("moderators add photos while creating a project; without one it shows no im
   context,
 }) => {
   const moderator = await member({
-    username: name(),
+    username: uniqueName(),
     email: "upload-moderator@example.test",
   });
   await signIn(context, moderator);
@@ -125,7 +124,7 @@ test("moderators add photos while editing a project and choose the cover", async
   request,
 }) => {
   const moderator = await member({
-    username: name(),
+    username: uniqueName(),
     email: "upload-edit-moderator@example.test",
   });
   const project = {

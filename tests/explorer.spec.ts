@@ -5,15 +5,18 @@ import {
   type Locator,
   type Page,
 } from "@playwright/test";
-import { randomUUID } from "node:crypto";
-import { seedProjects } from "../app/lib/data";
+import { seedProjects } from "../scripts/seed-data";
 import {
   member,
   mutation,
   openOwnProfile,
   openSaved,
+  middleOf,
   shot,
   signIn,
+  swipeDown,
+  touchMove,
+  uniqueName,
 } from "./support";
 
 const project = seedProjects[0];
@@ -102,102 +105,24 @@ async function expectMenuFits(menu: Locator) {
     .toBe(true);
 }
 
-async function swipeDown(page: Page, target: Locator) {
-  const box = await target.boundingBox();
-  if (!box) throw new Error("Swipe target is not visible");
-  const x = box.x + box.width / 2;
-  const y = box.y + box.height / 2;
-  const distance = page.viewportSize()!.height - y - 20;
-  const session = await page.context().newCDPSession(page);
-  try {
-    await session.send("Input.dispatchTouchEvent", {
-      type: "touchStart",
-      touchPoints: [{ x, y }],
-    });
-    for (let step = 1; step <= 20; step++) {
-      await session.send("Input.dispatchTouchEvent", {
-        type: "touchMove",
-        touchPoints: [{ x, y: y + (distance * step) / 20 }],
-      });
-      await page.waitForTimeout(16);
-    }
-    await session.send("Input.dispatchTouchEvent", {
-      type: "touchEnd",
-      touchPoints: [],
-    });
-  } finally {
-    await session.detach();
-  }
-}
-
+/** Drags a finger up from near the bottom of `target`, at most 320px. */
 async function swipeUp(page: Page, target: Locator) {
   const box = await target.boundingBox();
   if (!box) throw new Error("Swipe target is not visible");
-  const viewport = page.viewportSize()!;
   const x = box.x + box.width / 2;
-  const y = Math.min(box.y + box.height - 20, viewport.height - 60);
-  const distance = Math.min(320, y - 40);
-  const session = await page.context().newCDPSession(page);
-  try {
-    await session.send("Input.dispatchTouchEvent", {
-      type: "touchStart",
-      touchPoints: [{ x, y }],
-    });
-    for (let step = 1; step <= 20; step++) {
-      await session.send("Input.dispatchTouchEvent", {
-        type: "touchMove",
-        touchPoints: [{ x, y: y - (distance * step) / 20 }],
-      });
-      await page.waitForTimeout(16);
-    }
-    await session.send("Input.dispatchTouchEvent", {
-      type: "touchEnd",
-      touchPoints: [],
-    });
-  } finally {
-    await session.detach();
-  }
+  const y = Math.min(box.y + box.height - 20, page.viewportSize()!.height - 60);
+  await touchMove(page, { x, y }, { x, y: y - Math.min(320, y - 40) });
 }
 
-/**
- * Drags a finger `dy` pixels from the middle of `target`, `steps` moves of
- * `stepMs` each; `before` runs while it is still down.
- */
+/** Drags a finger `dy` pixels from the middle of `target`. */
 async function drag(
   page: Page,
   target: Locator,
   dy: number,
-  { steps = 12, stepMs = 16, before }: {
-    steps?: number;
-    stepMs?: number;
-    before?: () => Promise<void>;
-  } = {},
+  options: Parameters<typeof touchMove>[3] = {},
 ) {
-  const box = await target.boundingBox();
-  if (!box) throw new Error("Drag target is not visible");
-  const x = box.x + box.width / 2;
-  const y = box.y + box.height / 2;
-  const session = await page.context().newCDPSession(page);
-  try {
-    await session.send("Input.dispatchTouchEvent", {
-      type: "touchStart",
-      touchPoints: [{ x, y }],
-    });
-    for (let step = 1; step <= steps; step++) {
-      await session.send("Input.dispatchTouchEvent", {
-        type: "touchMove",
-        touchPoints: [{ x, y: y + (dy * step) / steps }],
-      });
-      await page.waitForTimeout(stepMs);
-    }
-    await before?.();
-    await session.send("Input.dispatchTouchEvent", {
-      type: "touchEnd",
-      touchPoints: [],
-    });
-  } finally {
-    await session.detach();
-  }
+  const from = await middleOf(target);
+  await touchMove(page, from, { x: from.x, y: from.y + dy }, { steps: 12, ...options });
 }
 
 // The smallest phone: narrow and short, so overflow and drawer heights bite.
@@ -436,26 +361,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     );
     await expectDrawerHeight(page, 0.58);
     // A finger across the map above the list, not on the list itself.
-    const session = await page.context().newCDPSession(page);
-    try {
-      await session.send("Input.dispatchTouchEvent", {
-        type: "touchStart",
-        touchPoints: [{ x: 160, y: 100 }],
-      });
-      for (let step = 1; step <= 10; step++) {
-        await session.send("Input.dispatchTouchEvent", {
-          type: "touchMove",
-          touchPoints: [{ x: 160 - step * 6, y: 100 + step * 4 }],
-        });
-        await page.waitForTimeout(16);
-      }
-      await session.send("Input.dispatchTouchEvent", {
-        type: "touchEnd",
-        touchPoints: [],
-      });
-    } finally {
-      await session.detach();
-    }
+    await touchMove(page, { x: 160, y: 100 }, { x: 100, y: 140 }, { steps: 10 });
     await expectDrawerHeight(page, compact);
   });
 
@@ -540,26 +446,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     const box = (await map.boundingBox())!;
     const x = box.x + 40;
     const y = box.y + Math.min(box.height / 2, 120);
-    const session = await page.context().newCDPSession(page);
-    try {
-      await session.send("Input.dispatchTouchEvent", {
-        type: "touchStart",
-        touchPoints: [{ x, y }],
-      });
-      for (let step = 1; step <= 12; step++) {
-        await session.send("Input.dispatchTouchEvent", {
-          type: "touchMove",
-          touchPoints: [{ x: x + step * 15, y }],
-        });
-        await page.waitForTimeout(16);
-      }
-      await session.send("Input.dispatchTouchEvent", {
-        type: "touchEnd",
-        touchPoints: [],
-      });
-    } finally {
-      await session.detach();
-    }
+    await touchMove(page, { x, y }, { x: x + 180, y }, { steps: 12 });
     await expect
       .poll(() => pane.evaluate((element) => element.style.transform))
       .not.toBe(before);
@@ -730,6 +617,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
   });
 
   test("review screenshots at 390px", async ({ page }) => {
+    test.skip(!process.env.TEST_SCREENSHOTS, "Only takes screenshots for review.");
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
     const filters = page.getByRole("region", {
@@ -928,7 +816,7 @@ test("saved projects keep their collection and full reading height", async ({
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const person = await member({
-    username: `drawer_${randomUUID().slice(0, 8)}`,
+    username: uniqueName("drawer"),
   });
   await signIn(context, person);
   expect(
@@ -1164,6 +1052,7 @@ test.describe("desktop explorer", () => {
   });
 
   test("review screenshots at 1440px", async ({ page }) => {
+    test.skip(!process.env.TEST_SCREENSHOTS, "Only takes screenshots for review.");
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
     await expect(page.getByRole("status", { name: /prosjekter?$/ })).toBeVisible();
@@ -1348,6 +1237,32 @@ test.describe("desktop explorer", () => {
     await page.locator('path[data-project-id="regjeringskvartalet"]').hover();
     await page.waitForTimeout(300);
     expect(await list.evaluate((element) => element.scrollTop)).toBe(top);
+  });
+
+  test("filtering draws only the shapes that come and go", async ({ page }) => {
+    await page.goto(oslo);
+    const kept = page.locator(`path[data-project-id="${project.id}"]`);
+    await expect(kept).toBeVisible();
+    await kept.evaluate((element) => element.setAttribute("data-test-kept", ""));
+    const shapes = page.locator("path[data-project-id]");
+    const before = await shapes.count();
+    await page
+      .getByRole("region", { name: "Filtrer prosjekter", exact: true })
+      .getByRole("button", {
+        name: "Prosjektstatus: Planlagt, Under bygging",
+        exact: true,
+      })
+      .click();
+    await page
+      .getByRole("listbox", { name: "Prosjektstatus", exact: true })
+      .getByRole("option", { name: /^Ferdigstilt/ })
+      .click();
+    await page.keyboard.press("Escape");
+    await expect
+      .poll(() => shapes.count())
+      .toBeGreaterThan(before);
+    // The project already on the map keeps its shape.
+    await expect(kept).toHaveAttribute("data-test-kept", "");
   });
 
   test("hovering a grouped project's card lights up its group, and only that", async ({
@@ -1580,7 +1495,7 @@ test.describe("desktop explorer", () => {
     context,
   }) => {
     const moderator = await member({
-      username: `header_${randomUUID().slice(0, 8)}`,
+      username: uniqueName("header"),
       email: "header-moderator@example.test",
     });
     await signIn(context, moderator);
@@ -2168,7 +2083,7 @@ test.describe("desktop sidebar panels", () => {
     context,
   }) => {
     const moderator = await member({
-      username: `panel_${randomUUID().slice(0, 8)}`,
+      username: uniqueName("panel"),
       email: "panel-moderator@example.test",
     });
     await signIn(context, moderator);

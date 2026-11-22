@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { seedProjects } from "../app/lib/data";
+import { seedProjects } from "../scripts/seed-data";
 import type { Unread } from "../app/lib/unread";
 import {
   cookieHeaders,
@@ -9,11 +9,11 @@ import {
   openSaved,
   shot,
   signIn,
+  uniqueName,
 } from "./support";
 
 // Projects no other spec comments on, one set per test, so each test's
 // unread counts only change through the test itself.
-const uniqueName = () => `lagret_${randomUUID().slice(0, 8)}`;
 type Account = Awaited<ReturnType<typeof member>>;
 
 async function readUnread(request: APIRequestContext, account: Account) {

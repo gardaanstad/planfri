@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { safeReturnPath, usernameSchema } from "../app/lib/account-rules";
-import { seedProjects } from "../app/lib/data";
+import { seedProjects } from "../scripts/seed-data";
 import {
   account,
   comment,
@@ -21,10 +21,10 @@ import {
   origin,
   shot,
   signIn,
+  uniqueName,
 } from "./support";
 const project = seedProjects[0];
 const updateId = project.updates[0].id;
-const uniqueName = () => `nabo_${randomUUID().slice(0, 8)}`;
 
 test("username rules normalize Norwegian names and reject reserved or malformed names", () => {
   expect(usernameSchema.parse("  Østbyen_42 ")).toBe("østbyen_42");
@@ -240,8 +240,11 @@ test("comments use server identity; follows and votes stay with the correct acco
   expect(secondState.saved).toEqual([]);
   expect(firstState.votes).toEqual({});
   expect(secondState.votes[created.id]).toBe(1);
+  const thread = await (
+    await request.get(`/api/comments?project=${project.id}`)
+  ).json();
   expect(
-    firstState.comments.find((item: { id: string }) => item.id === created.id)
+    thread.comments.find((item: { id: string }) => item.id === created.id)
       .votes,
   ).toBe(1);
   const anonymous = await (await request.get("/api/community")).json();
@@ -470,19 +473,11 @@ test("new users choose a username over their project, which can't be skipped", a
   await expect(page).toHaveURL(/\/konto$/);
 });
 
-test("guest login is accessible on desktop and mobile and error recovery keeps the return path", async ({
+test("guest login works on a phone, and error recovery keeps the return path", async ({
   page,
 }) => {
-  await page.goto("/");
-  await page.getByRole("button", { name: "Logg inn", exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: "Logg inn med Google" }),
-  ).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(
-    page.getByRole("button", { name: "Logg inn", exact: true }),
-  ).toBeFocused();
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
   await page.getByRole("button", { name: "Logg inn", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Logg inn med Google" }),

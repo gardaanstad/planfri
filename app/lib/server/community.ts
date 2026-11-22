@@ -1,5 +1,6 @@
 import "server-only";
-import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import { getDb } from "../db/client";
 import {
   comment,
@@ -11,36 +12,48 @@ import {
   vote,
 } from "../db/schema";
 import { getProjectUpdates, type Comment, type Project } from "../data";
+import type {
+  CommentList,
+  CommunityData,
+  ProjectActivity,
+} from "../community";
 import { HttpError } from "./http";
 import { credit, readCredits } from "./credits";
 import { serverNow } from "./clock";
+
+const week = 7 * 24 * 60 * 60 * 1000;
+
+/** Comment counts per project; one project's if `projectId` is given. */
+async function readActivity(projectId?: string) {
+  const weekAgo = new Date(serverNow().getTime() - week).toISOString();
+  const rows = await getDb()
+    .select({
+      projectId: comment.projectId,
+      comments: sql<number>`count(*)`,
+      recent: sql<number>`coalesce(sum(${comment.date} >= ${weekAgo}), 0)`,
+    })
+    .from(comment)
+    .where(projectId ? eq(comment.projectId, projectId) : undefined)
+    .groupBy(comment.projectId);
+  return Object.fromEntries(
+    rows.map(({ projectId, ...counts }) => [projectId, counts]),
+  ) as Record<string, ProjectActivity>;
+}
 
 /**
  * Everything the explorer shows. `suggestions` counts pending suggestions:
  * the whole queue for moderators, the viewer's own for everyone else.
  * Approved suggestions credit their members on projects and updates.
  */
-export async function readCommunity(userId?: string, moderator = false) {
+export async function readCommunity(
+  userId?: string,
+  moderator = false,
+): Promise<CommunityData> {
   const db = getDb();
-  const [projects, rows, saved, votes, [pending], [reviewed], credits] =
+  const [projects, activity, saved, votes, [pending], [reviewed], credits] =
     await Promise.all([
     db.select().from(project),
-    db
-      .select({
-        id: comment.id,
-        projectId: comment.projectId,
-        updateId: comment.updateId,
-        parentId: comment.parentId,
-        author: sql<string>`coalesce(${user.username}, ${comment.seedAuthor}, 'slettet_bruker')`,
-        text: comment.text,
-        date: comment.date,
-        votes: sql<number>`${comment.seedVotes} + coalesce(sum(${vote.value}), 0)`,
-      })
-      .from(comment)
-      .leftJoin(user, eq(comment.userId, user.id))
-      .leftJoin(vote, eq(vote.commentId, comment.id))
-      .groupBy(comment.id)
-      .orderBy(comment.date, comment.id),
+    readActivity(),
     userId
       ? db
           .select({ projectId: projectView.projectId })
@@ -75,29 +88,70 @@ export async function readCommunity(userId?: string, moderator = false) {
       : [{ count: 0 }],
     readCredits(),
   ]);
-  const ids = new Set(rows.map((row) => row.id));
-  const updateIds = new Map(
-    projects.map(({ data }) => [
-      data.id,
-      new Set(getProjectUpdates(data).map((update) => update.id)),
-    ]),
-  );
-  const comments: Comment[] = rows.map((row) => ({
-    ...row,
-    updateId: updateIds.get(row.projectId)?.has(row.updateId)
-      ? row.updateId
-      : undefined,
-    parentId: row.parentId && ids.has(row.parentId) ? row.parentId : undefined,
-  }));
   return {
     projects: projects.map((row) => credit(row.data, credits)),
-    comments,
+    activity,
     saved: saved.map((row) => row.projectId),
     votes: Object.fromEntries(votes.map((row) => [row.commentId, row.value])),
     suggestions: pending?.count ?? 0,
     /** The member's suggestions reviewed since they last looked. */
     reviewed: reviewed?.count ?? 0,
   };
+}
+
+const author = sql<string>`coalesce(${user.username}, ${comment.seedAuthor}, 'slettet_bruker')`;
+
+/**
+ * A list of comments, oldest first. References to updates that are gone,
+ * and to parents that are, read as none.
+ */
+export async function readComments(list: CommentList): Promise<Comment[]> {
+  const db = getDb();
+  const parent = alias(comment, "parent");
+  const at = list.indexOf(":");
+  const key = list.slice(at + 1);
+  const rows = await db
+    .select({
+      id: comment.id,
+      projectId: comment.projectId,
+      updateId: comment.updateId,
+      parentId: parent.id,
+      author,
+      text: comment.text,
+      date: comment.date,
+      votes: sql<number>`${comment.seedVotes} + coalesce(sum(${vote.value}), 0)`,
+    })
+    .from(comment)
+    .leftJoin(user, eq(comment.userId, user.id))
+    .leftJoin(parent, eq(comment.parentId, parent.id))
+    .leftJoin(vote, eq(vote.commentId, comment.id))
+    .where(
+      list.startsWith("project:")
+        ? eq(comment.projectId, key)
+        : sql`${author} = ${key}`,
+    )
+    .groupBy(comment.id)
+    .orderBy(comment.date, comment.id);
+  const ids = [...new Set(rows.map((row) => row.projectId))];
+  const projects = ids.length
+    ? await db
+        .select({ data: project.data })
+        .from(project)
+        .where(inArray(project.id, ids))
+    : [];
+  const updateIds = new Map(
+    projects.map(({ data }) => [
+      data.id,
+      new Set(getProjectUpdates(data).map((update) => update.id)),
+    ]),
+  );
+  return rows.map((row) => ({
+    ...row,
+    updateId: updateIds.get(row.projectId)?.has(row.updateId)
+      ? row.updateId
+      : undefined,
+    parentId: row.parentId ?? undefined,
+  }));
 }
 
 /**
@@ -149,15 +203,16 @@ export async function saveProject(data: Project, create: boolean) {
       .onConflictDoNothing()
       .returning();
     if (!inserted) throw new HttpError(409, "Prosjektet finnes allerede.");
-    return;
+    return credit(inserted.data, await readCredits());
   }
   const existing = await findProject(data.id);
   const [updated] = await db
     .update(project)
     .set({ data: { ...data, updated: now, created: existing.created } })
     .where(eq(project.id, data.id))
-    .returning({ id: project.id });
+    .returning({ data: project.data });
   if (!updated) throw new HttpError(404, "Prosjektet finnes ikke.");
+  return credit(updated.data, await readCredits());
 }
 
 export async function castVote(
@@ -183,6 +238,15 @@ export async function castVote(
         target: [vote.userId, vote.commentId],
         set: { value },
       });
+  const [total] = await db
+    .select({
+      votes: sql<number>`${comment.seedVotes} + coalesce(sum(${vote.value}), 0)`,
+    })
+    .from(comment)
+    .leftJoin(vote, eq(vote.commentId, comment.id))
+    .where(eq(comment.id, commentId))
+    .groupBy(comment.id);
+  return total.votes;
 }
 
 /** A first view of a project, now: nothing before it is unread. */
@@ -249,4 +313,9 @@ export async function addComment(
       .values(newView(userId, input.projectId))
       .onConflictDoNothing(),
   ]);
+  const [comments, activity] = await Promise.all([
+    readComments(`project:${input.projectId}`),
+    readActivity(input.projectId),
+  ]);
+  return { comments, activity: activity[input.projectId] };
 }

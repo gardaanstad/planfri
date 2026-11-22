@@ -1,4 +1,5 @@
 "use client";
+import { reducedMotion } from "../lib/media";
 
 import { useEffect, useEffectEvent, type RefObject } from "react";
 
@@ -29,8 +30,6 @@ const settle = "450ms cubic-bezier(0.22, 1, 0.36, 1)";
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
-const reduced = () =>
-  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /**
  * Drags a bottom sheet down by touch, from anywhere on it. Inside its list a
@@ -143,7 +142,7 @@ export function useSwipeDismiss({
       start = null;
       origin = null;
       if (!began || offset <= 0) {
-        if (offset) place(0, reduced() ? "none" : settle);
+        if (offset) place(0, reducedMotion() ? "none" : settle);
         return;
       }
       const height = panel.offsetHeight;
@@ -160,7 +159,7 @@ export function useSwipeDismiss({
         overall >= closeVelocity ||
         offset > Math.max(height * closeFraction, startDistance);
       if (!closes) {
-        place(0, reduced() ? "none" : settle);
+        place(0, reducedMotion() ? "none" : settle);
         return;
       }
       leaving = true;
@@ -171,7 +170,7 @@ export function useSwipeDismiss({
         // The sheet is gone by the next frame; it opens again from rest.
         requestAnimationFrame(reset);
       };
-      if (reduced()) return finish();
+      if (reducedMotion()) return finish();
       const remaining = Math.max(0, height - offset);
       const speed = clamp(velocity, minReleaseVelocity, maxReleaseVelocity);
       const duration = clamp(remaining / speed, minLeaveMs, maxLeaveMs);
