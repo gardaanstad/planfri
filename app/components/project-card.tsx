@@ -22,7 +22,7 @@ import {
 import type { CardDensity } from "../lib/explore-state";
 import { type ProjectNews, unreadCount, unreadSummary } from "../lib/unread";
 import { cn } from "../lib/cn";
-import { keyboardFocused, statusTone } from "../lib/ui";
+import { keyboardFocused, statusTone, wrapTitle } from "../lib/ui";
 import ImageGallery from "./image-gallery";
 
 /** Where; for rail and road, led by the mode. */
@@ -54,7 +54,8 @@ export type CardTarget = Section | { updateId?: string; commentId?: string };
 
 // Above the stretched card link, for the stat tooltips.
 const cardStat = "relative z-1 inline-flex items-center gap-1.25 tabular-nums";
-// One line each, so a compact row keeps one height: 18 + 4 + 22 + 4 + 18.
+// One line each, so a compact row keeps one height (18 + 4 + 22 + 4 + 18)
+// unless its title needs more.
 const meta = "flex min-w-0 items-center text-xs leading-4.5 text-muted";
 // Expanded: the counts under the photos, quiet until hovered; above the
 // card link.
@@ -127,8 +128,8 @@ export default memo(function ProjectCard({
   const title = (
     <h2
       className={cn(
-        "text-item leading-5.5 text-ink",
-        expanded ? "mt-1" : "mt-1 truncate",
+        "mt-1 text-item leading-5.5 text-pretty text-ink",
+        wrapTitle,
       )}
     >
       {/* Stretched over the whole card; other controls sit above it. */}
@@ -144,7 +145,10 @@ export default memo(function ProjectCard({
         data-press=""
         onClick={() => onOpen(project.id)}
       >
-        {project.title}
+        {/* Compact: beside the photo, up to three lines, then an ellipsis. */}
+        <span className={expanded ? undefined : "line-clamp-3"}>
+          {project.title}
+        </span>
       </button>
     </h2>
   );
