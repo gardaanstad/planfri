@@ -266,7 +266,7 @@ export default function ProjectDiscussion({
     const replyLabel = `${replyCount} svar`;
     return (
       <div
-        className={cn(styles.thread, depth === 0 ? "py-3.5" : "pt-3")}
+        className={cn(styles.thread, depth === 0 ? "py-2.5" : "pt-2")}
         key={comment.id}
         data-comment-id={comment.id}
       >
@@ -320,7 +320,7 @@ export default function ProjectDiscussion({
           </UserIdentity>
           <div className={styles.fold} inert={shut}>
             <div className={styles.clip}>
-              <p className="mt-1 mb-1 ml-10.5 wrap-anywhere whitespace-pre-wrap text-body leading-[1.65] text-ink-soft">
+              <p className="mt-0.5 ml-10.5 wrap-anywhere whitespace-pre-wrap text-body leading-[1.6] text-ink-soft">
                 {comment.text
                   .split(/(https?:\/\/[^\s<>]+)/g)
                   .map((part, index) =>
@@ -414,7 +414,7 @@ export default function ProjectDiscussion({
                   id={replyFormId}
                   className={cn(
                     composer,
-                    "mt-2.5 mb-0.5 ml-10.5 motion-safe:animate-menu-enter",
+                    "mt-1.5 mb-0.5 ml-10.5 motion-safe:animate-menu-enter",
                   )}
                   onSubmit={(e) => {
                     e.preventDefault();

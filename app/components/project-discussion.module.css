@@ -12,7 +12,7 @@
     padding-left: 30px;
 
     &[data-folded] {
-      padding-top: 12px;
+      padding-top: 8px;
     }
 
     @variant max-sm {
@@ -67,7 +67,7 @@
   .elbow {
     top: 0;
     width: 22px;
-    height: 29px;
+    height: 25px;
 
     &::before {
       border-bottom: 1.5px solid currentColor;
