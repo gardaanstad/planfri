@@ -2100,6 +2100,18 @@ test.describe("desktop explorer", () => {
     await page.getByRole("button", { name: "Lukk prosjekt", exact: true }).click();
     await expect(shape).toBeFocused();
     expect(await stroke()).toEqual(drawn);
+    // Closed with Escape, too: Escape isn't taken for keyboard navigation.
+    await shape.dispatchEvent("pointerdown");
+    await shape.dispatchEvent("click");
+    await expect(
+      page.getByRole("button", { name: "Lukk prosjekt", exact: true }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(
+      page.getByRole("button", { name: "Lukk prosjekt", exact: true }),
+    ).toHaveCount(0);
+    await expect(shape).toBeFocused();
+    expect(await stroke()).toEqual(drawn);
     // Once the keyboard is used, the focused shape takes the accent ring.
     await page.keyboard.press("Shift");
     await expect.poll(async () => (await stroke())[1]).toBe("rgb(31, 90, 67)");

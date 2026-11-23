@@ -76,11 +76,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           keyboard, so focus rings show for the keyboard only. Browsers
           count focus a script moves as visible after a tap, or after a
           click on something that doesn't take focus itself. Shortcuts
-          (and a held Cmd for Cmd-click) don't count as the keyboard.
+          (and a held Cmd for Cmd-click) don't count as the keyboard, nor
+          does Escape: closing what a click opened returns focus to what
+          was clicked, without a ring.
         */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(()=>{const r=document.documentElement;addEventListener("pointerdown",()=>r.setAttribute("data-pointer",""),true);addEventListener("keydown",e=>{if(!e.metaKey&&!e.ctrlKey&&!e.altKey)r.removeAttribute("data-pointer")},true)})()`,
+            __html: `(()=>{const r=document.documentElement;addEventListener("pointerdown",()=>r.setAttribute("data-pointer",""),true);addEventListener("keydown",e=>{if(!e.metaKey&&!e.ctrlKey&&!e.altKey&&e.key!=="Escape")r.removeAttribute("data-pointer")},true)})()`,
           }}
         />
         {/*
