@@ -28,12 +28,12 @@ import {
   GalleryVertical,
   Inbox,
   LayoutList,
-  RotateCcw,
   Map as MapIcon,
   MapPin,
   Plus,
   Moon,
   Search,
+  SearchX,
   SlidersHorizontal,
   User,
   X,
@@ -139,8 +139,8 @@ import SuggestionList from "./suggestion-list";
 import { MaximizeButton, type SidebarMode } from "./sidebar-panel";
 import {
   iconButton,
+  pillButton,
   primaryButton,
-  secondaryButton,
   sortChoice,
   statusTone,
   textButton,
@@ -249,10 +249,6 @@ function useControlsSlot() {
   return { slot, node, follow };
 }
 const primaryCta = cn(primaryButton, "rounded-lg px-4 text-xs");
-const secondaryAction = cn(
-  secondaryButton,
-  "rounded-lg bg-transparent px-3 text-xs",
-);
 const quietAction = cn(textButton, "min-h-11 text-xs");
 const compactIconAction = cn(iconButton, "rounded-lg");
 /** Marks the avatar when a member's suggestions have been reviewed. */
@@ -1811,10 +1807,10 @@ export default memo(function Explorer({
       </span>
     );
   const emptyActions = (
-    <div className="flex flex-wrap justify-center gap-2">
+    <div className="mt-1.5 flex flex-wrap justify-center gap-2">
       {outsideHits > 0 && needle ? (
-        <button className={secondaryAction} onClick={showSearchHits}>
-          <ZoomOut size={15} aria-hidden="true" />
+        <button type="button" className={pillButton} onClick={showSearchHits}>
+          <ZoomOut size={15} className="text-muted" aria-hidden="true" />
           Vis {outsideHits} treff
         </button>
       ) : (
@@ -1822,21 +1818,23 @@ export default memo(function Explorer({
         !needle &&
         listBounds && (
           <button
-            className={secondaryAction}
+            type="button"
+            className={pillButton}
             onClick={() => mapApi.current?.showNorway()}
           >
-            <ZoomOut size={15} aria-hidden="true" />
+            <ZoomOut size={15} className="text-muted" aria-hidden="true" />
             Hele Norge
           </button>
         )
       )}
       {filtersChanged && (
-        <button className={secondaryAction} onClick={resetFilters}>
+        <button type="button" className={pillButton} onClick={resetFilters}>
           Nullstill filtre
         </button>
       )}
     </div>
   );
+  const nothingMatches = matching.length === 0 && !savedOnly;
   // Stable, so memoized cards skip re-rendering when the list changes.
   const openLatest = useRef(openPost);
   useLayoutEffect(() => {
@@ -2748,6 +2746,7 @@ export default memo(function Explorer({
             onGestureStart={onMapGesture}
             onUserMove={onMapMove}
             bottomInset={isMobile ? mobileMapInset : undefined}
+            foldCredits={isMobile && nothingMatches}
             controlsContainer={
               isMobile
                 ? postOverMap
@@ -2778,21 +2777,6 @@ export default memo(function Explorer({
             onOpenProject={(id) => openPost(id)}
             className="absolute top-3 left-1/2 z-[660] -translate-x-1/2 max-md:right-17 max-md:left-3 max-md:w-auto max-md:translate-x-0"
           />
-          {isMobile && matching.length === 0 && !savedOnly && (
-            <div
-              className={cn(
-                "absolute top-[45%] left-1/2 z-[650] flex min-w-60 max-w-[calc(100%-90px)] -translate-1/2 flex-col items-center gap-3 rounded-2xl border border-border bg-surface/95 p-7 shadow-[0_10px_40px_rgb(20_28_24/0.12)]",
-                "[&>svg]:text-muted [&>strong]:text-center [&>strong]:text-base",
-              )}
-            >
-              <Search size={22} />
-              <strong>Ingen treff</strong>
-              <button className={quietAction} onClick={resetFilters}>
-                Nullstill filtre
-                <RotateCcw size={14} />
-              </button>
-            </div>
-          )}
         </section>
       </main>
 
@@ -2845,10 +2829,43 @@ export default memo(function Explorer({
                       data-map-controls-slot=""
                       className={cn(
                         controlsSlotClasses,
+                        "peer",
                         // A panel covers the map, all but a sliver.
                         "group-data-map-covered/drawer-popup:invisible group-data-map-covered/drawer-popup:opacity-0",
                       )}
                     />
+                    {/* Nothing matches: a note riding the drawer's top edge,
+                      level with the controls and gone with them, the credits
+                      folded for it. Pressed, it clears the filters. */}
+                    {nothingMatches && (
+                      <div
+                        className={cn(
+                          controlsSlotClasses,
+                          "pointer-events-none peer-data-covered:invisible peer-data-covered:opacity-0",
+                          "group-data-map-covered/drawer-popup:invisible group-data-map-covered/drawer-popup:opacity-0",
+                        )}
+                      >
+                        <button
+                          type="button"
+                          data-base-ui-swipe-ignore=""
+                          aria-label="Ingen treff med filtrene, nullstill filtre"
+                          className="pointer-events-auto absolute bottom-[19px] left-1/2 flex h-9 max-w-[calc(100%-7rem)] -translate-x-1/2 animate-panel-fade-in items-center gap-2 rounded-full border border-border bg-surface px-3.5 text-ui font-medium whitespace-nowrap text-ink shadow-popover transition-colors duration-150 hover:bg-surface-muted active:bg-surface-muted motion-reduce:transition-none"
+                          onClick={resetFilters}
+                        >
+                          <SearchX
+                            size={15}
+                            className="shrink-0 text-muted"
+                            aria-hidden="true"
+                          />
+                          <span className="truncate">Ingen treff med filtrene</span>
+                          <X
+                            size={14}
+                            className="-mr-1 shrink-0 text-muted"
+                            aria-hidden="true"
+                          />
+                        </button>
+                      </div>
+                    )}
                     {/* For the list's own rows. It stays while a panel is over
                       it, so it is already there as a closing panel leaves. */}
                     <ScrollFade shown={snapPoint === middleSnapPoint} />

@@ -1164,6 +1164,31 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       .toBe(true);
     await shot(page, `project-discussion-${viewport.width}`);
   });
+
+  test("with nothing matching, a note above the drawer clears the filters", async ({
+    page,
+  }) => {
+    await page.goto("/?status=completed&kategori=Drikkevann");
+    const note = page.getByRole("button", {
+      name: "Ingen treff med filtrene, nullstill filtre",
+      exact: true,
+    });
+    await expect(note).toBeVisible();
+    // The credits fold to make room for it.
+    await expect(page.locator("#map-credits")).toHaveCount(0);
+    // Just above the drawer.
+    const noteBox = (await note.boundingBox())!;
+    const drawerBox = (await page
+      .locator("[data-explorer-drawer]")
+      .boundingBox())!;
+    const gap = drawerBox.y - (noteBox.y + noteBox.height);
+    expect(gap).toBeGreaterThan(0);
+    expect(gap).toBeLessThan(40);
+    await shot(page, `nothing-matches-${viewport.width}`);
+    await note.click();
+    await expect(note).toBeHidden();
+    await expect(page).not.toHaveURL(/kategori=/);
+  });
 });
 
 test("saved projects keep their collection and full reading height", async ({

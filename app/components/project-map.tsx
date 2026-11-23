@@ -457,6 +457,8 @@ type Props = {
    * Reported bounds leave them out, and framing keeps clear of them.
    */
   bottomInset?: () => number;
+  /** Something else sits above the drawer for now: the credits fold away. */
+  foldCredits?: boolean;
   selectedId?: string | null;
   onSelect?: (id: string | null) => void;
   draw?: boolean;
@@ -490,6 +492,7 @@ export default function ProjectMap({
   onGestureStart,
   onUserMove,
   bottomInset,
+  foldCredits = false,
   selectedId = null,
   onSelect = noSelect,
   draw = false,
@@ -551,7 +554,13 @@ export default function ProjectMap({
   // On a drawer the map's credits ride with the controls, folded behind a
   // button once the map is moved. They show in full until then.
   const docked = controlsContainer !== undefined;
-  const [creditsOpen, setCreditsOpen] = useState(true);
+  const [creditsOpen, setCreditsOpen] = useState(!foldCredits);
+  // Folded as something takes their place; they stay folded after.
+  const [creditsFolded, setCreditsFolded] = useState(foldCredits);
+  if (creditsFolded !== foldCredits) {
+    setCreditsFolded(foldCredits);
+    if (foldCredits) setCreditsOpen(false);
+  }
   // Shapes outlined to stand out from the base map; see project-map.css.
   const darkBase = useTheme() === "dark" && layer === "standard";
   const baseStyle = darkBase ? darkStandardStyle : mapStyles[layer];
