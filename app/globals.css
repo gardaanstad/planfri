@@ -590,3 +590,18 @@
     }
   }
 }
+/*
+ * The same entry for a toast's first style. Base UI drops data-starting-style
+ * as it measures the toast, which can be before the viewport's popover opens;
+ * Safari then gives the toast its first style without it, and no transition.
+ */
+@starting-style {
+  .toast,
+  .toast[data-expanded] {
+    opacity: 0;
+    transform: translateY(calc(var(--dir) * -100%)) scale(0.96);
+    @media (prefers-reduced-motion: reduce) {
+      transform: translateY(var(--stack-y)) scale(var(--scale));
+    }
+  }
+}
