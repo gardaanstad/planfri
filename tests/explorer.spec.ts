@@ -2711,6 +2711,68 @@ test.describe("the place follows the map", () => {
       await expect(listed(page, "Nyhavna")).toBeVisible();
     });
 
+    test("a longer place's name comes in whole as its pill grows", async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      await page.goto("/?sted=Oslo");
+      await expect(place(page, "Oslo")).toHaveText("Oslo");
+      await place(page, "Oslo").click();
+      // Every frame from the pick until the pill rests: whether the old
+      // words are held, and whether the words shown fit.
+      await place(page, "Oslo").evaluate((button) => {
+        const label = button.querySelector<HTMLElement>(":scope > span")!;
+        const frames: object[] = [];
+        (window as unknown as { frames_: object[] }).frames_ = frames;
+        const sample = () => {
+          frames.push({
+            held: label.dataset.held ?? null,
+            text: label.textContent,
+            fits: label.scrollWidth <= label.clientWidth,
+            fading: label.getAnimations().length > 0,
+          });
+          if (frames.length < 40) requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      });
+      await page
+        .getByRole("listbox", { name: "Sted", exact: true })
+        .getByRole("option", { name: /^Vestland/ })
+        .click();
+      await expect(place(page, "Vestland")).toHaveText("Vestland");
+      const frames = await expect
+        .poll(() =>
+          page.evaluate(
+            () => (window as unknown as { frames_: object[] }).frames_,
+          ),
+        )
+        .toHaveLength(40)
+        .then(() =>
+          page.evaluate(
+            () =>
+              (
+                window as unknown as {
+                  frames_: {
+                    held: string | null;
+                    text: string;
+                    fits: boolean;
+                    fading: boolean;
+                  }[];
+                }
+              ).frames_,
+          ),
+        );
+      const after = frames.filter((frame) => frame.text === "Vestland");
+      // The old words stay a while, then the new ones show, never cut short
+      // and without fading in.
+      expect(after.some((frame) => frame.held === "Oslo")).toBe(true);
+      expect(after.at(-1)?.held).toBeNull();
+      for (const frame of after) {
+        expect(frame.fading).toBe(false);
+        if (frame.held === null) expect(frame.fits).toBe(true);
+      }
+    });
+
     test("a linked place frames the map", async ({ page }) => {
       await page.goto("/?sted=Trondheim");
       await expect(place(page, "Trondheim")).toBeVisible();

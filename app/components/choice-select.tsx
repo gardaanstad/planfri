@@ -133,6 +133,8 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
     props.multiple === true
       ? triggerLabel || label
       : triggerLabel || selectedSummary || props.value;
+  // The words last put in the trigger, for `smoothWidth`.
+  const lastLabel = useRef(shownLabel);
 
   const focusSelectedOption = useEffectEvent(() => {
     const focusIndex = Math.max(
@@ -256,7 +258,13 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
   // A new label: from where it was (or is, midway), to its new width.
   useLayoutEffect(() => {
     const element = root.current;
-    if (!smoothWidth || !element) return;
+    const words = labelRef.current;
+    if (!smoothWidth || !element || !words) return;
+    // The words on screen until now: those held over a growth, if one was
+    // cut short, or the last label.
+    const showing = words.dataset.held ?? lastLabel.current;
+    lastLabel.current = shownLabel;
+    delete words.dataset.held;
     const running = element
       .getAnimations()
       .filter((animation) => animation.id === widthMotion);
@@ -264,10 +272,6 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
       ? element.getBoundingClientRect().width
       : restingWidth.current;
     running.forEach((animation) => animation.cancel());
-    labelRef.current
-      ?.getAnimations()
-      .forEach((animation) => animation.id === widthMotion && animation.cancel());
-    delete element.dataset.growing;
     const to = element.getBoundingClientRect().width;
     restingWidth.current = to;
     if (from === null || Math.abs(from - to) < 1 || reducedMotion()) return;
@@ -276,22 +280,23 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
       { duration: 240, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
     );
     motion.id = widthMotion;
-    // Growing, the longer words would read cut short: they come in as the
-    // room opens, clipped rather than ending in "…".
-    const words = labelRef.current;
-    if (to > from && words) {
-      element.dataset.growing = "";
-      const fade = words.animate([{ opacity: 0 }, { opacity: 1 }], {
-        duration: 240,
-        easing: "cubic-bezier(0.55, 0, 0.75, 0.4)",
-      });
-      fade.id = widthMotion;
-      const done = () => {
-        if (!element.getAnimations().some((a) => a.id === widthMotion))
-          delete element.dataset.growing;
-      };
-      motion.finished.then(done, done);
-    }
+    if (to <= from || showing === shownLabel) return;
+    // Growing, the longer words would read cut short: the shorter ones stay
+    // until there is room, then the longer ones take their place whole.
+    words.dataset.held = showing;
+    let frame = 0;
+    const reveal = () => {
+      if (
+        motion.playState === "running" &&
+        to - element.getBoundingClientRect().width >= 0.5
+      ) {
+        frame = requestAnimationFrame(reveal);
+        return;
+      }
+      delete words.dataset.held;
+    };
+    frame = requestAnimationFrame(reveal);
+    return () => cancelAnimationFrame(frame);
   }, [smoothWidth, shownLabel]);
   const leaving = useRef<Animation[] | null>(null);
   function close(animate = true) {
@@ -720,7 +725,13 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
         {icon}
         <span
           ref={labelRef}
-          className="min-w-0 overflow-hidden text-ellipsis group-data-growing/choice:text-clip"
+          className={cn(
+            "relative min-w-0 overflow-hidden text-ellipsis",
+            // Held words (see `smoothWidth`) cover the new ones, which keep
+            // the room they need.
+            "data-held:[-webkit-text-fill-color:transparent]",
+            "data-held:before:absolute data-held:before:inset-0 data-held:before:overflow-hidden data-held:before:text-ellipsis data-held:before:content-[attr(data-held)] data-held:before:[-webkit-text-fill-color:currentColor]",
+          )}
         >
           {shownLabel}
         </span>
