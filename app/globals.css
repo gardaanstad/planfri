@@ -397,7 +397,9 @@
 @media (width < 48rem) {
   :root {
     --push-ease: cubic-bezier(0.32, 0.72, 0, 1);
-    transition: background-color 350ms var(--push-ease);
+    /* Coming forward, a long soft tail, so the page settles into place. */
+    --push-return: 520ms var(--ease-out-soft);
+    transition: background-color var(--push-return);
   }
   body {
     --push: calc(1 - var(--push-progress, 0));
@@ -405,18 +407,18 @@
     /* Square at rest, so the corners can ease back to it. */
     clip-path: inset(0 round 0);
     transition:
-      scale 350ms var(--push-ease),
-      translate 350ms var(--push-ease),
-      clip-path 350ms var(--push-ease);
+      scale var(--push-return),
+      translate var(--push-return),
+      clip-path var(--push-return);
   }
   :root[data-pushed] {
     background-color: var(--color-scrim);
     transition-duration: 500ms;
   }
   :root[data-pushed] body {
-    scale: calc(1 - 0.06 * var(--push));
-    translate: 0 calc((env(safe-area-inset-top) + 12px) * var(--push));
-    clip-path: inset(0 round calc(14px * var(--push)));
+    scale: calc(1 - 0.085 * var(--push));
+    translate: 0 calc((env(safe-area-inset-top) + 16px) * var(--push));
+    clip-path: inset(0 round calc(16px * var(--push)));
     transition:
       scale 500ms var(--push-ease),
       translate 500ms var(--push-ease),
