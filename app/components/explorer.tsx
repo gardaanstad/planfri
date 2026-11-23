@@ -5,6 +5,7 @@ import {
   Fragment,
   type ReactNode,
   memo,
+  startTransition,
   useCallback,
   useEffect,
   useEffectEvent,
@@ -772,12 +773,17 @@ export default memo(function Explorer({
     if (!view.moving) mapViewRef.current = view;
     const shown = projectsInView(view);
     const key = shown.map((project) => project.id).join();
-    if (key !== inViewKey.current) {
-      inViewKey.current = key;
-      setViewBounds(view.bounds);
-    }
-    followPlace(view, shown);
-    if (view.moving) return;
+    const follow = () => {
+      if (key !== inViewKey.current) {
+        inViewKey.current = key;
+        setViewBounds(view.bounds);
+      }
+      followPlace(view, shown);
+    };
+    // Mid-pan the list catches up between frames instead of holding one up:
+    // rendering it inside a frame stalled the pan, worst in Safari.
+    if (view.moving) return startTransition(follow);
+    follow();
     if (!postView.current) setFrozenBounds(null);
     syncSoon();
   }
