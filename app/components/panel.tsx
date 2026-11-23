@@ -74,15 +74,19 @@ const gripBar = (
  * along that edge says there is more of it. It sits on the popup, held to
  * the screen edge against the drawer's offset and drag. Base UI's variables
  * don't inherit, so the popup copies them into one that does.
+ *
+ * The offset changes at once while the popup eases to it, so the fade eases
+ * back by it in the popup's own time and curve, staying on the edge the whole
+ * way. Under a finger both move with it, frame for frame.
  */
 export function ScrollFade({ shown }: { shown: boolean }) {
   return (
     <div
       data-scroll-fade={shown ? "" : undefined}
       className={cn(
-        "pointer-events-none absolute inset-x-0 z-10 h-16 bg-linear-to-t from-surface to-transparent",
-        "bottom-(--drawer-visible-bottom)",
-        "transition-opacity duration-300 ease-out motion-reduce:transition-none",
+        "pointer-events-none absolute inset-x-0 bottom-0 z-10 h-16 bg-linear-to-t from-surface to-transparent",
+        "translate-y-[calc(-1*var(--drawer-visible-bottom))]",
+        "transition-[opacity,translate] duration-450 ease-[cubic-bezier(0.22,1,0.36,1)] group-data-swiping/drawer-popup:transition-opacity motion-reduce:transition-none",
         shown ? "opacity-100" : "opacity-0",
       )}
     />
