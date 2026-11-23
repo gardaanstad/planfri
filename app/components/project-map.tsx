@@ -10,6 +10,7 @@ import "./project-map.css";
 import { useTheme } from "./theme-toggle";
 import {
   Building2,
+  Info,
   Layers,
   Minus,
   Plus,
@@ -332,6 +333,8 @@ export type MapViewChange = MapView & {
 // OpenStreetMap's own map is raster, but it draws what the vector styles
 // leave out, such as lines under construction, so it's the default when
 // drawing a project.
+const osmAttribution =
+  '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>';
 const osmStyle: maplibregl.StyleSpecification = {
   version: 8,
   sources: {
@@ -340,8 +343,7 @@ const osmStyle: maplibregl.StyleSpecification = {
       tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
       tileSize: 256,
       maxzoom: 19,
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>',
+      attribution: osmAttribution,
     },
   },
   layers: [{ id: "osm", type: "raster", source: "osm" }],
@@ -535,6 +537,10 @@ export default function ProjectMap({
   const [layersOpen, setLayersOpen] = useState(false);
   const [layer, setLayer] = useState<MapLayer>(draw ? "osm" : "standard");
   const [mapMessage, setMapMessage] = useState("");
+  // On a drawer the map's credits ride with the controls, folded behind a
+  // button once the map is moved. They show in full until then.
+  const docked = controlsContainer !== undefined;
+  const [creditsOpen, setCreditsOpen] = useState(true);
   // Shapes outlined to stand out from the base map; see project-map.css.
   const darkBase = useTheme() === "dark" && layer === "standard";
   const baseStyle = darkBase ? darkStandardStyle : mapStyles[layer];
@@ -619,6 +625,7 @@ export default function ProjectMap({
       if (!handlers.current.draw) handlers.current.onSelect(null);
     });
     map.on("dragstart", () => {
+      setCreditsOpen(false);
       handlers.current.onUserMove?.();
       handlers.current.onGestureStart?.();
     });
@@ -690,7 +697,10 @@ export default function ProjectMap({
     });
     // Moves by hand other than a drag; the map's own framing moves it too,
     // so its events can't tell them apart.
-    const userMove = () => handlers.current.onUserMove?.();
+    const userMove = () => {
+      setCreditsOpen(false);
+      handlers.current.onUserMove?.();
+    };
     const gesture = () => {
       userMove();
       handlers.current.onGestureStart?.();
@@ -1899,6 +1909,39 @@ export default function ProjectMap({
       </div>
     </div>
   );
+  // Opposite the controls, just above the drawer: in line with them at the
+  // side, 8px clear of the drawer.
+  const credits = (
+    <div
+      className="absolute bottom-0 left-1 z-600"
+      data-map-credits=""
+      // On a drawer, a press here is not a swipe of it.
+      data-base-ui-swipe-ignore=""
+    >
+      <button
+        type="button"
+        className="grid size-10 place-items-center text-muted hover:text-ink"
+        aria-label="Kartkilder"
+        aria-expanded={creditsOpen}
+        aria-controls={creditsOpen ? "map-credits" : undefined}
+        onClick={() => setCreditsOpen(!creditsOpen)}
+      >
+        <span className="grid size-6 place-items-center rounded-full bg-surface/80">
+          <Info size={15} aria-hidden="true" />
+        </span>
+      </button>
+      {creditsOpen && (
+        <p
+          id="map-credits"
+          // Short of the controls; narrow phones wrap it.
+          className="absolute top-1/2 left-full -translate-y-1/2 rounded-[4px] bg-surface/80 px-1.5 py-0.5 text-[9px] leading-tight w-max max-w-[calc(100vw-7.5rem)] text-muted [&_a]:text-muted"
+          dangerouslySetInnerHTML={{
+            __html: layer === "osm" ? osmAttribution : mapAttribution,
+          }}
+        />
+      )}
+    </div>
+  );
   return (
     <div
       // Leaflet's pane z-indices stay inside, below the page's own layers.
@@ -1908,6 +1951,7 @@ export default function ProjectMap({
       data-osm-selection={!draw && osm?.selectedId ? "" : undefined}
       data-drawing={draw ? "true" : undefined}
       data-map-style={layer}
+      data-credits={docked ? "docked" : undefined}
       data-base-tone={darkBase ? "dark" : "light"}
     >
       <div
@@ -1921,7 +1965,14 @@ export default function ProjectMap({
       />
       {controlsContainer === undefined
         ? controls
-        : controlsContainer && createPortal(controls, controlsContainer)}
+        : controlsContainer &&
+          createPortal(
+            <>
+              {controls}
+              {credits}
+            </>,
+            controlsContainer,
+          )}
       {mapMessage && (
         <div
           className="absolute top-18.75 left-1/2 z-650 flex w-max max-w-[85%] -translate-x-1/2 items-center gap-2.5 rounded-[7px] border border-border bg-surface px-3.5 py-3 text-2xs shadow-[0_4px_15px_rgb(20_28_24/0.10)] max-sm:top-16 max-sm:max-w-[calc(100%-28px)] max-sm:text-xs"

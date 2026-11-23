@@ -673,6 +673,20 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expectDrawerHeight(page, compact);
   });
 
+  test("the map credits fold behind a button once the map is moved", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const credits = page.locator("#map-credits");
+    const toggle = page.getByRole("button", { name: "Kartkilder" });
+    await expect(credits).toContainText("OpenStreetMap");
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await touchMove(page, { x: 160, y: 100 }, { x: 100, y: 140 }, { steps: 10 });
+    await expect(credits).toBeHidden();
+    await toggle.click();
+    await expect(credits).toBeVisible();
+  });
+
   test("zooming the map folds the list down from the middle height", async ({
     page,
   }) => {

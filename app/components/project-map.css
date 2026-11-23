@@ -47,6 +47,11 @@
   padding: 2px 5px !important;
 }
 
+/* The controls show them instead; see ProjectMap. */
+[data-project-map][data-credits="docked"] .leaflet-control-attribution {
+  display: none;
+}
+
 [data-project-map] .leaflet-control-scale {
   margin-bottom: 20px !important;
   margin-left: 22px !important;

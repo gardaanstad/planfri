@@ -2743,13 +2743,7 @@ export default memo(function Explorer({
         inert={!isMobile && maximized}
       >
         <section
-          className={cn(
-            "relative isolate h-full min-h-0 w-full min-w-0 flex-1",
-            // On phones the map runs to the bottom edge, showing through the
-            // floating drawer's gaps; its attribution stays under the drawer.
-            isMobile &&
-              "[&_.leaflet-bottom]:bottom-[124px]! [&_.leaflet-control-attribution]:text-[8px]!",
-          )}
+          className="relative isolate h-full min-h-0 w-full min-w-0 flex-1"
           aria-label="Prosjektkart"
         >
           <ProjectMap
