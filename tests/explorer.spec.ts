@@ -474,6 +474,60 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       .toMatch(/^59\.\d+,10\.7500,13$/);
   });
 
+  test("a project's text keeps its lines as its drawer grows to full width", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await swipeUp(
+      page,
+      page.getByRole("button", { name: "Utvid prosjektlisten", exact: true }),
+    );
+    await expectDrawerHeight(page, 0.58);
+    await page
+      .getByRole("region", { name: "Prosjektliste", exact: true })
+      .getByRole("button", { name: new RegExp(project.title) })
+      .first()
+      .click();
+    await expectDrawerHeight(page, 0.58, "project");
+    const drawer = page.locator("[data-project-drawer]");
+    // Long enough to break somewhere else 16px wider.
+    await drawer
+      .getByText(project.description.split("\n\n")[0], { exact: true })
+      .evaluate((element) => {
+        element.textContent = `${element.textContent} `.repeat(4);
+        element.setAttribute("data-long-text", "");
+      });
+    const text = drawer.locator("[data-long-text]");
+    const lines = () =>
+      text.evaluate((element) => {
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        return [...range.getClientRects()]
+          .filter((rect) => rect.width > 8)
+          .map((rect) => Math.round(rect.width));
+      });
+    const floating = await lines();
+    expect(floating.length).toBeGreaterThan(2);
+    const width = () =>
+      drawer.evaluate((element) => element.getBoundingClientRect().width);
+    const narrow = await width();
+    // Sent to full height, and dragged there.
+    await drawer.locator("[data-project-scroll]").hover();
+    await page.mouse.wheel(0, 300);
+    await expectDrawerHeight(page, 1, "project");
+    await expect.poll(width).toBeGreaterThan(narrow);
+    expect(await lines()).toEqual(floating);
+    const top = await middleOf(drawer.getByRole("heading", { level: 1 }));
+    await touchMove(page, top, { x: top.x, y: top.y + 200 });
+    await expectDrawerHeight(page, 0.58, "project");
+    // Floating again, it is free to fit the text anew.
+    await expect(drawer.locator("[data-sheet-pinned]")).toHaveCount(0);
+    expect(await lines()).toEqual(floating);
+    await swipeUp(page, drawer);
+    await expectDrawerHeight(page, 1, "project");
+    expect(await lines()).toEqual(floating);
+  });
+
   test("a touch on the map folds a project over it down to its header", async ({
     page,
   }) => {

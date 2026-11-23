@@ -158,11 +158,12 @@ function useFloatingGap(content: HTMLElement | null, floating?: boolean) {
   React.useEffect(() => {
     const popup = content?.closest<HTMLElement>("[data-slot=drawer-popup]");
     const viewport = popup?.parentElement;
-    if (!popup || !viewport || !tracking) return;
+    if (!content || !popup || !viewport || !tracking) return;
     // What of it showed when it last rested floating.
     let rest = -1;
     let dragging = false;
     let frame = 0;
+    let timer = 0;
     const release = () => {
       viewport.style.removeProperty("--sheet-gap");
       viewport.style.removeProperty("--sheet-radius");
@@ -187,12 +188,18 @@ function useFloatingGap(content: HTMLElement | null, floating?: boolean) {
           frame = requestAnimationFrame(() => {
             frame = requestAnimationFrame(release);
           });
+          // Let go floating, it frees what the drag pinned.
+          window.clearTimeout(timer);
+          timer = window.setTimeout(() => {
+            if (floatingRef.current) unpinLines(content);
+          }, drawerDuration + 30);
         }
         return;
       }
       if (!dragging) {
         dragging = true;
         cancelAnimationFrame(frame);
+        if (floatingRef.current) pinLines(content, viewport);
         viewport.setAttribute("data-sheet-dragging", "");
       }
       // Opened at full height, it has not rested floating yet.
@@ -216,9 +223,108 @@ function useFloatingGap(content: HTMLElement | null, floating?: boolean) {
     return () => {
       mutations.disconnect();
       cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
       release();
     };
   }, [content, tracking]);
+}
+
+/** The width a floating drawer's text wraps to, pinned while it grows. */
+const pinnedWidth = "--sheet-pinned-width";
+
+/** The nearest box an inline run of text wraps within. */
+function wrappingBox(node: Node) {
+  let element = node.parentElement;
+  while (element) {
+    const display = getComputedStyle(element).display;
+    if (display !== "inline" && display !== "contents") return element;
+    element = element.parentElement;
+  }
+  return null;
+}
+
+/**
+ * Pins every paragraph of a floating drawer's content that wraps to the
+ * width it has floating, so that as the drawer grows into the screen's
+ * sides its lines break where they did: the drawer, its edges and its
+ * pictures widen, its text doesn't reflow. Text on one line can't rewrap
+ * wider, so it is left free. Measured with the gap whole whatever the drawer
+ * is doing, so a jump to full height, unanimated, pins it as it was.
+ */
+function pinLines(content: HTMLElement, viewport: HTMLElement) {
+  const held = viewport.style.getPropertyValue("--sheet-gap");
+  viewport.style.setProperty("--sheet-gap", "8px");
+  const runs = new Map<HTMLElement, Text[]>();
+  const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.nodeValue?.trim()) continue;
+    const box = wrappingBox(node);
+    if (!box || box.hasAttribute("data-sheet-pinned")) continue;
+    const texts = runs.get(box);
+    if (texts) texts.push(node as Text);
+    else runs.set(box, [node as Text]);
+  }
+  const range = document.createRange();
+  const pins: [HTMLElement, number, string][] = [];
+  for (const [box, texts] of runs) {
+    // Lines are told apart by where their text sits; wrapped, it sits on two.
+    let top: number | undefined;
+    const wraps = texts.some((text) => {
+      range.selectNodeContents(text);
+      return [...range.getClientRects()].some((rect) => {
+        if (!rect.width) return false;
+        top ??= rect.top;
+        return Math.abs(rect.top - top) > rect.height / 2;
+      });
+    });
+    if (wraps)
+      pins.push([
+        box,
+        box.getBoundingClientRect().width,
+        getComputedStyle(box).textAlign,
+      ]);
+  }
+  // Written after every read, so the content lays out once.
+  for (const [box, width, align] of pins) {
+    box.setAttribute("data-sheet-pinned", align);
+    box.style.setProperty(pinnedWidth, `${width}px`);
+  }
+  if (held) viewport.style.setProperty("--sheet-gap", held);
+  else viewport.style.removeProperty("--sheet-gap");
+}
+
+function unpinLines(content: HTMLElement) {
+  for (const box of content.querySelectorAll<HTMLElement>(
+    "[data-sheet-pinned]",
+  )) {
+    box.removeAttribute("data-sheet-pinned");
+    box.style.removeProperty(pinnedWidth);
+  }
+}
+
+/**
+ * Keeps a floating drawer's text from reflowing as it grows to full height
+ * (see `pinLines`), whether dragged there (pinned in `useFloatingGap`) or
+ * sent; it is freed once the drawer rests floating again.
+ */
+function usePinnedLines(content: HTMLElement | null, floating?: boolean) {
+  const floated = React.useRef(floating);
+  React.useLayoutEffect(() => {
+    const was = floated.current;
+    floated.current = floating;
+    const viewport = content?.closest<HTMLElement>(
+      "[data-slot=drawer-popup]",
+    )?.parentElement;
+    if (!content || !viewport) return;
+    if (floating === false && was === true) pinLines(content, viewport);
+    if (!floating) return;
+    // Shrinking, it stays pinned until its sides have come back in.
+    const timer = window.setTimeout(
+      () => unpinLines(content),
+      drawerDuration + 30,
+    );
+    return () => window.clearTimeout(timer);
+  }, [content, floating]);
 }
 
 /**
@@ -358,6 +464,7 @@ function DrawerContent({
   const [content, setContent] = React.useState<HTMLDivElement | null>(null);
   useDrawerMotion(content, restOffset, onMotion);
   useFloatingGap(content, floating);
+  usePinnedLines(content, floating);
   useScrolledMark(content, hasSnapPoints);
   const swipeAxis =
     swipeDirection === "down" || swipeDirection === "up" ? "y" : "x";

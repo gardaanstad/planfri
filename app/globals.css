@@ -327,6 +327,17 @@
   initial-value: 0px;
 }
 
+/*
+ * Text a floating drawer pinned to its width as it grows (see `pinLines` in
+ * drawer.tsx), so its lines break where they did; centered text stays so.
+ */
+[data-sheet-pinned] {
+  max-width: var(--sheet-pinned-width);
+}
+[data-sheet-pinned="center"] {
+  margin-inline: auto;
+}
+
 /* next/font sets these variables on <html>. */
 @theme inline {
   --font-sans: var(--font-geist-sans);
