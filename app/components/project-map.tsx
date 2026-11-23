@@ -502,8 +502,8 @@ export default function ProjectMap({
   const clusterRef = useRef(() => {});
   // The group each grouped project is drawn in, as of the last grouping.
   const groupOfRef = useRef(new Map<string, L.Marker>());
-  // Restyles one project for the current selection and highlight.
-  const styleRef = useRef<(id: string | null) => void>(() => {});
+  // Restyles projects for the current selection and highlight.
+  const styleRef = useRef<(...ids: (string | null)[]) => void>(() => {});
   const projectsRef = useRef(projects);
   // Editing an existing shape opens framed on it.
   const initialPoints = useRef(points);
@@ -898,6 +898,8 @@ export default function ProjectMap({
       else pending();
     };
     let pending = () => {};
+    let wantedHighlight = highlightedRef.current;
+    let highlightFrame = 0;
     handlers.current.onReady?.({
       fit(points, { bottom = inset(), left = 0, top = 0, maxZoom = 15 } = {}) {
         if (!points.length) return;
@@ -970,16 +972,24 @@ export default function ProjectMap({
         resizing.current = false;
         report();
       },
+      // Sweeping down the list leaves one card and enters the next many
+      // times a frame. Each restyle measures the tooltip and so forces a
+      // layout, so only the last change in a frame is drawn, still before
+      // that frame is painted.
       highlight(id) {
-        const previous = highlightedRef.current;
-        highlightedRef.current = id;
-        if (previous === id) return;
-        styleRef.current(previous);
-        styleRef.current(id);
+        wantedHighlight = id;
+        highlightFrame ||= requestAnimationFrame(() => {
+          highlightFrame = 0;
+          const previous = highlightedRef.current;
+          highlightedRef.current = wantedHighlight;
+          if (previous !== wantedHighlight)
+            styleRef.current(previous, wantedHighlight);
+        });
       },
     });
     return () => {
       cancelAnimationFrame(frame);
+      cancelAnimationFrame(highlightFrame);
       map.off("moveend", settle);
       map.off("move", move);
       map.off("zoomend", pending);
@@ -1360,9 +1370,10 @@ export default function ProjectMap({
               bounds.getCenter().lng,
             )
           : dot.getLatLng();
-      // Clear of the marker or line the tooltip points at.
+      // Clear of the marker or line the tooltip points at. A group's size
+      // comes from its icon: measuring it would force a layout mid-hover.
       const lift = group
-        ? (group.getElement()?.offsetHeight ?? 32) / 2
+        ? L.point(group.options.icon?.options.iconSize ?? [32, 32]).y / 2
         : dots.hasLayer(dot)
           ? dotRadius(true) + 1
           : line
@@ -1411,8 +1422,8 @@ export default function ProjectMap({
       style(highlightedRef.current);
       placeHint();
     };
-    styleRef.current = (id) => {
-      style(id);
+    styleRef.current = (...ids) => {
+      for (const id of ids) style(id);
       placeHint();
     };
     clusterRef.current = () => {
@@ -1446,8 +1457,7 @@ export default function ProjectMap({
     if (previous === selectedId) return;
     // The open project leaves its group, and a closed one may rejoin it.
     clusterRef.current();
-    styleRef.current(previous);
-    styleRef.current(selectedId);
+    styleRef.current(previous, selectedId);
   }, [selectedId]);
   useEffect(() => {
     osmSelect.current = osm?.onSelect;
