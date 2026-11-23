@@ -1563,6 +1563,7 @@ export default function ProjectPost({
                     )}
                     aria-pressed={tab === id}
                     aria-controls={`project-panel-${id}`}
+                    data-press=""
                     onClick={() => selectTab(id)}
                   >
                     <Icon size={16} />
