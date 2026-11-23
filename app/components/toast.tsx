@@ -142,7 +142,7 @@ function Toasts({ top }: { top: boolean }) {
             <Check size={13} strokeWidth={3} />
           </span>
         )}
-        <Toast.Title className="min-w-0 flex-1 py-2 text-ui leading-snug font-medium" />
+        <Toast.Title className="min-w-0 flex-1 py-2 text-ui leading-snug font-medium text-pretty" />
         <Toast.Action
           className={cn(
             "inline-flex min-h-10 shrink-0 items-center rounded-lg px-3 text-ui font-semibold text-on-inverse",
