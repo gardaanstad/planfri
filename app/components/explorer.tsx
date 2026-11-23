@@ -26,7 +26,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   GalleryVertical,
-  Inbox,
   LayoutList,
   Map as MapIcon,
   MapPin,
@@ -251,11 +250,12 @@ function useControlsSlot() {
 const primaryCta = cn(primaryButton, "rounded-lg px-4 text-xs");
 const quietAction = cn(textButton, "min-h-11 text-xs");
 const compactIconAction = cn(iconButton, "rounded-lg");
-/** Marks the avatar when a member's suggestions have been reviewed. */
+/**
+ * Marks the avatar when a member's suggestions have been reviewed, or, for a
+ * moderator, when suggestions wait in the queue in its menu.
+ */
 const reviewedDot =
   "absolute -top-0.5 -right-0.5 size-2.75 rounded-full border-2 border-surface bg-accent";
-const countBadge =
-  "inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-accent px-1.25 text-2xs leading-none font-semibold text-on-accent tabular-nums";
 
 const noProjects: Project[] = [];
 
@@ -579,9 +579,7 @@ export default memo(function Explorer({
   const headerNavRef = useRef<HTMLElement>(null);
   const headerOverflow = useHeaderOverflow(
     headerNavRef,
-    ["theme", user && "add", canModerate && "suggestions", "maximize"].filter(
-      (id): id is string => Boolean(id),
-    ),
+    ["theme", "maximize"],
   );
   /** The header's width plus the sidebar's border. */
   function headerWidth(all: boolean) {
@@ -1994,7 +1992,7 @@ export default memo(function Explorer({
             onClick={() => openEditor()}
           >
             <Plus size={15} aria-hidden="true" />
-            Foreslå prosjekt
+            {canModerate ? "Legg til prosjekt" : "Foreslå prosjekt"}
           </button>
         </div>
       </div>
@@ -2108,7 +2106,11 @@ export default memo(function Explorer({
     setMemberView(on);
     // The pending count and the like differ for a member: read them again.
     void refresh().catch(() => {});
-    notify(on ? "Du ser appen som en vanlig bruker" : "Moderatorvisning er på");
+    notify(
+      on
+        ? "Moderatormodus er av. Du ser appen som en vanlig bruker"
+        : "Moderatormodus er på",
+    );
   }
   const profileButtonClass = cn(
     "inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-transparent text-xs font-semibold text-muted",
@@ -2124,9 +2126,13 @@ export default memo(function Explorer({
       trigger={
         <span className="relative">
           <ProfileAvatar name={user.username} className="size-9 text-sm" />
-          {reviewed > 0 && <span className={reviewedDot} />}
+          {(reviewed > 0 || (canModerate && suggestions > 0)) && (
+            <span className={reviewedDot} />
+          )}
         </span>
       }
+      suggestions={suggestions}
+      onSuggestions={() => openSuggestions()}
       onProfile={() => openProfile()}
       onSaved={showSaved}
       onSettings={() => openProfile("settings")}
@@ -2162,35 +2168,6 @@ export default memo(function Explorer({
       Logg inn
     </button>
   );
-  // Moderators reach the suggestion queue from the header.
-  const suggestionsLink = canModerate && (
-    <Link
-      href="/forslag"
-      prefetch={false}
-      className={cn(compactIconAction, "relative text-muted hover:text-ink")}
-      aria-label={`Forslag${suggestions ? ` (${suggestions})` : ""}`}
-      data-press=""
-      data-tooltip={isMobile ? undefined : "Forslag"}
-      onClick={(event) => {
-        // A panel over the explorer, not a page of its own.
-        if (event.metaKey || event.ctrlKey || event.shiftKey) return;
-        event.preventDefault();
-        openSuggestions();
-      }}
-    >
-      <Inbox size={20} />
-      {suggestions > 0 && (
-        <span
-          className={cn(
-            countBadge,
-            "pointer-events-none absolute top-1 right-0.5 ring-2 ring-surface",
-          )}
-        >
-          {suggestions}
-        </span>
-      )}
-    </Link>
-  );
   /** One of the list header's actions, while it fits beside the others. */
   const inline = (id: string, node: ReactNode) =>
     node && !headerOverflow.hidden.has(id) ? (
@@ -2198,21 +2175,8 @@ export default memo(function Explorer({
         {node}
       </div>
     ) : null;
-  const overflowActions: OverflowAction[] = (
+  const overflowActions = (
     [
-      canModerate && {
-        id: "suggestions",
-        label: "Forslag",
-        icon: <Inbox size={16} />,
-        count: suggestions,
-        onSelect: () => openSuggestions(),
-      },
-      user && {
-        id: "add",
-        label: canModerate ? "Legg til prosjekt" : "Foreslå prosjekt",
-        icon: <Plus size={16} />,
-        onSelect: () => openEditor(),
-      },
       {
         id: "theme",
         label: "Mørk modus",
@@ -2226,12 +2190,8 @@ export default memo(function Explorer({
         icon: <Maximize2 size={16} />,
         onSelect: maximize,
       },
-    ] as (OverflowAction | false | null | undefined | "")[]
-  ).filter(
-    (action): action is OverflowAction =>
-      Boolean(action) &&
-      headerOverflow.hidden.has((action as OverflowAction).id),
-  );
+    ] satisfies OverflowAction[]
+  ).filter((action) => headerOverflow.hidden.has(action.id));
   const sidebarToggle = (
     <button
       type="button"
@@ -2394,18 +2354,6 @@ export default memo(function Explorer({
           <div className="flex h-11 items-center justify-between">
             {brand}
             <div className="flex items-center gap-0.5">
-              {suggestionsLink}
-              {user && (
-                <button
-                  className={cn(compactIconAction, "text-muted")}
-                  aria-label={
-                    canModerate ? "Nytt prosjekt" : "Foreslå prosjekt"
-                  }
-                  onClick={() => openEditor()}
-                >
-                  <Plus size={21} />
-                </button>
-              )}
               <ThemeToggle tooltip={false} />
               {profileButton}
             </div>
@@ -2646,24 +2594,6 @@ export default memo(function Explorer({
                 aria-label="Konto"
                 data-explorer-nav=""
               >
-                {inline("suggestions", suggestionsLink)}
-                {inline(
-                  "add",
-                  user && (
-                    <button
-                      className={cn(compactIconAction, "text-muted")}
-                      aria-label={
-                        canModerate ? "Legg til prosjekt" : "Foreslå prosjekt"
-                      }
-                      data-tooltip={
-                        canModerate ? "Legg til prosjekt" : "Foreslå prosjekt"
-                      }
-                      onClick={() => openEditor()}
-                    >
-                      <Plus size={20} />
-                    </button>
-                  ),
-                )}
                 {inline("theme", <ThemeToggle />)}
                 {overflowActions.length > 0 && (
                   <OverflowMenu actions={overflowActions} />

@@ -106,9 +106,7 @@ test.describe("login prompt", () => {
     const login = header.getByRole("button", { name: "Logg inn", exact: true });
     await expect(login).toBeVisible();
     await expect(login).toHaveText("Logg inn");
-    await expect(
-      header.getByRole("button", { name: "Foreslå prosjekt" }),
-    ).toHaveCount(0);
+    await expect(header.getByRole("button", { name: /prosjekt$/ })).toHaveCount(0);
     // As tall as it is clear, on the line its icon neighbours share.
     const middle = (element: Element) => {
       const rect = element.getBoundingClientRect();
@@ -624,36 +622,41 @@ test.describe("account menu", () => {
     // Wide enough that every header action fits beside the others.
     await page.setViewportSize({ width: 1680, height: 900 });
     await page.goto("/");
-    const queue = page.getByRole("link", { name: /^Forslag/ });
-    const add = page.getByRole("button", { name: "Legg til prosjekt", exact: true });
-    const suggest = page
-      .locator("[data-explorer-header]")
-      .getByRole("button", { name: "Foreslå prosjekt", exact: true });
-    await expect(queue).toBeVisible();
+    const list = page.getByRole("region", { name: "Prosjektliste" });
+    const add = list.getByRole("button", { name: "Legg til prosjekt", exact: true });
+    const suggest = list.getByRole("button", { name: "Foreslå prosjekt", exact: true });
+    // The header keeps no adding or queue of its own: the list's end adds,
+    // and the queue is in the avatar's menu, under moderator mode.
+    const header = page.locator("[data-explorer-header]");
     await expect(add).toBeVisible();
+    await expect(header.getByRole("button", { name: "Legg til prosjekt" })).toHaveCount(0);
+    await expect(header.getByRole("link", { name: /^Forslag/ })).toHaveCount(0);
     const osm = () => page.request.get("/api/osm-candidates");
     expect((await osm()).status()).not.toBe(403);
 
     const trigger = page.getByRole("button", { name: "Konto", exact: true });
+    const queue = accountMenuItem(page, /^Forslag/);
     await trigger.click();
-    const toggle = accountMenuItem(page, "Vis som vanlig bruker");
-    await expect(toggle).toHaveAttribute("aria-checked", "false");
+    const toggle = accountMenuItem(page, "Moderatormodus");
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    await expect(queue).toBeVisible();
     await toggle.click();
-    await expect(queue).toHaveCount(0);
     await expect(add).toHaveCount(0);
     await expect(suggest).toBeVisible();
     // The server gives a member's rights too, and keeps them over reloads.
     expect((await osm()).status()).toBe(403);
     await page.reload();
     await expect(suggest).toBeVisible();
-    await expect(queue).toHaveCount(0);
     await trigger.click();
-    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    await expect(toggle).toHaveAttribute("aria-checked", "false");
+    await expect(queue).toHaveCount(0);
 
     await toggle.click();
-    await expect(queue).toBeVisible();
     await expect(add).toBeVisible();
     expect((await osm()).status()).not.toBe(403);
+    await trigger.click();
+    await queue.click();
+    await expect(page.locator('[data-sidebar-layer="suggestions"]')).toBeVisible();
   });
 });
 

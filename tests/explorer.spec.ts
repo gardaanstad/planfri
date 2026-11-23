@@ -8,6 +8,7 @@ import {
 import { seedProjects } from "../scripts/seed-data";
 import { getProjectUpdates } from "../app/lib/data";
 import {
+  accountMenuItem,
   member,
   mutation,
   openOwnProfile,
@@ -2303,7 +2304,7 @@ test.describe("desktop explorer", () => {
       name: "Bredde på prosjektlisten",
     });
     // At its default width, every action fits.
-    await expect(header.getByRole("link", { name: "Forslag" })).toBeVisible();
+    await expect(header.getByRole("switch", { name: "Mørk modus" })).toBeVisible();
     await expect(header.locator("[data-sidebar-maximize]")).toBeVisible();
     await expect(menu).toHaveCount(0);
     await shot(page, "header-overflow-full");
@@ -2314,11 +2315,11 @@ test.describe("desktop explorer", () => {
         .evaluate((element) => element.getBoundingClientRect().right);
     // Narrowing a step at a time, actions leave one by one, dark mode first.
     await handle.focus();
-    // Five steps narrow it past the first action.
-    for (let step = 0; step < 5; step++) await page.keyboard.press("ArrowLeft");
+    // A step at a time, until it narrows past the first action.
+    for (let step = 0; step < 40 && !(await menu.count()); step++)
+      await page.keyboard.press("ArrowLeft");
     await expect(menu).toBeVisible();
     await expect(header.getByRole("switch", { name: "Mørk modus" })).toHaveCount(0);
-    await expect(header.getByRole("link", { name: "Forslag" })).toBeVisible();
     // At its narrowest, only the profile and the sidebar toggle stay.
     await page.keyboard.press("Home");
     const min = Number(await handle.getAttribute("aria-valuemin"));
@@ -2341,19 +2342,11 @@ test.describe("desktop explorer", () => {
     await expect(page.locator("[data-project-layer]")).toHaveCount(0);
     await menu.click();
     const items = page.getByRole("menu").locator("[data-overflow-action]");
-    await expect(items).toHaveText([
-      "Forslag",
-      "Legg til prosjekt",
-      "Mørk modus",
-      "Vis som helside",
-    ]);
+    await expect(items).toHaveText(["Mørk modus", "Vis som helside"]);
     await shot(page, "header-overflow-menu");
     // The menu's actions do what the buttons did.
     await page.getByRole("menuitemcheckbox", { name: "Mørk modus" }).click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-    await menu.click();
-    await page.getByRole("menuitem", { name: "Forslag" }).click();
-    await expect(page.locator('[data-sidebar-layer="suggestions"]')).toBeVisible();
   });
 
   test("projects open in a panel beside the map and return to the list", async ({
@@ -3051,7 +3044,8 @@ test.describe("desktop sidebar panels", () => {
     };
 
     // Forslag: a panel on its own URL, covering the whole sidebar.
-    await page.getByRole("link", { name: /^Forslag/ }).click();
+    await page.getByRole("button", { name: "Konto", exact: true }).click();
+    await accountMenuItem(page, /^Forslag/).click();
     const suggestions = page.locator('[data-sidebar-panel="suggestions"]');
     await expect(suggestions).toBeVisible();
     await expect(page).toHaveURL(/\/forslag\?kart=/);

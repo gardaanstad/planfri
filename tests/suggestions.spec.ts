@@ -376,7 +376,9 @@ test("members suggest corrections and tips; moderators review a diff, approve, a
   const review = await moderatorContext.newPage();
   await review.setViewportSize({ width: 1280, height: 900 });
   await review.goto("/");
-  const nav = review.getByRole("link", { name: /^Forslag/ });
+  // The queue waits in the avatar's menu, with its count.
+  await review.getByRole("button", { name: "Konto", exact: true }).click();
+  const nav = review.getByRole("menuitem", { name: /^Forslag/ });
   await expect(nav).toContainText(/\d+/);
   await nav.click();
   // The queue page may still be compiling on its first visit in dev.
@@ -526,7 +528,7 @@ test("members suggest new projects; moderators edit and publish them", async ({
     page.getByRole("button", { name: "Legg til prosjekt" }),
   ).toHaveCount(0);
   await page
-    .locator("[data-explorer-header]")
+    .getByRole("region", { name: "Prosjektliste" })
     .getByRole("button", { name: "Foreslå prosjekt" })
     .click();
   const dialog = page.locator("[data-project-editor]");
