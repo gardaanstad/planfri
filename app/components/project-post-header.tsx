@@ -227,7 +227,7 @@ function MobileActions({
     <>
       <button
         type="button"
-        className={cn(headerIconButton, "relative text-muted")}
+        className={cn(headerIconButton, "text-muted")}
         aria-label="Handlinger"
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -235,12 +235,6 @@ function MobileActions({
         onClick={() => setOpen(true)}
       >
         <Ellipsis size={20} />
-        {saved && (
-          <span
-            aria-hidden="true"
-            className="absolute top-2 right-2 size-2 rounded-full border-2 border-surface bg-accent"
-          />
-        )}
       </button>
       {open && (
         <ActionSheet
