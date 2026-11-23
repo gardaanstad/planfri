@@ -64,6 +64,21 @@ test("a project shows its phase and its facts, and opens on its updates", async 
   ]);
   await expect(phases.locator("[aria-current=step]")).toHaveCount(1);
   await expect(phases).toHaveAttribute("data-phase-strip", project.status);
+  // Under way with a start and a year it's due, the stretch to Ferdig takes
+  // the room the done ones don't need, and fills as far as time has come.
+  await expect(phases).toHaveAttribute("data-phase-active", "construction");
+  const width = (phase: string) =>
+    phases
+      .locator(`[data-phase=${phase}]`)
+      .evaluate((element) => element.getBoundingClientRect().width);
+  expect(await width("construction")).toBeGreaterThan(
+    (await width("planned")) * 1.4,
+  );
+  const fill = Number(
+    await phases.locator("[data-phase-progress]").getAttribute("data-phase-progress"),
+  );
+  expect(fill).toBeGreaterThan(0);
+  expect(fill).toBeLessThanOrEqual(1);
   await expect(post.locator("[data-project-meta]")).toContainText(
     project.developer,
   );

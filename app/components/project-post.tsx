@@ -56,7 +56,8 @@ import ProjectPostHeader from "./project-post-header";
 import ProjectDiscussion, { DiscussionSortSelect } from "./project-discussion";
 import type { DiscussionSort } from "../lib/discussion";
 import CategoryPicker from "./category-picker";
-import RelativeTime from "./relative-time";
+import RelativeTime, { useNow } from "./relative-time";
+import { phaseTrack, trackProgress } from "../lib/phase-track";
 import { usePanelExpand } from "./panel";
 import Link from "next/link";
 import { profileHref } from "../lib/profiles";
@@ -478,98 +479,143 @@ function phaseDate(project: Project, status: Status) {
   return date ? formatPhaseDate(date) : "";
 }
 
-// Each step's place along the line: the ends at the edges, the middle two
-// centred on their dots.
-const phaseSpots = [
-  "left-0 text-left",
-  "left-1/3 -translate-x-1/2 text-center",
-  "left-2/3 -translate-x-1/2 text-center",
-  "right-0 text-right",
-];
+// What the fill of the stretch under way measures, for screen readers.
+const progressWords: Partial<Record<Status, string>> = {
+  proposed: "av tiden fram til planleggingen",
+  planned: "av tiden fram til byggestart",
+  construction: "av byggetiden",
+};
 
 /**
  * The phases a project passes through, on a line across the panel: those
  * behind it quiet, the one it's in marked in its status colour, those ahead
  * hollow. Each step carries its date when it has one.
+ *
+ * The stretches it has passed are drawn solid. When the stretch it's in has
+ * both ends dated (a start of building and a year it's due, say), the steps
+ * behind move aside to give it room, and it fills in the phase's colour as
+ * far as time has come.
  */
 function PhaseTimeline({ project }: { project: Project }) {
+  const now = useNow();
   const current = statusOrder.indexOf(project.status);
-  const dates = statusOrder.map((status) => phaseDate(project, status));
-  const dated = dates.some(Boolean);
+  const texts = statusOrder.map((status) => ({
+    label: phaseLabels[status],
+    date: phaseDate(project, status),
+  }));
+  const dated = texts.some(({ date }) => date);
   const last = statusOrder.length - 1;
-  return (
-    <div className="mt-3">
-      <div className="relative h-2.5" aria-hidden="true">
-        {statusOrder.slice(0, last).map((status, index) => (
+  const track = phaseTrack(project, texts);
+  // Unknown until the reader's clock is, so the fill grows in on hydration.
+  const progress =
+    track.active && now !== null ? trackProgress(track.active, now) : 0;
+  const tone = statusTone[project.status];
+  const step = (status: Status, index: number) => {
+    const edge = index === 0 ? "start" : index === last ? "end" : "middle";
+    return (
+      <>
+        <i
+          aria-hidden="true"
+          className={cn(
+            "absolute top-1.25 z-1 -translate-y-1/2 rounded-full",
+            edge === "start"
+              ? "left-0"
+              : edge === "end"
+                ? "right-0"
+                : "left-0 -translate-x-1/2",
+            index === current
+              ? ["size-2.5 ring-3", tone.dot, tone.ring]
+              : index < current
+                ? "size-1.5 bg-ink-soft/70"
+                : "size-1.5 border border-border-strong bg-surface",
+          )}
+        />
+        <span
+          className={cn(
+            "absolute top-4 whitespace-nowrap",
+            edge === "start"
+              ? "left-0 text-left"
+              : edge === "end"
+                ? "right-0 text-right"
+                : "left-0 -translate-x-1/2 text-center",
+          )}
+        >
           <span
-            key={status}
             className={cn(
-              "absolute top-1/2 h-px w-1/3 -translate-y-1/2",
-              index < current ? "bg-ink-soft/40" : "bg-border",
-            )}
-            style={{ left: `${(index * 100) / last}%` }}
-          />
-        ))}
-        {statusOrder.map((status, index) => (
-          <i
-            key={status}
-            className={cn(
-              "absolute top-1/2 -translate-y-1/2 rounded-full",
-              index === 0
-                ? "translate-x-0"
-                : index === last
-                  ? "-translate-x-full"
-                  : "-translate-x-1/2",
+              "block",
               index === current
-                ? [
-                    "size-2.5 ring-3",
-                    statusTone[project.status].dot,
-                    statusTone[project.status].ring,
-                  ]
+                ? "font-medium text-ink"
                 : index < current
-                  ? "size-1.5 bg-ink-soft/60"
-                  : "size-1.5 border border-border-strong bg-surface",
+                  ? "text-ink-soft"
+                  : "text-muted",
             )}
-            style={{ left: `${(index * 100) / last}%` }}
-          />
-        ))}
-      </div>
+          >
+            {texts[index].label}
+          </span>
+          {texts[index].date && (
+            <span className="block text-muted tabular-nums">
+              <span className="sr-only">, </span>
+              {texts[index].date}
+            </span>
+          )}
+        </span>
+      </>
+    );
+  };
+  return (
+    <div className="mt-3 text-2xs leading-4">
       <ol
-        className={cn("relative mt-1.5", dated ? "h-8" : "h-4")}
+        className={cn("relative flex", dated ? "h-12" : "h-8")}
         aria-label="Fase"
         data-phase-strip={project.status}
+        data-phase-active={track.active ? project.status : undefined}
       >
-        {statusOrder.map((status, index) => (
+        {statusOrder.slice(0, last).map((status, index) => (
           <li
             key={status}
-            className={cn(
-              "absolute top-0 text-2xs leading-4 whitespace-nowrap",
-              phaseSpots[index],
-            )}
+            className="relative"
+            style={{
+              flex: `${track.weights[index]} 1 0`,
+              minWidth: `min(${track.minimums[index].toFixed(2)}em, ${100 / last}%)`,
+            }}
             aria-current={index === current ? "step" : undefined}
             data-phase={status}
           >
             <span
+              aria-hidden="true"
               className={cn(
-                "block",
-                index === current
-                  ? "font-medium text-ink"
-                  : index < current
-                    ? "text-ink-soft"
-                    : "text-muted",
+                "absolute inset-x-0 top-1.25 h-0.5 -translate-y-1/2 overflow-hidden rounded-full",
+                index < current ? "bg-ink-soft/55" : "bg-border",
               )}
             >
-              {phaseLabels[status]}
+              {index === track.active?.index && (
+                <span
+                  className={cn(
+                    "absolute inset-y-0 left-0 rounded-full motion-safe:transition-[width] motion-safe:duration-700 motion-safe:ease-out",
+                    tone.dot,
+                  )}
+                  style={{ width: `${progress * 100}%` }}
+                  data-phase-progress={progress.toFixed(3)}
+                />
+              )}
             </span>
-            {dates[index] && (
-              <span className="block text-muted tabular-nums">
-                <span className="sr-only">, </span>
-                {dates[index]}
-              </span>
-            )}
+            {step(status, index)}
           </li>
         ))}
+        <li
+          className="absolute top-0 right-0 h-full"
+          aria-current={current === last ? "step" : undefined}
+          data-phase={statusOrder[last]}
+        >
+          {step(statusOrder[last], last)}
+        </li>
       </ol>
+      {track.active && now !== null && progressWords[project.status] && (
+        <p className="sr-only">
+          Omtrent {Math.round(progress * 100)} % {progressWords[project.status]}{" "}
+          har gått.
+        </p>
+      )}
     </div>
   );
 }
