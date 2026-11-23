@@ -626,7 +626,9 @@ test.describe("account menu", () => {
     await page.goto("/");
     const queue = page.getByRole("link", { name: /^Forslag/ });
     const add = page.getByRole("button", { name: "Legg til prosjekt", exact: true });
-    const suggest = page.getByRole("button", { name: "Foreslå prosjekt", exact: true });
+    const suggest = page
+      .locator("[data-explorer-header]")
+      .getByRole("button", { name: "Foreslå prosjekt", exact: true });
     await expect(queue).toBeVisible();
     await expect(add).toBeVisible();
     const osm = () => page.request.get("/api/osm-candidates");

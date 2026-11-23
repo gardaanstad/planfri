@@ -525,7 +525,10 @@ test("members suggest new projects; moderators edit and publish them", async ({
   await expect(
     page.getByRole("button", { name: "Legg til prosjekt" }),
   ).toHaveCount(0);
-  await page.getByRole("button", { name: "Foreslå prosjekt" }).click();
+  await page
+    .locator("[data-explorer-header]")
+    .getByRole("button", { name: "Foreslå prosjekt" })
+    .click();
   const dialog = page.locator("[data-project-editor]");
   await dialog.getByLabel("Prosjektnavn").fill(title);
   await dialog.getByLabel("Beskrivelse").fill("En ny bru over fjorden.");

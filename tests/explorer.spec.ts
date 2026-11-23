@@ -1339,8 +1339,26 @@ test.describe("desktop explorer", () => {
   test("the end of the list offers a missing project", async ({ page }) => {
     await page.goto("/");
     const missing = listRegion(page).getByRole("button", {
-      name: "Mangler et prosjekt?",
+      name: "Foreslå prosjekt",
     });
+    // With too few rows to fill the list, it stays at the bottom.
+    await page.getByRole("button", { name: "Åpne søk", exact: true }).click();
+    await page
+      .getByRole("textbox", { name: "Søk etter prosjekt eller sted" })
+      .fill("zzzzqqq");
+    await expect(
+      listRegion(page).getByRole("heading", { name: "Ingen treff", exact: true }),
+    ).toBeVisible();
+    await expect(async () => {
+      const [list, button] = await Promise.all([
+        listRegion(page).boundingBox(),
+        missing.boundingBox(),
+      ]);
+      // Only the list's bottom padding below it.
+      const gap = list!.y + list!.height - (button!.y + button!.height);
+      expect(gap).toBeGreaterThanOrEqual(0);
+      expect(gap).toBeLessThan(48);
+    }).toPass();
     await expect(async () => {
       await missing.click();
       await expect(page.getByRole("dialog", { name: "Logg inn" })).toBeVisible({
