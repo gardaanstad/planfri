@@ -31,6 +31,8 @@ Pages are server-rendered, so a test can click before the page is interactive. D
 
 # Landing
 
+Land only when the user asks you to. Otherwise, stop after the checks and report back. Leave the work uncommitted.
+
 To get your branch onto main, commit, then run `scripts/land.sh` from your worktree. Never push to main yourself, and don't merge main into your branch. The script rebases on `origin/main`, waits its turn if another agent is landing, and pushes. It reruns lint and typecheck only when main has moved; specs aren't rerun, so run yours before landing.
 
 Exit 0 means landed. On exit 1, do what its last lines say, then run it again. The common case is a conflict: resolve the listed files, `git add` them, `GIT_EDITOR=true git rebase --continue`, rerun. Git remembers conflict resolutions (rerere), so you won't have to resolve the same conflict twice.
