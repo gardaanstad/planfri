@@ -25,7 +25,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Planfri",
   description:
-    "Samferdsel, energi, vann, offentlige bygg og byutvikling i Norge. Se prosjektene, få med deg oppdateringer og diskuter.",
+    "Utforsk og diskuter infrastruktur og byutviklingsprosjekter.",
 };
 
 async function chosenTheme() {
