@@ -115,7 +115,6 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
   const trigger = useRef<HTMLButtonElement>(null);
   // The width it last rested at, for `smoothWidth`.
   const restingWidth = useRef<number | null>(null);
-  const labelRef = useRef<HTMLSpanElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
@@ -133,8 +132,6 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
     props.multiple === true
       ? triggerLabel || label
       : triggerLabel || selectedSummary || props.value;
-  // The words last put in the trigger, for `smoothWidth`.
-  const lastLabel = useRef(shownLabel);
 
   const focusSelectedOption = useEffectEvent(() => {
     const focusIndex = Math.max(
@@ -258,13 +255,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
   // A new label: from where it was (or is, midway), to its new width.
   useLayoutEffect(() => {
     const element = root.current;
-    const words = labelRef.current;
-    if (!smoothWidth || !element || !words) return;
-    // The words on screen until now: those held over a growth, if one was
-    // cut short, or the last label.
-    const showing = words.dataset.held ?? lastLabel.current;
-    lastLabel.current = shownLabel;
-    delete words.dataset.held;
+    if (!smoothWidth || !element) return;
     const running = element
       .getAnimations()
       .filter((animation) => animation.id === widthMotion);
@@ -272,6 +263,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
       ? element.getBoundingClientRect().width
       : restingWidth.current;
     running.forEach((animation) => animation.cancel());
+    delete element.dataset.growing;
     const to = element.getBoundingClientRect().width;
     restingWidth.current = to;
     if (from === null || Math.abs(from - to) < 1 || reducedMotion()) return;
@@ -280,23 +272,15 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
       { duration: 240, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
     );
     motion.id = widthMotion;
-    if (to <= from || showing === shownLabel) return;
-    // Growing, the longer words would read cut short: the shorter ones stay
-    // until there is room, then the longer ones take their place whole.
-    words.dataset.held = showing;
-    let frame = 0;
-    const reveal = () => {
-      if (
-        motion.playState === "running" &&
-        to - element.getBoundingClientRect().width >= 0.5
-      ) {
-        frame = requestAnimationFrame(reveal);
-        return;
-      }
-      delete words.dataset.held;
+    if (to <= from) return;
+    // Growing, the new words are laid out whole and the pill uncovers them
+    // as it opens, rather than ending them in "…" until it has room.
+    element.dataset.growing = "";
+    const done = () => {
+      if (!element.getAnimations().some((a) => a.id === widthMotion))
+        delete element.dataset.growing;
     };
-    frame = requestAnimationFrame(reveal);
-    return () => cancelAnimationFrame(frame);
+    motion.finished.then(done, done);
   }, [smoothWidth, shownLabel]);
   const leaving = useRef<Animation[] | null>(null);
   function close(animate = true) {
@@ -724,14 +708,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
       >
         {icon}
         <span
-          ref={labelRef}
-          className={cn(
-            "relative min-w-0 overflow-hidden text-ellipsis",
-            // Held words (see `smoothWidth`) cover the new ones, which keep
-            // the room they need.
-            "data-held:[-webkit-text-fill-color:transparent]",
-            "data-held:before:absolute data-held:before:inset-0 data-held:before:overflow-hidden data-held:before:text-ellipsis data-held:before:content-[attr(data-held)] data-held:before:[-webkit-text-fill-color:currentColor]",
-          )}
+          className="min-w-0 overflow-hidden text-ellipsis group-data-growing/choice:text-clip"
         >
           {shownLabel}
         </span>

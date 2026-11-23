@@ -2658,24 +2658,31 @@ test.describe("the place follows the map", () => {
       await expect(listed(page, "Nyhavna")).toBeVisible();
     });
 
-    test("a longer place's name comes in whole as its pill grows", async ({
+    test("a longer place's name is uncovered as its pill grows, never ending in …", async ({
       page,
     }) => {
       await page.emulateMedia({ reducedMotion: "no-preference" });
       await page.goto("/?sted=Oslo");
-      await expect(place(page, "Oslo")).toHaveText("Oslo");
+      // Framed on Oslo first, so the map doesn't name it over the pick.
+      await expect.poll(() => latOf(page)).toBeCloseTo(59.91, 1);
       await place(page, "Oslo").click();
-      // Every frame from the pick until the pill rests: whether the old
-      // words are held, and whether the words shown fit.
+      type Frame = {
+        text: string;
+        fits: boolean;
+        overflow: string;
+        fading: boolean;
+      };
+      // Every frame from the pick until the pill rests: the words, whether
+      // they fit, and how they'd be cut short if they don't.
       await place(page, "Oslo").evaluate((button) => {
         const label = button.querySelector<HTMLElement>(":scope > span")!;
-        const frames: object[] = [];
-        (window as unknown as { frames_: object[] }).frames_ = frames;
+        const frames: Frame[] = [];
+        (window as unknown as { frames_: Frame[] }).frames_ = frames;
         const sample = () => {
           frames.push({
-            held: label.dataset.held ?? null,
             text: label.textContent,
             fits: label.scrollWidth <= label.clientWidth,
+            overflow: getComputedStyle(label).textOverflow,
             fading: label.getAnimations().length > 0,
           });
           if (frames.length < 40) requestAnimationFrame(sample);
@@ -2687,37 +2694,22 @@ test.describe("the place follows the map", () => {
         .getByRole("option", { name: /^Vestland/ })
         .click();
       await expect(place(page, "Vestland")).toHaveText("Vestland");
-      const frames = await expect
-        .poll(() =>
-          page.evaluate(
-            () => (window as unknown as { frames_: object[] }).frames_,
-          ),
-        )
-        .toHaveLength(40)
-        .then(() =>
-          page.evaluate(
-            () =>
-              (
-                window as unknown as {
-                  frames_: {
-                    held: string | null;
-                    text: string;
-                    fits: boolean;
-                    fading: boolean;
-                  }[];
-                }
-              ).frames_,
-          ),
+      const read = () =>
+        page.evaluate(
+          () => (window as unknown as { frames_: Frame[] }).frames_,
         );
-      const after = frames.filter((frame) => frame.text === "Vestland");
-      // The old words stay a while, then the new ones show, never cut short
-      // and without fading in.
-      expect(after.some((frame) => frame.held === "Oslo")).toBe(true);
-      expect(after.at(-1)?.held).toBeNull();
+      await expect.poll(async () => (await read()).length).toBe(40);
+      const after = (await read()).filter(
+        (frame) => frame.text === "Vestland",
+      );
+      // The new words show at once, without fading in. While the pill is
+      // too narrow for them they're clipped at its edge, not ended in "…".
+      expect(after.some((frame) => !frame.fits)).toBe(true);
       for (const frame of after) {
         expect(frame.fading).toBe(false);
-        if (frame.held === null) expect(frame.fits).toBe(true);
+        if (!frame.fits) expect(frame.overflow).toBe("clip");
       }
+      expect(after.at(-1)).toMatchObject({ fits: true, overflow: "ellipsis" });
     });
 
     test("a linked place frames the map", async ({ page }) => {
