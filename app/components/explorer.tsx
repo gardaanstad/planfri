@@ -769,6 +769,9 @@ export default memo(function Explorer({
     return projects.filter((project) => projectInBounds(project, view.bounds));
   }
   function onMapView(view: MapViewChange) {
+    // On phones the drawer is folded down while the map pans, so the list
+    // waits for it to settle; following it mid-pan stalled Safari.
+    if (view.moving && isMobile) return;
     // The URL and the view to return to take only views the map rests on.
     if (!view.moving) mapViewRef.current = view;
     const shown = projectsInView(view);
