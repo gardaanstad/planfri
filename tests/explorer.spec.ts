@@ -2140,6 +2140,19 @@ test.describe("desktop explorer", () => {
     await page.keyboard.press("Home");
     const min = Number(await handle.getAttribute("aria-valuemin"));
     await expect.poll(width).toBe(min);
+    // Narrow, the pressed view keeps its symbol alone.
+    const viewLabel = page
+      .getByRole("group", { name: "Visning" })
+      .getByRole("button", { name: "Kompakt" })
+      .locator("[data-view-label]");
+    await expect(viewLabel).toBeHidden();
+    // Its tooltip names it instead.
+    const tooltip = page.locator("[role=tooltip][popover]");
+    await viewLabel.locator("..").hover();
+    await expect(tooltip).toBeVisible();
+    await expect(tooltip).toHaveText("Kompakt");
+    await page.mouse.move(0, 0);
+    await expect(tooltip).toBeHidden();
     // At its narrowest, the header still fits, the toggle in its place.
     const right = (selector: string) =>
       page
@@ -2160,6 +2173,14 @@ test.describe("desktop explorer", () => {
     // A double click returns to the default width.
     await handle.dblclick();
     await expect.poll(width).toBe(start);
+    await expect(viewLabel).toBeVisible();
+    // Named in place, it needs no tooltip: from a view whose tooltip shows,
+    // moving onto it puts the tooltip away.
+    const views = page.getByRole("group", { name: "Visning" });
+    await views.getByRole("button", { name: "Utvidet" }).hover();
+    await expect(tooltip).toHaveText("Utvidet");
+    await viewLabel.locator("..").hover();
+    await expect(tooltip).toBeHidden();
   });
 
   test("as the list narrows, the header's actions move into a menu", async ({

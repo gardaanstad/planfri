@@ -1637,7 +1637,7 @@ export default memo(function Explorer({
           )}
           aria-label={label}
           aria-pressed={density === value}
-          data-tooltip={density === value ? undefined : label}
+          data-tooltip={label}
           data-press=""
           onClick={() => storeDensity(value)}
         >
@@ -1647,12 +1647,16 @@ export default memo(function Explorer({
           <span
             className={cn(
               "grid transition-[grid-template-columns,opacity] duration-180 ease-out-soft motion-reduce:transition-none",
+              // A narrow list keeps the symbols alone.
+              "@max-[360px]/list:hidden",
               density === value
                 ? "grid-cols-[1fr] opacity-100"
                 : "grid-cols-[0fr] opacity-0",
             )}
             aria-hidden="true"
             data-view-label=""
+            // Named here while pressed, so no tooltip unless this is hidden.
+            data-tooltip-label={density === value ? "" : undefined}
           >
             <span className="min-w-0 overflow-hidden whitespace-nowrap">
               <span className="pl-1.5 text-xs font-medium">{label}</span>

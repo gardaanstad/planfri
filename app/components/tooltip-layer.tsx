@@ -46,6 +46,10 @@ export default function TooltipLayer() {
     function show(element: HTMLElement) {
       const text = element.dataset.tooltip;
       if (!text) return hide();
+      // A name shown inside the control makes its tooltip redundant; once a
+      // narrow layout hides that name, the tooltip stands in for it.
+      const label = element.querySelector("[data-tooltip-label]");
+      if (label?.checkVisibility()) return hide();
       target = element;
       window.clearTimeout(timer);
       const warm = isOpen() || performance.now() - hiddenAt < warmWindow;
