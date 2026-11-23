@@ -273,7 +273,18 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
       { duration: 240, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
     );
     motion.id = widthMotion;
-    if (to <= from) return;
+    // Set off by a slow handler (a pan ending moves the list and the map),
+    // it would take its start from that frame's clock, read before the
+    // handler ran, and be mostly over when first drawn. It waits for a
+    // fresh frame instead.
+    motion.pause();
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        if (motion.playState === "paused") motion.play();
+      });
+    });
+    const stop = () => cancelAnimationFrame(frame);
+    if (to <= from) return stop;
     // Growing, the new words are laid out whole and the pill uncovers them
     // as it opens, rather than ending them in "…" until it has room.
     element.dataset.growing = "";
@@ -282,6 +293,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
         delete element.dataset.growing;
     };
     motion.finished.then(done, done);
+    return stop;
   }, [smoothWidth, shownLabel]);
   const leaving = useRef<Animation[] | null>(null);
   const releasePush = useBackgroundPush(open && sheet && !inline);

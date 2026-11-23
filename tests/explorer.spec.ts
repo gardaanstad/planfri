@@ -2807,6 +2807,45 @@ test.describe("the place follows the map", () => {
       expect(after.at(-1)).toMatchObject({ fits: true, overflow: "ellipsis" });
     });
 
+    test("a place named late in a slow frame still resizes its pill from the start", async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      await page.goto("/?sted=Vestland");
+      await expect.poll(() => latOf(page)).toBeCloseTo(60.9, 0);
+      await place(page, "Vestland").click();
+      const option = page
+        .getByRole("listbox", { name: "Sted", exact: true })
+        .getByRole("option", { name: /^Oslo/ });
+      await expect(option).toBeVisible();
+      // Picked at the end of a long frame, as a pan ending names a place: by
+      // the first frame drawn after, the resizing has barely begun.
+      const first = await option.evaluate(
+        (option) =>
+          new Promise<number>((resolve) => {
+            requestAnimationFrame(() => {
+              const until = performance.now() + 200;
+              while (performance.now() < until);
+              (option as HTMLElement).click();
+              const look = () => {
+                const motion = document
+                  .getAnimations()
+                  .find(
+                    (animation) =>
+                      animation.id === "choice-width" &&
+                      animation.playState === "running",
+                  );
+                if (motion) resolve(Number(motion.currentTime));
+                else requestAnimationFrame(look);
+              };
+              requestAnimationFrame(look);
+            });
+          }),
+      );
+      await expect(place(page, "Oslo")).toHaveText("Oslo");
+      expect(first).toBeLessThan(60);
+    });
+
     test("a linked place frames the map", async ({ page }) => {
       await page.goto("/?sted=Trondheim");
       await expect(place(page, "Trondheim")).toBeVisible();
@@ -2871,6 +2910,64 @@ test.describe("the place follows the map", () => {
         filters.getByRole("button", { name: `Sted: ${name}`, exact: true });
       await expectDrawerHeight(page, compact);
       await expect(place("Bergen")).toBeVisible();
+    });
+
+    test("a shorter place's chevron slides in behind it", async ({ page }) => {
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      await page.goto("/?sted=Vestland");
+      const filters = page
+        .locator("[data-explorer-drawer]")
+        .getByRole("region", { name: "Filtrer prosjekter", exact: true });
+      const place = (name: string) =>
+        filters.getByRole("button", { name: `Sted: ${name}`, exact: true });
+      await expect(place("Vestland")).toHaveText("Vestland");
+      await place("Vestland").click();
+      type Gaps = { words: number; edge: number };
+      type Window_ = { gaps: (button: Element) => Gaps; midway?: Gaps };
+      // Early in the narrowing (held there for a moment), where the
+      // chevron sits: past the words, and short of the pill's edge.
+      await place("Vestland").evaluate((button) => {
+        const win = window as unknown as Window_;
+        win.gaps = (button) => {
+          const words = button.querySelector(":scope > span")!;
+          const chevron = button.querySelector(":scope > svg:last-child")!;
+          const box = chevron.getBoundingClientRect();
+          return {
+            words: box.left - words.getBoundingClientRect().right,
+            edge: button.getBoundingClientRect().right - box.right,
+          };
+        };
+        const observer = new MutationObserver(() => {
+          const motion = button
+            .parentElement!.getAnimations()
+            .find((animation) => animation.id === "choice-width");
+          if (!motion) return;
+          observer.disconnect();
+          motion.pause();
+          motion.currentTime = 20;
+          win.midway = win.gaps(button);
+          motion.play();
+        });
+        observer.observe(button, {
+          childList: true,
+          characterData: true,
+          subtree: true,
+        });
+      });
+      await page
+        .getByRole("listbox", { name: "Sted", exact: true })
+        .getByRole("option", { name: /^Oslo/ })
+        .click();
+      await expect(place("Oslo")).toHaveText("Oslo");
+      const [midway, rest] = await place("Oslo").evaluate((button) => {
+        const win = window as unknown as Window_;
+        button.parentElement!.getAnimations().forEach((a) => a.finish());
+        return [win.midway!, win.gaps(button)];
+      });
+      // It rides the narrowing edge, rather than jumping in behind the
+      // shorter words at once, and comes to rest beside them.
+      expect(midway.edge).toBeCloseTo(rest.edge, 0);
+      expect(midway.words).toBeGreaterThan(rest.words + 10);
     });
   });
 });
