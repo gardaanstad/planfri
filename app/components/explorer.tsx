@@ -1715,17 +1715,25 @@ export default memo(function Explorer({
     [countPlace, placesOf, searchHits],
   );
   const showInPlace = !!countPlace && inPlace !== shown;
-  // "Nytt" is about what's in view, and the place; not every match.
-  const showTotal =
-    density !== "feed" && total !== (showInPlace ? inPlace : shown);
-  // "Nytt" counts the projects in view whose news it shows.
+  const showTotal = total !== (showInPlace ? inPlace : shown);
+  // "Nytt" shows the news of every match in the place, not just those in
+  // view; with no place, all of Norway.
+  const feedProjects = useMemo(
+    () =>
+      density !== "feed"
+        ? []
+        : place
+          ? searchHits.filter((project) =>
+              placesOf.get(project.id)?.includes(place),
+            )
+          : searchHits,
+    [density, place, placesOf, searchHits],
+  );
+  const feedPlace = place || "Norge";
+  const feedLabel = `Nytt fra ${feedProjects.length} ${feedProjects.length === 1 ? "prosjekt" : "prosjekter"} i ${feedPlace}`;
   const feedCount = (
-    <span
-      className="whitespace-nowrap"
-      role="status"
-      aria-label={`Nytt fra ${shown} ${shown === 1 ? "synlig prosjekt" : "synlige prosjekter"}`}
-    >
-      Nytt fra {shown} {shown === 1 ? "synlig prosjekt" : "synlige prosjekter"}
+    <span className="whitespace-nowrap" role="status" aria-label={feedLabel}>
+      {feedLabel}
     </span>
   );
   // Words that frame the map on what they count. Their press area reaches
@@ -1743,26 +1751,26 @@ export default memo(function Explorer({
   // on, then all of them; a press on either of the last frames them. The
   // padding keeps the links' press areas clear of the clip.
   const listCount =
-    outsideHits > 0 ? (
+    density === "feed" ? (
+      <span className="text-ui min-w-0 truncate text-muted tabular-nums">
+        {feedCount}
+      </span>
+    ) : outsideHits > 0 ? (
       <span className="-my-3 min-w-0 overflow-hidden py-3">
         <span className="text-ui -ml-4 flex min-w-0 flex-wrap items-center gap-y-1 text-muted tabular-nums">
           <span className="inline-flex min-w-0 items-center">
             {countSeparator}
-            {density === "feed" ? (
-              feedCount
-            ) : (
-              <span
-                className="whitespace-nowrap"
-                role="status"
-                aria-label={`${shown} ${shown === 1 ? "synlig prosjekt" : "synlige prosjekter"}`}
-              >
-                {shown} {shown === 1 ? "synlig" : "synlige"}
-                {/* A narrow list keeps the line whole with the shorter words. */}
-                <span className="@max-[560px]/list:hidden">
-                  {shown === 1 ? " prosjekt" : " prosjekter"}
-                </span>
+            <span
+              className="whitespace-nowrap"
+              role="status"
+              aria-label={`${shown} ${shown === 1 ? "synlig prosjekt" : "synlige prosjekter"}`}
+            >
+              {shown} {shown === 1 ? "synlig" : "synlige"}
+              {/* A narrow list keeps the line whole with the shorter words. */}
+              <span className="@max-[560px]/list:hidden">
+                {shown === 1 ? " prosjekt" : " prosjekter"}
               </span>
-            )}
+            </span>
           </span>
           {showInPlace && (
             <span className="inline-flex min-w-0 items-center whitespace-nowrap">
@@ -1795,8 +1803,6 @@ export default memo(function Explorer({
           )}
         </span>
       </span>
-    ) : density === "feed" ? (
-      <span className="text-ui text-muted tabular-nums">{feedCount}</span>
     ) : (
       <span
         className="text-ui whitespace-nowrap text-muted tabular-nums"
@@ -1870,8 +1876,8 @@ export default memo(function Explorer({
   // Lagret keeps cards in "Nytt" too.
   const cardDensity = density === "feed" ? "compact" : density;
   const feed = useMemo(
-    () => (density === "feed" ? feedEntries(listedProjects, activity) : []),
-    [activity, density, listedProjects],
+    () => (density === "feed" ? feedEntries(feedProjects, activity) : []),
+    [activity, density, feedProjects],
   );
   // A row opens at what it shows, over the map like a card.
   const openFeedRow = useCallback((id: string, target: FeedTarget) => {
@@ -1932,7 +1938,7 @@ export default memo(function Explorer({
             {isMobile ? densityMenu : densitySwitch}
           </div>
         </div>
-        {density === "feed" && listedProjects.length > 0 && (
+        {density === "feed" && feedProjects.length > 0 && (
           <ol aria-label="Nytt">
             {feed.map((entry) => (
               <FeedRow
@@ -1961,7 +1967,9 @@ export default memo(function Explorer({
             />
           ))}
         </ol>
-        {listRows.length === 0 && (
+        {(density === "feed"
+          ? feedProjects.length === 0
+          : listRows.length === 0) && (
           // Fades in as the last rows fade out over it.
           <div className="animate-panel-fade-in">
             <EmptyState

@@ -1272,7 +1272,7 @@ test.describe("desktop explorer", () => {
     ).toHaveCSS("opacity", "0");
     await expect(
       page.getByRole("status", {
-        name: /^Nytt fra \d+ (synlig prosjekt|synlige prosjekter)$/,
+        name: /^Nytt fra \d+ prosjekte?r? i .+$/,
       }),
     ).toBeVisible();
     const rows = listRegion(page).locator("[data-feed-id]");
@@ -1365,7 +1365,7 @@ test.describe("desktop explorer", () => {
       (await inOslo.getAttribute("aria-label"))!.match(/^\d+/)![0],
     );
     await shot(page, "list-count-place");
-    // "Nytt" counts what's in view and the place, not every match.
+    // "Nytt" shows every project in the place, not just those in view.
     const nytt = page
       .getByRole("group", { name: "Visning" })
       .getByRole("button", { name: "Nytt" });
@@ -1376,20 +1376,14 @@ test.describe("desktop explorer", () => {
       });
     }).toPass();
     await expect(
-      page.getByRole("status", { name: /^Nytt fra \d+ synlige prosjekter$/ }),
+      page.getByRole("status", {
+        name: new RegExp(`^Nytt fra ${count} prosjekte?r? i Oslo$`),
+      }),
     ).toBeVisible();
-    await expect(inOslo).toBeVisible();
+    await expect(inOslo).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: /totalt, vis alle på kartet$/ }),
     ).toHaveCount(0);
-    await inOslo.click();
-    // Framed on Oslo, all of Oslo is in view.
-    await expect(inOslo).toHaveCount(0);
-    await expect(
-      page.getByRole("status", {
-        name: new RegExp(`^Nytt fra ${count} synlige prosjekter$`),
-      }),
-    ).toBeVisible();
   });
 
   test("the end of the list offers a missing project", async ({ page }) => {
