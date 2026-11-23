@@ -977,58 +977,6 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     ).toHaveAttribute("aria-pressed", "true");
   });
 
-  test("review screenshots at 390px", async ({ page }) => {
-    test.skip(!process.env.TEST_SCREENSHOTS, "Only takes screenshots for review.");
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/");
-    const filters = page.getByRole("region", {
-      name: "Filtrer prosjekter",
-      exact: true,
-    });
-    await expect(filters).toBeVisible();
-    await shot(page, "mobile-390");
-    await filters.getByRole("button", { name: "Filtre", exact: true }).click();
-    const sheet = page.getByRole("dialog", { name: "Filtre", exact: true });
-    await expect(sheet).toBeVisible();
-    await shot(page, "mobile-390-filter-sheet");
-    await sheet.getByRole("button", { name: /^Status/ }).click();
-    await expect(
-      sheet.getByRole("listbox", { name: "Prosjektstatus", exact: true }),
-    ).toBeVisible();
-    await shot(page, "mobile-390-status-sheet");
-    await sheet.getByRole("button", { name: /^Status/ }).click();
-    await sheet.getByRole("button", { name: /^Kategori/ }).click();
-    const categories = sheet.getByRole("listbox", {
-      name: "Kategori",
-      exact: true,
-    });
-    await expect(categories).toBeVisible();
-    await shot(page, "mobile-390-category-sheet");
-    await categories.getByRole("button", { name: "Vis flere" }).click();
-    await shot(page, "mobile-390-category-sheet-more");
-    await page.keyboard.press("Escape");
-    await expect(sheet).toBeHidden();
-    await filters.getByRole("button", { name: /^Sted/ }).click();
-    const placeSheet = page.getByRole("listbox", { name: "Sted", exact: true });
-    await expect(placeSheet).toBeVisible();
-    await shot(page, "mobile-390-place-sheet-top");
-    await placeSheet.evaluate(
-      (element) =>
-        (element.scrollTop = (element.scrollHeight - element.clientHeight) / 2),
-    );
-    await shot(page, "mobile-390-place-sheet-mid");
-    await placeSheet.evaluate((element) => {
-      element.scrollTop = element.scrollHeight;
-    });
-    await shot(page, "mobile-390-place-sheet-bottom");
-    await page.keyboard.press("Escape");
-    await filters.getByRole("button", { name: "Åpne søk", exact: true }).click();
-    await page
-      .getByRole("textbox", { name: "Søk etter prosjekt eller sted" })
-      .fill("Oslo");
-    await shot(page, "mobile-390-search");
-  });
-
   test("filters and keyboard search work at full and compact map heights", async ({
     page,
   }) => {
@@ -1621,19 +1569,6 @@ test.describe("desktop explorer", () => {
     await expect(
       page.getByRole("button", { name: "Nullstill filtre", exact: true }),
     ).toBeVisible();
-  });
-
-  test("review screenshots at 1440px", async ({ page }) => {
-    test.skip(!process.env.TEST_SCREENSHOTS, "Only takes screenshots for review.");
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/");
-    await expect(page.getByRole("status", { name: /prosjekter?$/ })).toBeVisible();
-    await shot(page, "desktop-1440");
-    await page.getByRole("button", { name: "Åpne søk", exact: true }).click();
-    await page
-      .getByRole("textbox", { name: "Søk etter prosjekt eller sted" })
-      .fill("Oslo");
-    await shot(page, "desktop-1440-search");
   });
 
   test("status and category filters combine, sort, and survive a reload", async ({

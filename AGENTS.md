@@ -10,37 +10,41 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # Testing
 
-The Playwright suite (`bun run test`) runs against a production build. Before committing, run `bun run lint`, `bun run typecheck`, and the specs that cover what you changed — not the whole suite. Run one spec file, or narrow it with `-g`: `bun run test tests/explorer.spec.ts -g "<test name>"`. To find the tests that cover a change, grep `tests/` for the visible text, role names or `data-*` attributes it touches. The spec files cover:
+`bun run test` runs the Playwright specs against a production build. Each worktree has its own port, database and build, so worktrees never block each other.
 
-- `explorer.spec.ts`: the list, map, filters, search, sort, place, and the desktop sidebar and mobile drawer layout
-- `panels.spec.ts`: project panels and their headers and actions, the login prompt, and flows that stay in place (account panel, Forslag)
-- `accounts.spec.ts`: sign-in, onboarding, usernames, profiles, account settings, and server-side authorization
-- `discussion.spec.ts`: comments, replies, votes, sorting, and project updates
-- `saved.spec.ts`: read state of opened projects, unread marks on cards, saving, and the Lagret list
-- `suggestions.spec.ts`: suggestions and the moderation queue
+Before committing, run `bun run lint`, `bun run typecheck`, and the specs for what you changed: `bun run test tests/explorer.spec.ts -g "<test name>"`. Grep `tests/` for the text, roles or `data-*` attributes you touched to find them.
+
+- `explorer.spec.ts`: list, map, filters, search, sort, place, sidebar and mobile drawer
+- `panels.spec.ts`: project panels, headers and actions, login prompt, account panel, Forslag
+- `accounts.spec.ts`: sign-in, onboarding, usernames, profiles, account settings, authorization
+- `discussion.spec.ts`: comments, replies, votes, sorting, project updates
+- `saved.spec.ts`: read state, unread marks, saving, Lagret
+- `suggestions.spec.ts`: suggestions and moderation
 - `uploads.spec.ts`: photo uploads
-- `diff.spec.ts`: the suggestion diff (pure functions, no browser)
+- `osm-candidates.spec.ts`: OpenStreetMap candidates
+- `diff.spec.ts`: suggestion diff (no browser)
 
-Run the full suite only when a change reaches across areas, or when asked. That covers the shell shared by every page (`explorer.tsx`, panels and drawers, `app/layout.tsx`, global CSS), auth, the database schema or migrations, the seed data in `scripts/seed-data.ts`, and the test setup (`playwright.config.ts`, `tests/support.ts`, `scripts/test-db.ts`). Run it in the background. If a spec you didn't touch fails, rerun it alone. If it passes alone, it's flaky: name it in your report, and don't fix it inside an unrelated change.
+Run the full suite, in the background, only when asked or when you touch shared ground: `explorer.tsx`, panels and drawers, `app/layout.tsx`, global CSS, auth, the schema or migrations, `scripts/seed-data.ts`, or the test setup (`playwright.config.ts`, `tests/support.ts`, `scripts/test-db.ts`). If an unrelated spec fails, rerun it alone; if it then passes, it's flaky. Mention it, don't fix it here.
 
-Each worktree gets its own test port, database, and build directory, so runs in different worktrees don't block each other.
+Writing specs:
 
-Specs run with reduced motion, so they don't wait out animations; a spec about motion itself starts with `await page.emulateMedia({ reducedMotion: "no-preference" })`. No traces are recorded: rerun a failing spec with `--trace on` to get one. Set `TEST_SCREENSHOTS=<dir>` to save the review screenshots specs take with `shot()`.
-
-Pages are server-rendered, so a test can click before the page is interactive. Don't paper over that with retries or timeouts. Make sure listeners that a click depends on exist by the time the page hydrates (register them in a layout effect, not a passive effect), or wait for a visible sign that the page is ready. To check a fix for a flaky test, run it under load: `--repeat-each 60 --workers 12`.
+- They run with reduced motion. A spec about motion starts with `await page.emulateMedia({ reducedMotion: "no-preference" })`.
+- No traces by default; rerun with `--trace on` to get one. `TEST_SCREENSHOTS=<dir>` saves the screenshots taken with `shot()`.
+- Pages are server-rendered, so a click can land before hydration. Never fix that with retries or timeouts: register listeners in a layout effect, or wait for a visible ready sign. Check a flake fix with `--repeat-each 60 --workers 12`.
 
 # Landing
 
-Land only when the user asks you to. Otherwise, stop after the checks and report back. Leave the work uncommitted.
+Land only when asked. Otherwise stop after the checks and leave the work uncommitted.
 
-To get your branch onto main, commit, then run `scripts/land.sh` from your worktree. Never push to main yourself, and don't merge main into your branch. The script rebases on `origin/main`, waits its turn if another agent is landing, and pushes. It reruns lint and typecheck only when main has moved; specs aren't rerun, so run yours before landing.
+To land: commit, then run `scripts/land.sh` from your worktree. It rebases on `origin/main`, queues behind other agents, reruns lint and typecheck if main moved, and pushes. Never push anything yourself, and never merge main into your branch.
 
-Exit 0 means landed. On exit 1, do what its last lines say, then run it again. The common case is a conflict: resolve the listed files, `git add` them, `GIT_EDITOR=true git rebase --continue`, rerun. Git remembers conflict resolutions (rerere), so you won't have to resolve the same conflict twice.
+On exit 1, follow its last lines and rerun. For conflicts: resolve, `git add`, `GIT_EDITOR=true git rebase --continue`, rerun.
 
-Never push your branch or worktree to the remote; `scripts/land.sh` pushing to main is the only push.
+On exit 0:
 
-After it exits 0, clean up, in this order:
+1. Settle your T3 thread with `t3_thread_organize` (`action: "settle"`), if available.
+2. Remove your worktree and branch (last, since it deletes your working directory): `branch=$(git branch --show-current); wt=$(git rev-parse --show-toplevel); main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)"); git -C "$main" worktree remove "$wt" && git -C "$main" branch -D "$branch"`
 
-1. Settle your T3 thread with `t3_thread_organize` (`action: "settle"`), if that tool is available.
-2. Remove your worktree and branch. Do this last, since it deletes your working directory: `branch=$(git branch --show-current); wt=$(git rev-parse --show-toplevel); main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)"); git -C "$main" worktree remove "$wt" && git -C "$main" branch -D "$branch"`
-3. Reply in one line: the landed SHA, plus any spec that was flaky.
+# Reporting
+
+Report what changed and what you found, not the process. Don't cite or quote these rules to the user. Keep environment, Git, test and landing details to one line at most, e.g. "Lint, typecheck and explorer specs pass." After landing, reply with just the landed SHA and any flaky spec.
