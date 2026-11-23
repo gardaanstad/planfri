@@ -1,4 +1,5 @@
 "use client";
+import { followPush } from "../lib/background-push";
 import { reducedMotion } from "../lib/media";
 
 import { useEffect, useEffectEvent, type RefObject } from "react";
@@ -69,6 +70,8 @@ export function useSwipeDismiss({
       offset = value;
       panel.style.transition = transition === "none" ? "" : `translate ${transition}`;
       panel.style.translate = value ? `0 ${value}px` : "";
+      // The page behind comes forward as the sheet goes.
+      followPush(clamp(value / (panel.offsetHeight || 1), 0, 1), transition);
       if (scrim) {
         scrim.style.transition =
           transition === "none" ? "" : `--sheet-progress ${transition}`;
@@ -83,6 +86,7 @@ export function useSwipeDismiss({
       panel.style.removeProperty("transition");
       scrim?.style.removeProperty("--sheet-progress");
       scrim?.style.removeProperty("transition");
+      followPush(null);
     };
 
     const onStart = (event: TouchEvent) => {

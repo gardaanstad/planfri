@@ -383,6 +383,53 @@
   scrollbar-gutter: stable;
 }
 
+/*
+ * Phones: a modal bottom sheet pushes the page behind it back a little, its
+ * corners rounding off against the scrim (lib/background-push.ts). A drag
+ * on the sheet brings it forward with `--push-progress`. Top-layer sheets
+ * are outside the body's transform, so only the page moves.
+ *
+ * Opening, only the transform eases, on the compositor: the corners round
+ * at once, their colour fading in with the scrim behind them. Closing, they
+ * square off as the page comes forward, in step with it. A drag on the
+ * sheet carries them with it.
+ */
+@media (width < 48rem) {
+  :root {
+    --push-ease: cubic-bezier(0.32, 0.72, 0, 1);
+    transition: background-color 350ms var(--push-ease);
+  }
+  body {
+    --push: calc(1 - var(--push-progress, 0));
+    transform-origin: 50% 0;
+    /* Square at rest, so the corners can ease back to it. */
+    clip-path: inset(0 round 0);
+    transition:
+      scale 350ms var(--push-ease),
+      translate 350ms var(--push-ease),
+      clip-path 350ms var(--push-ease);
+  }
+  :root[data-pushed] {
+    background-color: var(--color-scrim);
+    transition-duration: 500ms;
+  }
+  :root[data-pushed] body {
+    scale: calc(1 - 0.06 * var(--push));
+    translate: 0 calc((env(safe-area-inset-top) + 12px) * var(--push));
+    clip-path: inset(0 round calc(14px * var(--push)));
+    transition:
+      scale 500ms var(--push-ease),
+      translate 500ms var(--push-ease),
+      clip-path 0s;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :root,
+    body {
+      transition: none !important;
+    }
+  }
+}
+
 /* Switching themes: the whole page cross-fades (`setTheme` in lib/theme.ts). */
 :root[data-theme-transition]::view-transition-old(root),
 :root[data-theme-transition]::view-transition-new(root) {

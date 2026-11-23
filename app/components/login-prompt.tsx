@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { safeReturnPath } from "../lib/account-rules";
 import { cn } from "../lib/cn";
 import { reducedMotion, sheetLeave } from "../lib/media";
+import { useBackgroundPush } from "../lib/background-push";
 import { iconButton } from "../lib/ui";
 import { openedByKeyboard } from "./action-sheet";
 import GoogleSignIn from "./google-sign-in";
@@ -26,6 +27,7 @@ export default function LoginPrompt({
   const sheet = useRef<HTMLDivElement>(null);
   const trigger = useRef<Element | null>(null);
   const closing = useRef(false);
+  const releasePush = useBackgroundPush(true);
   const [next] = useState(() =>
     safeReturnPath(
       window.location.pathname + window.location.search + window.location.hash,
@@ -53,6 +55,7 @@ export default function LoginPrompt({
     const panel = sheet.current;
     if (closing.current) return;
     closing.current = true;
+    releasePush();
     if (!dialog || !panel || reducedMotion()) return onClose();
     const mobile = getComputedStyle(panel).getPropertyValue("--sheet") === "1";
     const options = mobile

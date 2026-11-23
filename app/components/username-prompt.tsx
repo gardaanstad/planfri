@@ -1,6 +1,7 @@
 "use client";
 import { useLayoutEffect, useRef, useState } from "react";
 import { authClient } from "../lib/auth-client";
+import { useBackgroundPush } from "../lib/background-push";
 import { navigateWithFreshSession } from "../lib/auth-navigation";
 import { cn } from "../lib/cn";
 import { textButton } from "../lib/ui";
@@ -22,6 +23,7 @@ function Prompt() {
   const ref = useRef<HTMLDialogElement>(null);
   const [signingOut, setSigningOut] = useState(false);
   const open = useRef(true);
+  useBackgroundPush(true);
   useLayoutEffect(() => {
     const dialog = ref.current;
     open.current = true;

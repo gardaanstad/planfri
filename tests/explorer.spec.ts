@@ -806,6 +806,37 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       .not.toBe(before);
   });
 
+  test("a modal sheet pushes the page back, and lets it go as it closes", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const root = page.locator("html");
+    const pageScale = () =>
+      page.evaluate(() => getComputedStyle(document.body).scale);
+    await expect(
+      page.getByRole("region", { name: "Filtrer prosjekter", exact: true }),
+    ).toBeVisible();
+    // The list's own drawer is part of the page, not a sheet over it.
+    await expect(root).not.toHaveAttribute("data-pushed");
+    expect(await pageScale()).toBe("none");
+    await page
+      .getByRole("region", { name: "Filtrer prosjekter", exact: true })
+      .getByRole("button", { name: "Filtre", exact: true })
+      .click();
+    const sheet = page.getByRole("dialog", { name: "Filtre", exact: true });
+    await expect(sheet).toBeVisible();
+    await expect(root).toHaveAttribute("data-pushed");
+    expect(Number(await pageScale())).toBeLessThan(1);
+    // The sheet, in the top layer, is not pushed with it.
+    const box = await sheet.boundingBox();
+    expect(box?.width).toBe(viewport.width);
+    await shot(page, "pushed-filters");
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
+    await expect(root).not.toHaveAttribute("data-pushed");
+    expect(await pageScale()).toBe("none");
+  });
+
   test("a sheet is dragged closed from its top, and springs back from a short drag", async ({
     page,
   }) => {

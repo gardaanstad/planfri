@@ -4,6 +4,7 @@ import { flushSync } from "react-dom";
 import { ChevronDown } from "lucide-react";
 import { cn } from "../lib/cn";
 import { reducedMotion, sheetLeave } from "../lib/media";
+import { useBackgroundPush } from "../lib/background-push";
 import { openedByKeyboard } from "./action-sheet";
 import { useSwipeDismiss } from "./use-swipe-dismiss";
 
@@ -34,6 +35,7 @@ export default function FilterSheet({
   const scroller = useRef<HTMLDivElement | null>(null);
   const trigger = useRef<Element | null>(null);
   const closing = useRef(false);
+  const releasePush = useBackgroundPush(true);
   const body = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState<string | null>(null);
   // The options folding away, kept in view (out of the flow, at the height
@@ -135,6 +137,7 @@ export default function FilterSheet({
     const panel = sheet.current;
     if (closing.current) return;
     closing.current = true;
+    releasePush();
     const done = () => {
       dialog?.close();
       const target = trigger.current;

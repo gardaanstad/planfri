@@ -13,6 +13,7 @@ import { flushSync } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import { cn } from "../lib/cn";
 import { mobileQuery, reducedMotion, sheetLeave } from "../lib/media";
+import { useBackgroundPush } from "../lib/background-push";
 import { useSwipeDismiss } from "./use-swipe-dismiss";
 
 type Option = {
@@ -283,8 +284,10 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
     motion.finished.then(done, done);
   }, [smoothWidth, shownLabel]);
   const leaving = useRef<Animation[] | null>(null);
+  const releasePush = useBackgroundPush(open && sheet && !inline);
   function close(animate = true) {
     trigger.current?.focus({ preventScroll: true });
+    releasePush();
     const panel = sheetPanel.current;
     const scrim = menu.current;
     if (leaving.current) return;

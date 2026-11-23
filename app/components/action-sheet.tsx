@@ -3,6 +3,7 @@ import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { Check, LogIn } from "lucide-react";
 import { cn } from "../lib/cn";
 import { reducedMotion, sheetLeave } from "../lib/media";
+import { useBackgroundPush } from "../lib/background-push";
 import { keyboardFocused } from "../lib/ui";
 import { useSwipeDismiss } from "./use-swipe-dismiss";
 
@@ -77,6 +78,7 @@ export default function ActionSheet({
   const list = useRef<HTMLUListElement>(null);
   const trigger = useRef<Element | null>(null);
   const closing = useRef(false);
+  const releasePush = useBackgroundPush(true);
 
   useLayoutEffect(() => {
     const dialog = ref.current;
@@ -103,6 +105,7 @@ export default function ActionSheet({
     const panel = sheet.current;
     if (closing.current) return;
     closing.current = true;
+    releasePush();
     const done = () => {
       dialog?.close();
       const target = trigger.current;
