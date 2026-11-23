@@ -180,6 +180,52 @@ test.describe("desktop panels", () => {
     );
     expect(firstFrame).toBe("true");
   });
+
+  test("a project loaded as a full page is rendered in its centred column", async ({
+    request,
+  }) => {
+    // The server's HTML already has the wide layout, so a reload never
+    // shows the sidebar's layout stretched across the window first.
+    const html = await (await request.get(`${projectPath}?visning=full`)).text();
+    expect(html).toMatch(/<article[^>]*data-project-post=""[^>]*data-wide="true"/);
+  });
+
+  test("a project opened over the maximized list shows its cover at once", async ({
+    page,
+  }) => {
+    await page.goto("/?visning=full");
+    const card = page.locator(`[data-card-id="${project.id}"]`).first();
+    // The card's thumbnail of the cover is loaded.
+    await expect
+      .poll(() =>
+        card.locator(`img[sizes="88px"]`).evaluate(
+          (image: HTMLImageElement) => image.complete && image.naturalWidth > 0,
+        ),
+      )
+      .toBe(true);
+    // The first frame after the click already paints a photo in the cover:
+    // the thumbnail, until the full size is ready.
+    const painted = await card.evaluate(
+      (element) =>
+        new Promise<boolean>((resolve) => {
+          (element.querySelector("button, a") as HTMLElement | null)?.click();
+          requestAnimationFrame(() => {
+            const images = [
+              ...document.querySelectorAll<HTMLImageElement>(
+                "[data-project-post] figure img",
+              ),
+            ];
+            resolve(
+              images.some((image) => image.complete && image.naturalWidth > 0),
+            );
+          });
+        }),
+    );
+    expect(painted).toBe(true);
+    // Once the full size has loaded, the thumbnail goes.
+    const cover = page.locator("[data-project-post] figure button").first();
+    await expect(cover.locator("img")).toHaveCount(1);
+  });
 });
 
 test.describe("mobile panels", () => {

@@ -44,10 +44,11 @@ const titleType = panelTitle;
 /** Desktop: the width the title keeps before the actions give way to a menu. */
 const titleReserve = 160;
 
-// The full page's column: 1120px wide with 40px inside, centred beside the
-// scrollbar (see `--scrollbar-width` in project-post.tsx). The title starts
-// on its edge; icon glyphs, not hit areas, end on it.
-const column = "(100% - var(--scrollbar-width, 0px) - 1120px) / 2 + 2.5rem";
+// The full page's column: 880px wide with 24px inside, like the maximized
+// list, centred beside the scrollbar (see `--scrollbar-width` in
+// project-post.tsx). The title starts on its edge; icon glyphs, not hit
+// areas, end on it.
+const column = "(100% - var(--scrollbar-width, 0px) - 880px) / 2 + 1.5rem";
 const columnStart = `max(1.5rem, calc(${column}))`;
 const columnEnd = `max(0.75rem, calc(${column} + var(--scrollbar-width, 0px) - 12px))`;
 

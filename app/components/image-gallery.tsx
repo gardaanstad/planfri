@@ -7,7 +7,7 @@ import {
   useState,
   type RefObject,
 } from "react";
-import Image from "next/image";
+import Image, { getImageProps } from "next/image";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import type { ProjectImage } from "../lib/data";
 import { cn } from "../lib/cn";
@@ -148,6 +148,20 @@ function Arrows({
   );
 }
 
+/**
+ * The list's thumbnail of a project's cover. A gallery opening with that
+ * cover shows the thumbnail under it, so the photo is there at once.
+ */
+export const thumbSizes = "88px";
+
+/**
+ * The thumbnail's `<img>` props, the same `getImageProps` gives the list's
+ * `Image`: the browser picks the file it already has.
+ */
+function thumbProps(src: string) {
+  return getImageProps({ src, alt: "", fill: true, sizes: thumbSizes }).props;
+}
+
 /** Inline gallery: one image at a time, opening the lightbox on press. */
 export default function ImageGallery({
   images,
@@ -155,6 +169,7 @@ export default function ImageGallery({
   sizes,
   className,
   decoding,
+  cover = false,
   onPress,
 }: {
   images: ProjectImage[];
@@ -164,10 +179,17 @@ export default function ImageGallery({
   decoding?: "sync" | "async";
   /** Sizes the frame, e.g. its aspect ratio. */
   className?: string;
+  /**
+   * The first image is the project's cover, in view as the gallery opens:
+   * loaded at once, with the list's thumbnail of it shown until it's ready.
+   */
+  cover?: boolean;
   /** Takes a press instead of the lightbox. */
   onPress?: () => void;
 }) {
   const { ref, index, go, scroll } = useSlides(images.length);
+  // The cover once decoded, so the thumbnail under it can go.
+  const [shown, setShown] = useState<string | null>(null);
   const [open, setOpen] = useState<number | null>(null);
   const closedAt = useRef<number | null>(null);
   // After the lightbox closes, its last image shows here and takes focus.
@@ -212,12 +234,34 @@ export default function ImageGallery({
                 else setOpen(i);
               }}
             >
+              {cover && i === 0 && shown !== image.src && (
+                // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text -- decorative, from getImageProps
+                <img
+                  {...thumbProps(image.src)}
+                  aria-hidden="true"
+                  decoding="sync"
+                  className="object-cover"
+                />
+              )}
               <Image
                 src={image.src}
                 alt={image.alt || ""}
                 fill
                 sizes={sizes}
                 decoding={decoding}
+                loading={cover && i === 0 ? "eager" : undefined}
+                // Off the main thread; the thumbnail stays until it paints.
+                onLoad={
+                  cover && i === 0
+                    ? (event) => {
+                        const src = image.src;
+                        event.currentTarget
+                          .decode()
+                          .catch(() => {})
+                          .then(() => setShown(src));
+                      }
+                    : undefined
+                }
                 className="object-cover"
               />
             </button>

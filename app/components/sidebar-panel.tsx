@@ -41,32 +41,24 @@ export function animateVisibleWidth(
 }
 
 /**
- * How a closing panel leaves: sliding back out, or fading where it is. The
- * opening motion in reverse, on the same timing (`--animate-panel-in` and
- * `--animate-panel-fade-in`), so it gets going just as quickly.
+ * How a closing panel leaves: sliding back out, the opening motion in
+ * reverse on the same timing (`--animate-panel-in`), so it gets going just
+ * as quickly.
  */
-export function animatePanelOut(element: HTMLElement, fade: boolean) {
-  const { transform, opacity } = getComputedStyle(element);
+export function animatePanelOut(element: HTMLElement) {
+  const { transform } = getComputedStyle(element);
   return element.animate(
-    fade
-      ? [{ opacity }, { opacity: 0 }]
-      : [{ transform }, { transform: "translateX(-100%)" }],
-    {
-      ...(fade ? { duration: 180, easing: "ease-out" } : sidebarTiming),
-      fill: "forwards",
-    },
+    [{ transform }, { transform: "translateX(-100%)" }],
+    { ...sidebarTiming, fill: "forwards" },
   );
 }
 
 /** A panel opened again while closing returns from where it got to. */
 export function animatePanelBack(element: HTMLElement, exit: Animation) {
-  const { transform, opacity } = getComputedStyle(element);
+  const { transform } = getComputedStyle(element);
   exit.cancel();
   return element.animate(
-    [
-      { transform, opacity },
-      { transform: "none", opacity: 1 },
-    ],
+    [{ transform }, { transform: "none" }],
     sidebarTiming,
   );
 }

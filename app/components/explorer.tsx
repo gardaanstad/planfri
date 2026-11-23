@@ -2695,10 +2695,8 @@ export default memo(function Explorer({
                         ? "w-(--sidebar-width) border-r border-border"
                         : "w-full",
                     ),
-                // Over a maximized sidebar a panel appears where it is.
-                openedMaximized[layer]
-                  ? "animate-panel-fade-in"
-                  : "animate-panel-in",
+                // Over a maximized sidebar a panel appears at once, in place.
+                !openedMaximized[layer] && "animate-panel-in",
               )}
               style={{ zIndex: 40 + index }}
               data-sidebar-layer={layer}

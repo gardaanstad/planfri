@@ -23,7 +23,7 @@ import type { CardDensity } from "../lib/explore-state";
 import { type ProjectNews, unreadCount, unreadSummary } from "../lib/unread";
 import { cn } from "../lib/cn";
 import { keyboardFocused, statusTone, wrapTitle } from "../lib/ui";
-import ImageGallery from "./image-gallery";
+import ImageGallery, { thumbSizes } from "./image-gallery";
 
 /** Where; for rail and road, led by the mode. */
 function Place({ project }: { project: Project }) {
@@ -324,7 +324,7 @@ export default memo(function ProjectCard({
             src={project.image}
             alt=""
             fill
-            sizes="88px"
+            sizes={thumbSizes}
             // Small, so loaded while hidden too, ready for the compact view;
             // painted with the frame it shows in, not a frame after.
             loading="eager"

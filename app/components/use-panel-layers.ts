@@ -29,8 +29,8 @@ const layerOrder: Layer[] = [
 
 /**
  * The explorer's panel stack as it animates: the open panels (`live`), and
- * those still on their way out. Desktop panels slide or fade away in the
- * sidebar; on phones, drawers animate themselves.
+ * those still on their way out. Desktop panels slide away in the sidebar,
+ * or go at once over a maximized one; on phones, drawers animate themselves.
  */
 export function usePanelLayers({
   live,
@@ -54,8 +54,8 @@ export function usePanelLayers({
   let exiting = exitingState;
   const [heldState, setHeld] = useState<Layer[]>([]);
   let held = heldState;
-  // Whether each panel opened over a maximized sidebar: it then fades in
-  // where it is, and closing it keeps the sidebar maximized. One opened
+  // Whether each panel opened over a maximized sidebar: it then appears at
+  // once where it is, and closing it keeps the sidebar maximized. One opened
   // beside the map takes the sidebar back there when it closes.
   const [openedMaximized, setOpenedMaximized] = useState<
     Partial<Record<Layer, boolean>>
@@ -120,11 +120,12 @@ export function usePanelLayers({
       const element = aside?.querySelector<HTMLElement>(
         `[data-sidebar-layer="${layer}"]`,
       );
-      if (!element || reduced) {
+      // Over a maximized sidebar a panel goes at once, as it came.
+      if (!element || reduced || element.hasAttribute("data-full")) {
         setExiting((current) => current.filter((item) => item !== layer));
         continue;
       }
-      const exit = animatePanelOut(element, element.hasAttribute("data-full"));
+      const exit = animatePanelOut(element);
       exits.current.set(layer, exit);
       exit.finished.then(
         () => {

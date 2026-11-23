@@ -123,7 +123,7 @@
   /* A project sidebar sliding out from the left edge, and back. */
   --animate-panel-in: panel-slide 320ms var(--ease-out-soft);
 
-  /* A panel opening over a maximized sidebar, in place. */
+  /* Content fading in where it is, such as the list's empty state. */
   --animate-panel-fade-in: panel-fade 180ms ease-out;
 
   /* Opacity only: scaling a page of text makes it shimmer as it settles. */

@@ -28,6 +28,7 @@ import {
   presetPlaces,
   type Project,
   projectHref,
+  hasPhoto,
   projectPhotos,
   projectPlace,
   type Status,
@@ -576,37 +577,6 @@ function PhaseTimeline({ project }: { project: Project }) {
 /** The description's paragraphs; none when it's empty. */
 const paragraphs = (text: string) => text.split("\n\n").filter(Boolean);
 
-/** A full page has room for the whole description at once. */
-function WideIntro({ project }: { project: Project }) {
-  return (
-    <div
-      className="max-w-170 space-y-3 text-body leading-[1.65] text-ink-soft [&>p]:whitespace-pre-wrap [&>p]:wrap-anywhere"
-      data-project-header-hero=""
-    >
-      {paragraphs(project.description).map((paragraph, index) => (
-        <p key={index}>{paragraph}</p>
-      ))}
-    </div>
-  );
-}
-
-/** The full page's side column: the photos. */
-function ProjectAside({ project }: { project: Project }) {
-  const photos = projectPhotos(project);
-  if (photos.length === 0) return null;
-  return (
-    <aside className="sticky top-0 pt-3 pb-10" aria-label="Bilder">
-      <ImageGallery
-        images={photos}
-        label={`Bilder av ${project.title}`}
-        // As in the narrow layout, so switching reuses the loaded file.
-        sizes="(max-width: 768px) 100vw, 560px"
-        className={cover}
-      />
-    </aside>
-  );
-}
-
 /**
  * A few lines of the description, then "Les mer" and the image (more lines on desktop). "Les mer"
  * grows the text, pushing the image down; a description that fits has none.
@@ -820,7 +790,10 @@ function ProjectIntro({ project }: { project: Project }) {
           images={photos}
           label={`Bilder av ${project.title}`}
           sizes="(max-width: 768px) 100vw, 560px"
-          className={cn(cover, "mt-2")}
+          // Without "Les mer" between them, more room under the text.
+          className={cn(cover, overflows || open ? "mt-2" : "mt-4")}
+          // Led by the cover the list shows a thumbnail of.
+          cover={hasPhoto(project)}
         />
       )}
     </div>
@@ -1193,29 +1166,11 @@ export default function ProjectPost({
   // Loaded as the project opens, unless the page was rendered with them.
   const comments = useComments(projectComments(project.id));
   const contentRef = useRef<HTMLDivElement>(null);
-  const articleRef = useRef<HTMLElement>(null);
   const tabScroll = useRef<Record<string, number>>({});
-  // Given the room (a full page), facts and photos move into a side column.
-  // Measured before the first paint, so a post opened as a full page never
-  // shows a frame of the narrow layout.
-  const [wide, setWide] = useState(false);
-  useLayoutEffect(() => {
-    const article = articleRef.current;
-    if (!article) return;
-    const measure = (width: number) => setWide(width >= 900);
-    measure(article.getBoundingClientRect().width);
-    const observer = new ResizeObserver(([entry]) =>
-      measure(entry.contentRect.width),
-    );
-    observer.observe(article);
-    return () => observer.disconnect();
-  }, []);
-  // Switching to or from the full page decides at once, in the same commit,
-  // so the sidebar's view transition captures the final layout.
-  useLayoutEffect(() => {
-    const article = articleRef.current;
-    if (article) setWide(article.getBoundingClientRect().width >= 900);
-  }, [full]);
+  // A full page centres the post in a wider column. Known from the sidebar's
+  // mode, not measured, so the server renders it too: a reload never shows
+  // the narrow layout stretched across the window.
+  const wide = full;
   useEffect(() => {
     const root = contentRef.current;
     if (!root) return;
@@ -1491,7 +1446,6 @@ export default function ProjectPost({
   const content = (
     <ProjectEditContext value={edit}>
       <article
-        ref={articleRef}
         className="relative flex h-full min-h-0 flex-col bg-surface"
         data-project-post=""
         data-wide={wide || undefined}
@@ -1512,15 +1466,13 @@ export default function ProjectPost({
           data-project-scroll=""
           data-drawer-scroll
         >
-          <div
-            className={cn(
-              wide &&
-                "mx-auto grid w-full max-w-[1120px] grid-cols-[minmax(0,1fr)_300px] items-start gap-x-12 px-10",
-            )}
-          >
-           <div className="min-w-0">
+          {/* A full page is the sidebar's layout in a wider, centred column. */}
+          <div className={cn(wide && "mx-auto w-full max-w-[880px] px-6")}>
             <section
-              className={cn(wide ? "pt-1 pb-5" : "px-4.5 pt-0.5 pb-2 md:px-gutter-scroll")}
+              className={cn(
+                "pt-0.5 pb-2",
+                !wide && "px-4.5 md:px-gutter-scroll",
+              )}
               aria-label="Om prosjektet"
             >
               {draft ? (
@@ -1533,11 +1485,7 @@ export default function ProjectPost({
               ) : (
                 <>
                   <ProjectMeta project={project} />
-                  {wide ? (
-                    <WideIntro project={project} />
-                  ) : (
-                    <ProjectIntro project={project} />
-                  )}
+                  <ProjectIntro project={project} />
                 </>
               )}
             </section>
@@ -1585,7 +1533,10 @@ export default function ProjectPost({
               </div>
             </nav>
             <div
-              className={cn(wide ? "pt-6 pb-10" : "px-4.5 pt-4.5 pb-8 md:px-gutter-scroll md:pt-5")}
+              className={cn(
+                "pt-4.5 pb-8 md:pt-5",
+                !wide && "px-4.5 md:px-gutter-scroll",
+              )}
             >
               <div className="min-w-0" hidden={Boolean(draft)}>
                 <div
@@ -1753,8 +1704,6 @@ export default function ProjectPost({
                 </section>
               </div>
             </div>
-           </div>
-            {wide && !draft && <ProjectAside project={project} />}
           </div>
           {draft && (
             <EditBar
