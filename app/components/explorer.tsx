@@ -1142,24 +1142,6 @@ export default memo(function Explorer({
     // end of expanding, and not at all when maximizing.
   }, [asideCollapsed, sidebarMode, isMobile]);
 
-  /** Mobile: the panels cover the map, so step down to show it. */
-  function showPostOnMap(project: Project) {
-    // Framed above the middle drawer height, so the list can show it too.
-    const fit = () => mapApi.current?.fit(projectPoints(project));
-    // The project is framed instead of the view it was opened from.
-    if (postView.current) postView.current.before = null;
-    listUnderFolded.current = false;
-    const below = suggestionsOpen;
-    closePost(false, () => {
-      if (below) closeSuggestions();
-      fit();
-    });
-    setModal(null);
-    setSavedOnly(false);
-    setSnapPoint(compactSnapPoint);
-    setSelectedId(project.id);
-  }
-
   // Opening a project, from anywhere, remembers it and reads what is new on
   // it, and so does activity that arrives while it stays open.
   const openNews = postId ? news.get(postId) : undefined;
@@ -2012,7 +1994,6 @@ export default memo(function Explorer({
       saved={savedIds.has(post.id)}
       onSave={() => toggleSave(post.id)}
       onNotify={notify}
-      onMap={isMobile ? () => showPostOnMap(post) : undefined}
     />
   );
 

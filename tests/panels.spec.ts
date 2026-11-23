@@ -207,9 +207,6 @@ test.describe("mobile panels", () => {
     await expect(
       actions.getByRole("button", { name: "Kopier lenke", exact: true }),
     ).not.toHaveAttribute("data-locked");
-    await expect(
-      actions.getByRole("button", { name: "Vis i kartet", exact: true }),
-    ).toBeVisible();
     await expect
       .poll(() =>
         actions.locator("> div").evaluate((element) =>

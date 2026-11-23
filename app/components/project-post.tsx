@@ -119,8 +119,6 @@ type Props = {
   feedback?: ReactNode;
   saved: boolean;
   onSave: () => void;
-  /** Mobile: the drawer covers the map, so it offers to show the project there. */
-  onMap?: () => void;
   /** Replaces closing on Escape, e.g. to step down from a full page first. */
   onEscape?: () => void;
   /** Desktop: shown as a full page, with a control to switch back and forth. */
@@ -1190,7 +1188,6 @@ export default function ProjectPost({
   feedback,
   saved,
   onSave,
-  onMap,
   onNotify,
 }: Props) {
   // Loaded as the project opens, unless the page was rendered with them.
@@ -1489,7 +1486,6 @@ export default function ProjectPost({
     saved,
     onSave,
     onShare: share,
-    onMap,
     guest: !user,
   };
   const content = (

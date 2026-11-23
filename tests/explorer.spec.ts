@@ -216,14 +216,10 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expectDrawerHeight(page, 0.58, "project");
     await page.reload();
     await expectDrawerHeight(page, 1, "project");
-    // The project's actions sit in a sheet behind one button.
-    await projectDrawer.getByRole("button", { name: "Handlinger" }).click();
-    await page
-      .getByRole("dialog", { name: "Handlinger" })
-      .getByRole("button", { name: "Vis i kartet", exact: true })
-      .click();
+    // From the folded list, over the project on the map.
+    await page.goto("/?kart=59.9100,10.7500,13");
     await expect(projectDrawer).toBeHidden();
-    await expectDrawerHeight(page, 136 / viewport.height);
+    await expectDrawerHeight(page, compact);
     // Until the map regroups at its new zoom, the shape can be hidden in a
     // group, and a key pressed on it would go elsewhere.
     const shape = page.locator(`[data-project-id="${project.id}"]`);
@@ -2320,9 +2316,6 @@ test.describe("desktop explorer", () => {
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.locator('[data-slot="drawer-popup"]')).toHaveCount(0);
     // The panel frames the project; the map shows where it is.
-    await expect(
-      page.getByRole("button", { name: "Vis i kartet", exact: true }),
-    ).toHaveCount(0);
     await expect.poll(() => mapParam(page)).not.toBe(listView);
     // Escape returns to the list as it was, map included.
     await page.keyboard.press("Escape");

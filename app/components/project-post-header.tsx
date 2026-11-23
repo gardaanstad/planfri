@@ -11,7 +11,6 @@ import {
   Bookmark,
   Check,
   Ellipsis,
-  MapPin,
   Maximize2,
   Minimize2,
   Pencil,
@@ -60,8 +59,6 @@ export type ProjectActionsProps = {
   saved: boolean;
   onSave: () => void;
   onShare: () => void;
-  /** Shows the project on the map, where the map is out of sight. */
-  onMap?: () => void;
   /** Signed out: saving and suggesting ask to log in first. */
   guest?: boolean;
 };
@@ -182,7 +179,6 @@ function MobileActions({
   saved,
   onSave,
   onShare,
-  onMap,
   guest = false,
 }: ProjectActionsProps) {
   const [open, setOpen] = useState(false);
@@ -212,16 +208,6 @@ function MobileActions({
       icon: copied ? <Check size={20} /> : <Share2 size={20} />,
       onSelect: onShare,
     },
-    ...(onMap
-      ? [
-          {
-            id: "map",
-            label: "Vis i kartet",
-            icon: <MapPin size={20} />,
-            onSelect: onMap,
-          },
-        ]
-      : []),
   ];
   return (
     <>
