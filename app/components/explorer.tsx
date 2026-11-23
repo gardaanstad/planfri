@@ -822,8 +822,12 @@ export default memo(function Explorer({
     setPlace(name);
     const found = findPlace(name);
     placeHold.current = { name: found ? name : "", until: Date.now() + 1500 };
-    if (isMobile) setSnapPoint(compactSnapPoint);
-    // On phones, framed above the compact drawer it steps to.
+    // On phones, framed above the compact drawer it steps to, not the
+    // height it leaves.
+    if (isMobile) {
+      setSnapPoint(compactSnapPoint);
+      mapInset.current = compactMapInset;
+    }
     if (found) mapApi.current?.fit(extentPoints(found.extent), { maxZoom: 14 });
     else mapApi.current?.showNorway();
   }

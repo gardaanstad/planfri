@@ -133,8 +133,10 @@ function dotSvg(map: L.Map) {
   };
   return renderer;
 }
-// Below this zoom areas collapse to dots and nearby projects group together.
-const clusterZoom = 12;
+// Below this zoom areas collapse to dots.
+const dotZoom = 12;
+// Below this zoom nearby projects group together.
+const clusterZoom = 11;
 // Screen distance within which projects join a group.
 const clusterRadius = 44;
 // Alignments only group once they're this short on screen.
@@ -1290,7 +1292,7 @@ export default function ProjectMap({
       for (const { project, shape, casing, stripes, hit, dot } of drawn.values()) {
         const line = project.geometryType === "line";
         const ungrouped = !grouped.has(project.id);
-        const dotted = zoom < (line ? lineDotZoom : clusterZoom);
+        const dotted = zoom < (line ? lineDotZoom : dotZoom);
         // Areas keep their outline under the dot; alignments give way to it.
         const shown = ungrouped && !(line && dotted);
         for (const layer of [shape, casing, stripes, hit]) {
