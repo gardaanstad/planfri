@@ -29,7 +29,7 @@ export default function AuthShell({
             <i className="h-6 w-1.5 rounded-xs bg-current" />
             <i className="h-5 w-1.5 rounded-xs bg-current" />
           </span>
-          Varde
+          Planfri
         </Link>
         <div className="rounded-panel border border-border bg-surface p-6 shadow-card sm:p-8">
           {children}

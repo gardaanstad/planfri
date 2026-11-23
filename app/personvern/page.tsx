@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import AuthShell from "../components/auth-shell";
-export const metadata = { title: "Personvern · Varde" };
+export const metadata = { title: "Personvern · Planfri" };
 const contact = "gardaanstad@gmail.com";
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (

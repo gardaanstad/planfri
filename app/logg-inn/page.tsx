@@ -7,7 +7,7 @@ import {
 } from "../lib/account-rules";
 import AuthShell from "../components/auth-shell";
 import GoogleSignIn from "../components/google-sign-in";
-export const metadata = { title: "Logg inn · Varde" };
+export const metadata = { title: "Logg inn · Planfri" };
 export default async function LoginPage({
   searchParams,
 }: {

@@ -167,7 +167,7 @@ test("onboarding and same-origin checks are enforced on the server", async ({
       await mutation(
         request,
         "/api/account/username",
-        { username: "varde" },
+        { username: "planfri" },
         fresh,
       )
     ).status(),
@@ -594,7 +594,7 @@ test("a save intent survives login and profile settings update the public page",
     "lagre prosjekter",
   );
   expect(
-    await page.evaluate(() => sessionStorage.getItem("varde-login-intent")),
+    await page.evaluate(() => sessionStorage.getItem("planfri-login-intent")),
   ).toBe(JSON.stringify({ type: "save", projectId: project.id }));
   const person = await member({ username: uniqueName() });
   await signIn(context, person);

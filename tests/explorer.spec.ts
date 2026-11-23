@@ -2299,7 +2299,7 @@ test.describe("desktop explorer", () => {
       })
       .toEqual([0, 800]);
     await expect(
-      page.getByRole("link", { name: "Varde hjem", exact: true }),
+      page.getByRole("link", { name: "Planfri hjem", exact: true }),
     ).toHaveCount(0);
     const inner = await page
       .locator("#project-panel")
@@ -2437,7 +2437,7 @@ test.describe("desktop explorer", () => {
       exact: true,
     });
     const logo = page.locator("[data-sidebar-tab]").getByRole("link", {
-      name: "Varde hjem",
+      name: "Planfri hjem",
       exact: true,
     });
     await expect(logo).toBeVisible();
@@ -2475,7 +2475,7 @@ test.describe("desktop explorer", () => {
   });
 
   test("the street and OpenStreetMap maps load", async ({ page }) => {
-    await page.addInitScript(() => localStorage.setItem("varde:basemap", "on"));
+    await page.addInitScript(() => localStorage.setItem("planfri:basemap", "on"));
     await page.goto(oslo);
     const basemap = page.locator("[data-basemap]");
     await expect(basemap).toHaveAttribute("data-basemap", "idle", { timeout: 20_000 });
@@ -2495,7 +2495,7 @@ test.describe("desktop explorer", () => {
   }) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
     // Specs run without the base map unless they ask for it.
-    await page.addInitScript(() => localStorage.setItem("varde:basemap", "on"));
+    await page.addInitScript(() => localStorage.setItem("planfri:basemap", "on"));
     await page.goto(oslo);
     const basemap = page.locator("[data-basemap]");
     await expect(page.locator(".leaflet-gl-layer")).toBeAttached();

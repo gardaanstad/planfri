@@ -50,8 +50,8 @@ import { iconButton, primaryButton, secondaryButton } from "../lib/ui";
 import type { OsmLayer, OsmLine } from "./project-map";
 import { notify } from "./toast";
 
-const modeKey = "varde-osm-mode";
-const modeEvent = "varde-osm-mode";
+const modeKey = "planfri-osm-mode";
+const modeEvent = "planfri-osm-mode";
 // Without browser storage, the mode still lasts for this visit.
 let modeFallback = false;
 function storedMode() {

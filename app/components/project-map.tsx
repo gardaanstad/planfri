@@ -394,12 +394,12 @@ type GlLayerInternals = {
 /**
  * Playwright runs set NEXT_PUBLIC_BASEMAP=off: drawing vector tiles with
  * software WebGL is slow there and loads them over the network. A spec that
- * needs the base map opts in with `localStorage["varde:basemap"] = "on"`.
+ * needs the base map opts in with `localStorage["planfri:basemap"] = "on"`.
  */
 function basemapEnabled() {
   if (process.env.NEXT_PUBLIC_BASEMAP !== "off") return true;
   try {
-    return localStorage.getItem("varde:basemap") === "on";
+    return localStorage.getItem("planfri:basemap") === "on";
   } catch {
     return false;
   }

@@ -13,7 +13,7 @@ export type LoginIntent =
   /** Account settings, after confirming the Google account again. */
   | { type: "account" };
 
-const key = "varde-login-intent";
+const key = "planfri-login-intent";
 
 export function storeLoginIntent(intent: LoginIntent | undefined) {
   try {

@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "varde",
+      "name": "planfri",
       "dependencies": {
         "@base-ui/react": "^1.8.0",
         "@better-auth/drizzle-adapter": "^1.7.3",

@@ -6,7 +6,7 @@
  */
 export type Theme = "light" | "dark";
 
-export const themeCookie = "varde-theme";
+export const themeCookie = "planfri-theme";
 
 export function parseTheme(value: string | undefined): Theme | undefined {
   return value === "light" || value === "dark" ? value : undefined;

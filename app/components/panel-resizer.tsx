@@ -2,7 +2,7 @@
 import { type RefObject, useEffect, useRef, useState } from "react";
 import { cn } from "../lib/cn";
 
-const storageKey = "varde-panel-width";
+const storageKey = "planfri-panel-width";
 const minWidth = 280;
 const maxWidth = 760;
 // The map keeps at least this much of the window.

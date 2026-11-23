@@ -14,7 +14,7 @@ export function createAppAuth(
   },
 ) {
   return betterAuth({
-    appName: "Varde",
+    appName: "Planfri",
     onAPIError: { errorURL: "/logg-inn" },
     baseURL: config.baseURL,
     secret: config.secret,

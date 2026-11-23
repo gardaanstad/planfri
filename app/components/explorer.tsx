@@ -1241,7 +1241,7 @@ export default memo(function Explorer({
         isMobile ? "gap-1.5" : "gap-2",
       )}
       href="/"
-      aria-label="Varde hjem"
+      aria-label="Planfri hjem"
       onClick={(event) => {
         event.preventDefault();
         resetFilters();
@@ -1264,7 +1264,7 @@ export default memo(function Explorer({
         <i className="block h-7 w-[7px] rounded-[1px] bg-accent" />
         <i className="block h-[23px] w-[7px] rounded-[1px] bg-accent" />
       </span>
-      <span>Varde</span>
+      <span>Planfri</span>
     </Link>
   );
 

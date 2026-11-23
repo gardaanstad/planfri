@@ -1,4 +1,4 @@
-# Varde
+# Planfri
 
 A shared project reference and discussion space for infrastructure and the built environment in Norway — transport, energy, water, public buildings, housing and urban development — built with Next.js 16, React 19, TypeScript, Leaflet, Better Auth, and Drizzle. The interface is in Norwegian Bokmål.
 

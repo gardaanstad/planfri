@@ -18,8 +18,8 @@ function connect() {
 }
 // Reuse the local connection through Next.js development reloads.
 const shared = globalThis as typeof globalThis & {
-  vardeDatabase?: ReturnType<typeof connect>;
+  planfriDatabase?: ReturnType<typeof connect>;
 };
 export function getDb() {
-  return (shared.vardeDatabase ??= connect());
+  return (shared.planfriDatabase ??= connect());
 }

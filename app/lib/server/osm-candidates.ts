@@ -50,7 +50,7 @@ async function readOverpass(query: string): Promise<OverpassWay[]> {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
-          "User-Agent": "Varde/1.0 (infrastructure project map)",
+          "User-Agent": "Planfri/1.0 (infrastructure project map)",
         },
         body: new URLSearchParams({ data: query }),
         signal: AbortSignal.timeout(120_000),

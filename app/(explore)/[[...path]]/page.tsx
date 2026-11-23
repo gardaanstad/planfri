@@ -10,7 +10,7 @@ type Props = { params: Promise<{ path?: string[] }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { path = [] } = await params;
   return path.length === 1 && path[0] === "forslag"
-    ? { title: "Forslag · Varde" }
+    ? { title: "Forslag · Planfri" }
     : {};
 }
 

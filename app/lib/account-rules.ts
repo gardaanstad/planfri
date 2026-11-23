@@ -6,7 +6,7 @@ const reservedUsernames = new Set([
   "moderator",
   "support",
   "google",
-  "varde",
+  "planfri",
   "system",
   "api",
   "konto",
@@ -45,9 +45,9 @@ export function safeReturnPath(value: unknown): string {
   )
     return "/";
   try {
-    const url = new URL(value, "https://varde.invalid");
+    const url = new URL(value, "https://planfri.invalid");
     if (
-      url.origin !== "https://varde.invalid" ||
+      url.origin !== "https://planfri.invalid" ||
       !(
         /^\/$/.test(url.pathname) ||
         /^\/prosjekt\/[^/]+$/.test(url.pathname) ||

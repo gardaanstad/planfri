@@ -99,7 +99,7 @@ export function exploreSearch(state: ExploreState) {
   return search ? `?${search}` : "";
 }
 
-const storageKey = "varde-map-view";
+const storageKey = "planfri-map-view";
 
 /** The last map position in this browser, for visits without one in the URL. */
 export function storedMapView() {
@@ -119,8 +119,8 @@ export function storeMapView(view: MapView) {
   }
 }
 
-const collapsedKey = "varde-sidebar-collapsed";
-const collapsedEvent = "varde-sidebar-collapsed";
+const collapsedKey = "planfri-sidebar-collapsed";
+const collapsedEvent = "planfri-sidebar-collapsed";
 // Without browser storage, collapsing still lasts for this visit.
 let collapsedFallback = false;
 
@@ -161,8 +161,8 @@ export type ListDensity = "compact" | "expanded" | "feed";
 /** A project card's own layout; the "Nytt" view draws its own rows. */
 export type CardDensity = Exclude<ListDensity, "feed">;
 export const defaultDensity: ListDensity = "compact";
-const densityKey = "varde-list-density";
-const densityEvent = "varde-list-density";
+const densityKey = "planfri-list-density";
+const densityEvent = "planfri-list-density";
 let densityFallback: ListDensity = defaultDensity;
 const isDensity = (value: string | null): value is ListDensity =>
   value === "compact" || value === "expanded" || value === "feed";
