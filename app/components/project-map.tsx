@@ -360,6 +360,12 @@ const norwegianName: maplibregl.ExpressionSpecification = [
   ["get", "name"],
 ];
 /**
+ * Images the dark style names but OpenFreeMap's sprite lacks. They never
+ * drew, so the wood fill and town dots using them go, rather than warn.
+ */
+const missingImage = (value: unknown) =>
+  /"(wood-pattern|circle-11)"/.test(JSON.stringify(value ?? ""));
+/**
  * Norwegian place names, not the English ones the styles prefer. On the
  * overview map the labels step back behind the projects.
  */
@@ -369,15 +375,20 @@ function localize(
 ): maplibregl.StyleSpecification {
   return {
     ...style,
-    layers: style.layers.map((layer) => {
-      if (layer.type !== "symbol") return layer;
+    layers: style.layers.flatMap((layer): maplibregl.LayerSpecification[] => {
+      if (layer.type === "fill" && missingImage(layer.paint?.["fill-pattern"])) return [];
+      if (layer.type !== "symbol") return [layer];
       const named = JSON.stringify(layer.layout?.["text-field"] ?? "").includes("name");
       // Keys are only set when changed: MapLibre rejects an undefined `paint`.
       const next = { ...layer };
       if (named) next.layout = { ...layer.layout, "text-field": norwegianName };
+      if (missingImage(layer.layout?.["icon-image"])) {
+        next.layout = { ...next.layout };
+        delete next.layout["icon-image"];
+      }
       if (standard)
         next.paint = { ...layer.paint, "text-opacity": 0.8, "icon-opacity": 0.8 };
-      return next;
+      return [next];
     }),
   };
 }
