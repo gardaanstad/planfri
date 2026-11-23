@@ -1908,8 +1908,9 @@ export default memo(function Explorer({
     >
       <div
         className={cn(
-          // At least as tall as the list, so "Foreslå prosjekt" sits at the
-          // bottom however few rows there are.
+          // At least as tall as the list, so on desktop "Foreslå prosjekt"
+          // sits at the bottom however few rows there are. On phones it
+          // follows the last row, as the drawer's height keeps changing.
           "@container/list flex min-h-full flex-col pb-8 max-md:px-4.5 max-md:pt-0 max-md:pb-6",
           // Maximized, both edges keep a scrollbar's gutter, so it is even.
           wide ? "mx-auto w-full max-w-[880px] px-6" : "md:px-gutter-scroll",
@@ -1974,7 +1975,7 @@ export default memo(function Explorer({
             </EmptyState>
           </div>
         )}
-        <div className="mt-auto flex justify-center pt-6">
+        <div className="flex justify-center pt-6 md:mt-auto">
           <button
             type="button"
             className={cn(quietAction, "gap-1.5 text-muted hover:text-ink")}
