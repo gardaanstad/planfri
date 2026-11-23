@@ -1985,7 +1985,7 @@ export default memo(function Explorer({
             </EmptyState>
           </div>
         )}
-        <div className="flex justify-center pt-6 md:mt-auto">
+        <div className="flex pt-6 md:mt-auto">
           <button
             type="button"
             className={cn(quietAction, "gap-1.5 text-muted hover:text-ink")}
