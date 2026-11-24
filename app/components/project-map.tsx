@@ -68,15 +68,23 @@ const dotRadius = (selected: boolean) => (selected ? 8 : 6);
 // colour, white every other stretch inside a thin border; a railway, metro
 // or tramway is square dashes with nothing between them, until it stands
 // out: then it widens over a casing, its dashes where they were. A road
-// not yet built is narrower and hollow: two thin edges in its colour.
+// not yet built is narrower with shorter stretches; a planned one's are
+// tinted rather than white, and a proposed one is faded like the rest.
 const unbuilt = (project: Project) =>
   project.status === "proposed" || project.status === "planned";
 const roadWeight = (selected: boolean, built = true) =>
-  built ? (selected ? 8.5 : 7) : selected ? 7.5 : 5.5;
-const roadStripes = (selected: boolean, built = true) =>
-  built
-    ? { weight: roadWeight(selected) - 2.5, dashArray: "9, 9" }
-    : { weight: roadWeight(selected, false) - 3, dashArray: undefined };
+  built ? (selected ? 8.5 : 7) : selected ? 7 : 5.5;
+const roadStripes = (selected: boolean, project: Project) => {
+  const built = !unbuilt(project);
+  return {
+    weight: roadWeight(selected, built) - 2.5,
+    dashArray: built ? "9, 9" : "6, 6",
+    opacity: project.status === "planned" ? 0.55 : 1,
+  };
+};
+// Zoomed out, a short railway shows only a dash or two; it draws solid
+// until its dash pairs number at least this many.
+const railMinDashes = 6;
 const railWeight = (selected: boolean) => (selected ? 7.5 : 5);
 const railCasing = (selected: boolean) => ({
   weight: railWeight(selected) + 4,
@@ -444,6 +452,8 @@ type DrawnProject = {
   dot: L.CircleMarker;
   /** An alignment's extent, which decides whether it can join a group. */
   bounds?: L.LatLngBounds;
+  /** Rails only: its length in zoom-0 pixels. */
+  length?: number;
   /** Where it groups, in zoom-0 pixels: distances at zoom z shrink by 2^z. */
   anchor: L.Point;
 };
@@ -1102,11 +1112,10 @@ export default function ProjectMap({
           ? L.polyline(project.geometry, {
               className: `project-stripes${faded}`,
               color: "#fff",
-              opacity: 1,
               lineCap: "butt",
               lineJoin: "round",
               interactive: false,
-              ...roadStripes(selected, !unbuilt(project)),
+              ...roadStripes(selected, project),
             }).addTo(group)
           : undefined;
       shape.on("click", (event) => {
@@ -1206,6 +1215,17 @@ export default function ProjectMap({
         hit,
         dot,
         bounds: line ? L.latLngBounds(project.geometry) : undefined,
+        length:
+          mode === "rail"
+            ? project.geometry.reduce(
+                (sum, point, index, points) =>
+                  index
+                    ? sum +
+                      map.project(point, 0).distanceTo(map.project(points[index - 1], 0))
+                    : sum,
+                0,
+              )
+            : undefined,
         anchor: map.project(line ? dot.getLatLng() : project.center, 0),
       };
     };
@@ -1314,8 +1334,15 @@ export default function ProjectMap({
           clusters.removeLayer(marker);
           groupMarkers.delete(key);
         }
-      for (const { project, shape, casing, stripes, hit, dot } of drawn.values()) {
+      for (const { project, shape, casing, stripes, hit, dot, length } of drawn.values()) {
         const line = project.geometryType === "line";
+        if (length !== undefined) {
+          // A CSS dash pattern outlasts the attribute Leaflet restyles.
+          const element = shape.getElement();
+          const short = length * 2 ** zoom < railMinDashes * 2 * railWeight(false);
+          if (element instanceof SVGElement)
+            element.style.strokeDasharray = short ? "none" : "";
+        }
         const ungrouped = !grouped.has(project.id);
         const dotted = zoom < (line ? lineDotZoom : dotZoom);
         // Areas keep their outline under the dot; alignments give way to it.
@@ -1370,7 +1397,7 @@ export default function ProjectMap({
           ? railCasing(emphasized)
           : { weight: shapeOptions.weight + 4 },
       );
-      stripes?.setStyle(roadStripes(emphasized, !unbuilt(project)));
+      stripes?.setStyle(roadStripes(emphasized, project));
       dot.setRadius(dotRadius(emphasized));
       const group = groupOf.get(id);
       // Inside a group, the group lights up in its place.
