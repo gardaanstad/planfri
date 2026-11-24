@@ -11,7 +11,7 @@ bun run setup
 bun dev
 ```
 
-Open http://localhost:3000. See [Google OAuth and production setup](docs/google-auth.md) for the Client ID, Client Secret, callback URLs, and Turso configuration.
+Open http://localhost:3000. Working in several worktrees? `bun scripts/preview.ts` in one serves it on localhost:3000 through a small proxy, keeping each worktree's dev server running so switching back is instant; open tabs follow the latest switch. See [Google OAuth and production setup](docs/google-auth.md) for the Client ID, Client Secret, callback URLs, and Turso configuration.
 
 Deployment: see [Deploy to Vercel](docs/google-auth.md#deploy-to-vercel). Validation: `bun run lint`, `bun run typecheck`, and `bun run test` (Playwright/Chromium).
 
