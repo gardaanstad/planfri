@@ -344,6 +344,58 @@ test.describe("mobile panels", () => {
     await expect(projectDrawer).toHaveCount(0);
   });
 
+  test("profiles rest at the middle or full height; settings and logging out are sheets", async ({
+    page,
+    context,
+  }) => {
+    await signIn(context, await member({ username: uniqueName("sheet") }));
+    await page.goto("/");
+    await expect(page.locator("[data-explorer-drawer]")).toBeVisible();
+    const height = page.viewportSize()!.height;
+    const selector = '[data-panel-drawer="account"]';
+    await openOwnProfile(page);
+    const account = page.locator(selector);
+    await expect(account.locator("[data-account-panel]")).toBeVisible();
+    // Like a project, it opens at the middle height over the list…
+    await expect(account).toHaveAttribute("data-snap", "partial");
+    await expect
+      .poll(() => top(page, selector))
+      .toBeCloseTo(height * (1 - 0.58), -1);
+    await shot(page, "mobile-own-profile-middle");
+    // …and rises to the full height, with no folded height below the middle.
+    await account.locator("[data-public-profile]").hover();
+    await page.mouse.wheel(0, 200);
+    await expect(account).not.toHaveAttribute("data-snap");
+    await expect.poll(() => top(page, selector)).toBeLessThan(60);
+    await shot(page, "mobile-own-profile-full");
+    await account.getByRole("button", { name: "Lukk", exact: true }).click();
+    await expect(account).toHaveCount(0);
+
+    // Settings are a sheet from the menu, as the menu is.
+    await page.getByRole("button", { name: "Konto", exact: true }).click();
+    await accountMenuItem(page, "Kontoinnstillinger").click();
+    const settings = page.getByRole("dialog", { name: "Kontoinnstillinger" });
+    await expect(
+      settings.getByRole("heading", { name: "Kontoinnstillinger" }),
+    ).toBeVisible();
+    await expect(account).toHaveCount(0);
+    await shot(page, "mobile-account-settings");
+    // Logging out asks how: here, or on every device.
+    await settings.getByRole("button", { name: "Logg ut", exact: true }).click();
+    const prompt = page.getByRole("dialog", { name: "Logg ut" });
+    await expect(
+      prompt.getByRole("button", { name: /^Logg ut på alle enheter/ }),
+    ).toBeVisible();
+    await shot(page, "mobile-sign-out");
+    await prompt.getByRole("button", { name: "Logg ut", exact: true }).click();
+    await expect(prompt).toHaveCount(0);
+    await expect(settings).toHaveCount(0);
+    await expect(page.getByText("Du er logget ut")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Logg inn", exact: true }).first(),
+    ).toBeVisible();
+  });
+
   test("Forslag opens as a drawer on its own URL", async ({ page, context }) => {
     const person = await member({ username: uniqueName("forslag") });
     await signIn(context, person);
@@ -564,6 +616,10 @@ test.describe("flows stay in the explorer", () => {
     ).toBeVisible();
     await expect(page).not.toHaveURL(/\/konto/);
     await account.getByRole("button", { name: "Logg ut", exact: true }).click();
+    await page
+      .getByRole("dialog", { name: "Logg ut?" })
+      .getByRole("button", { name: "Logg ut", exact: true })
+      .click();
     await expect(
       page.getByRole("button", { name: "Logg inn", exact: true }).first(),
     ).toBeVisible();
@@ -616,9 +672,22 @@ test.describe("account menu", () => {
     await page.keyboard.press("Escape");
     await expect(saved).toHaveCount(0);
 
+    // Logging out asks first, and can log out every other device too.
     await trigger.click();
     await menu.getByRole("menuitem", { name: "Logg ut" }).click();
-    await expect(page.getByText("Du er logget ut")).toBeVisible();
+    const prompt = page.getByRole("dialog", { name: "Logg ut?" });
+    await expect(
+      prompt.getByRole("button", { name: "Logg ut", exact: true }),
+    ).toBeFocused();
+    await shot(page, "sign-out-prompt");
+    await prompt
+      .getByRole("checkbox", { name: /Logg ut på alle enheter/ })
+      .check();
+    await prompt.getByRole("button", { name: "Logg ut", exact: true }).click();
+    await expect(prompt).toHaveCount(0);
+    await expect(
+      page.getByText("Du er logget ut på alle enheter"),
+    ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Logg inn", exact: true }).first(),
     ).toBeVisible();

@@ -66,6 +66,13 @@ export const dangerButton = [
   "hover:border-danger-strong hover:bg-danger-strong",
 ].join(" ");
 
+/** A destructive action that asks before it acts: outlined, not filled. */
+export const dangerOutlineButton = [
+  controlBase,
+  "border border-danger/35 bg-transparent text-danger",
+  "hover:border-danger/60 hover:bg-danger-soft hover:text-danger-strong",
+].join(" ");
+
 export const textButton = [
   controlBase,
   "min-h-10 rounded-lg border border-transparent px-2 text-accent",
@@ -75,12 +82,6 @@ export const textButton = [
 /** Inline link text: a faint underline that darkens on hover. */
 export const textLink =
   "underline decoration-ink/35 underline-offset-3 transition-[text-decoration-color] duration-150 hover:decoration-current motion-reduce:transition-none";
-
-export const accountAction = [
-  controlBase,
-  "min-h-14 w-full justify-start gap-3 border border-transparent px-3 text-left",
-  "hover:bg-surface-muted [&>svg]:shrink-0 [&>svg]:text-muted",
-].join(" ");
 
 export const accountView =
   "motion-safe:animate-preview-in";

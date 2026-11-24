@@ -79,8 +79,9 @@ import { profileHref } from "../lib/profiles";
 import { useAuth } from "./auth-provider";
 import { useCommunity } from "./community-provider";
 import AccountPanel from "./account-panel";
+import { AccountSettingsSheet } from "./account-settings";
+import SignOutPrompt from "./sign-out-prompt";
 import AccountMenu from "./account-menu";
-import { authClient } from "../lib/auth-client";
 import ProfileAvatar from "./profile-avatar";
 import ChoiceSelect from "./choice-select";
 import FilterSheet, {
@@ -543,6 +544,17 @@ export default memo(function Explorer({
     initialProfile || null,
   );
   const [modal, setModal] = useState<"profile" | null>(null);
+  // Phones: account settings, in a sheet of their own.
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [signOutOpen, setSignOutOpen] = useState(false);
+  // Phones: a profile's drawer, and one's own, rests at the middle height or
+  // the full one; swiped down from the middle, it closes. One the page was
+  // opened on stands at full height, where its static copy was.
+  const [profileSnap, setProfileSnap] = useState<DrawerSnapPoint>(
+    initialProfile ? 1 : middleSnapPoint,
+  );
+  const [accountSnap, setAccountSnap] =
+    useState<DrawerSnapPoint>(middleSnapPoint);
   // The account panel opens on the profile, or on its settings; `n` starts
   // it afresh when the menu picks one while it is open.
   const [accountStart, setAccountStart] = useState<{
@@ -1006,6 +1018,7 @@ export default memo(function Explorer({
       withSearch(profileHref(username)),
     );
     setModal(null);
+    if (!profileName) setProfileSnap(middleSnapPoint);
     setProfileName(username);
   }
   const onOpenProfile = useEffectEvent((event: Event) =>
@@ -2260,8 +2273,11 @@ export default memo(function Explorer({
     }
   }
   function openProfile(start: "profile" | "settings" = "profile") {
+    // Phones: settings are a sheet over whatever is open.
+    if (start === "settings" && isMobile) return setSettingsOpen(true);
     rememberTrigger("account");
     setAccountStart(({ n }) => ({ view: start, n: n + 1 }));
+    if (modal !== "profile") setAccountSnap(middleSnapPoint);
     setModal("profile");
   }
   /** The account menu opens the saved projects. */
@@ -2300,14 +2316,15 @@ export default memo(function Explorer({
     drawerContentRef.current = node;
     if (node) setDrawerReady(true);
   };
-  async function signOut() {
-    const result = await authClient.signOut().catch(() => null);
-    if (!result || result.error)
-      return notify("Kunne ikke logge ut. Prøv igjen.", { error: true });
+  function signedOut(everywhere = false) {
+    setSignOutOpen(false);
+    setSettingsOpen(false);
     setModal(null);
     setSavedOnly(false);
     if (suggestionsOpen) closeSuggestions();
-    notify("Du er logget ut");
+    notify(
+      everywhere ? "Du er logget ut på alle enheter" : "Du er logget ut",
+    );
   }
   function switchMemberView(on: boolean) {
     setMemberView(on);
@@ -2344,7 +2361,7 @@ export default memo(function Explorer({
       onSaved={showSaved}
       onSettings={() => openProfile("settings")}
       onMemberView={switchMemberView}
-      onSignOut={() => void signOut()}
+      onSignOut={() => setSignOutOpen(true)}
     />
   ) : user ? (
     <button
@@ -2473,14 +2490,11 @@ export default memo(function Explorer({
         );
       case "account":
         return (
-          <Panel {...frame}>
+          <Panel {...frame} titled>
             <AccountPanel
               key={accountStart.n}
               initialView={accountStart.view}
-              onSignedOut={() => {
-                setModal(null);
-                notify("Du er logget ut");
-              }}
+              onSignedOut={() => signedOut()}
             />
           </Panel>
         );
@@ -2610,6 +2624,30 @@ export default memo(function Explorer({
   const panelShell = isMobile && !panelsReady && topLayer && (
     <PanelShell>{layerContent(topLayer)}</PanelShell>
   );
+  /** Heights a panel's drawer rests at; without them, the full one. */
+  function layerSnap(layer: Layer) {
+    if (layer === "profile")
+      return {
+        points: projectSnapPoints,
+        point: profileSnap,
+        onChange: setProfileSnap,
+      };
+    if (layer === "account")
+      return {
+        points: projectSnapPoints,
+        point: accountSnap,
+        onChange: setAccountSnap,
+      };
+    if (layer !== "project" || postSnap?.id !== panelPostId) return undefined;
+    return {
+      points: isFolded(postSnap.point)
+        ? [postSnap.point, ...projectSnapPoints]
+        : projectSnapPoints,
+      point: postSnap.point,
+      onChange: movePost,
+      folded: isFolded(postSnap.point),
+    };
+  }
   const panelDrawers =
     isMobile &&
     mobileLayers.map((layer, index) => (
@@ -2664,18 +2702,7 @@ export default memo(function Explorer({
             ? followPostDrawer
             : undefined
         }
-        snap={
-          layer === "project" && postSnap?.id === panelPostId
-            ? {
-                points: isFolded(postSnap.point)
-                  ? [postSnap.point, ...projectSnapPoints]
-                  : projectSnapPoints,
-                point: postSnap.point,
-                onChange: movePost,
-                folded: isFolded(postSnap.point),
-              }
-            : undefined
-        }
+        snap={layerSnap(layer)}
       >
         {layerContent(layer)}
       </PanelDrawer>
@@ -3111,6 +3138,20 @@ export default memo(function Explorer({
         </SheetLayer>
       )}
       {panelShell}
+      {settingsOpen && user?.username && (
+        <AccountSettingsSheet
+          user={user}
+          onClose={() => setSettingsOpen(false)}
+          onSignedOut={() => signedOut()}
+        />
+      )}
+      {signOutOpen && (
+        <SignOutPrompt
+          mobile={isMobile}
+          onClose={() => setSignOutOpen(false)}
+          onSignedOut={signedOut}
+        />
+      )}
     </div>
   );
 });

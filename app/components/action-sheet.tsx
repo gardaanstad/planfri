@@ -1,12 +1,18 @@
 "use client";
-import { useLayoutEffect, useRef, type ReactNode } from "react";
+import {
+  createContext,
+  use,
+  useLayoutEffect,
+  useRef,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { Check, LogIn } from "lucide-react";
 import { cn } from "../lib/cn";
 import { reducedMotion, sheetLeave } from "../lib/media";
 import { useBackgroundPush } from "../lib/background-push";
 import { keyboardFocused } from "../lib/ui";
 import { useSwipeDismiss } from "./use-swipe-dismiss";
-
 
 /** Whether a sheet's trigger was reached by keyboard rather than a tap. */
 export const openedByKeyboard = (trigger: Element | null) =>
@@ -56,26 +62,40 @@ export function SwitchTrack({ on }: { on: boolean }) {
   );
 }
 
+const SheetCloseContext = createContext<(then?: () => void) => void>((then) =>
+  then?.(),
+);
+
+/** Closes the `BottomSheet` this is in, then runs `then`. */
+export function useSheetClose() {
+  return use(SheetCloseContext);
+}
+
 /**
- * Phones: a modal list of actions, named by `label` for screen readers along the bottom edge, like the filter
- * menus and the login prompt. A choice runs once the sheet has slid away,
- * so focus is back on the trigger first.
+ * Phones: a modal sheet along the bottom edge, named by `label` for screen
+ * readers, like the filter menus and the login prompt. It swipes down to
+ * close; inside it, `useSheetClose` slides it away first and then runs what
+ * it is given, so focus is back on the trigger by then.
  */
-export default function ActionSheet({
+export function BottomSheet({
   label,
   title,
-  actions,
+  scroller,
+  className,
+  children,
   onClose,
 }: {
   label: string;
-  /** Shown above the actions, as the filter sheets name theirs. */
-  title?: string;
-  actions: SheetAction[];
+  /** Shown under the grip. */
+  title?: ReactNode;
+  /** Its scrolling content; a swipe in it waits until it is at its top. */
+  scroller: RefObject<HTMLElement | null>;
+  className?: string;
+  children: ReactNode;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const sheet = useRef<HTMLDivElement>(null);
-  const list = useRef<HTMLUListElement>(null);
   const trigger = useRef<Element | null>(null);
   const closing = useRef(false);
   const releasePush = useBackgroundPush(true);
@@ -96,7 +116,7 @@ export default function ActionSheet({
   useSwipeDismiss({
     enabled: true,
     sheet,
-    scroller: list,
+    scroller,
     onDismiss: () => close(undefined, false),
   });
 
@@ -148,11 +168,14 @@ export default function ActionSheet({
     >
       <div
         ref={sheet}
-        className="rounded-t-sheet border-t border-border bg-surface px-2 pb-[calc(10px+env(safe-area-inset-bottom))] shadow-bar motion-safe:animate-sheet-in"
+        className={cn(
+          "flex flex-col rounded-t-sheet border-t border-border bg-surface px-2 pb-[calc(10px+env(safe-area-inset-bottom))] shadow-bar motion-safe:animate-sheet-in",
+          className,
+        )}
       >
         <div
           aria-hidden="true"
-          className="flex flex-col items-center px-1 pt-2 pb-3"
+          className="flex shrink-0 flex-col items-center px-1 pt-2 pb-3"
         >
           <span className="h-1 w-9 rounded-full bg-ink/15" />
           {title && (
@@ -161,76 +184,108 @@ export default function ActionSheet({
             </span>
           )}
         </div>
-        <ul ref={list} className="flex flex-col gap-0.5">
-          {actions.map((action) => (
-            <li
-              key={action.id}
-              className={cn(
-                action.aside && "flex items-center gap-1",
-                action.divided && "mt-1.5 border-t border-border pt-1.5",
-              )}
-            >
-              <button
-                type="button"
-                data-sheet-action={action.id}
-                data-locked={action.locked || undefined}
-                aria-label={
-                  action.locked
-                    ? `${action.label}, krever innlogging`
-                    : undefined
-                }
-                aria-pressed={action.pressed ?? action.selected}
-                role={action.checked !== undefined ? "switch" : undefined}
-                aria-checked={action.checked}
-                className={cn(
-                  "flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-left text-body -outline-offset-2",
-                  "transition-colors duration-150 active:bg-surface-muted motion-reduce:transition-none",
-                  "[&>svg]:shrink-0 [&>svg]:text-muted",
-                  action.locked && "text-muted [&>svg]:text-muted/60",
-                  action.danger && "text-danger [&>svg]:text-danger",
-                  action.selected && "font-medium",
-                )}
-                onClick={() => close(action.onSelect)}
-              >
-                {action.icon}
-                <span className="flex min-w-0 flex-1 flex-col">
-                  {action.label}
-                  {action.detail && (
-                    <span className="text-xs text-muted">{action.detail}</span>
-                  )}
-                </span>
-                {action.trailing}
-                {action.checked !== undefined && (
-                  <SwitchTrack on={action.checked} />
-                )}
-                {action.selected && (
-                  <Check
-                    size={18}
-                    strokeWidth={2.25}
-                    className="text-ink!"
-                    aria-hidden="true"
-                  />
-                )}
-                {action.locked && <LogIn size={16} aria-hidden="true" />}
-              </button>
-              {action.aside && (
-                <button
-                  type="button"
-                  data-sheet-action={action.aside.id}
-                  aria-label={action.aside.label}
-                  className={cn(
-                    "flex size-12 shrink-0 items-center justify-center rounded-lg text-muted -outline-offset-2",
-                    "transition-colors duration-150 active:bg-surface-muted motion-reduce:transition-none",
-                  )}
-                  onClick={() => close(action.aside!.onSelect)}
-                >
-                  {action.aside.icon}
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
+        <SheetCloseContext value={close}>{children}</SheetCloseContext>
       </div>
     </dialog>
+  );
+}
+
+/** Phones: a modal list of actions in a `BottomSheet`. */
+export default function ActionSheet({
+  label,
+  title,
+  actions,
+  onClose,
+}: {
+  label: string;
+  /** Shown above the actions, as the filter sheets name theirs. */
+  title?: string;
+  actions: SheetAction[];
+  onClose: () => void;
+}) {
+  const list = useRef<HTMLUListElement>(null);
+  return (
+    <BottomSheet label={label} title={title} scroller={list} onClose={onClose}>
+      <SheetActions actions={actions} list={list} />
+    </BottomSheet>
+  );
+}
+
+function SheetActions({
+  actions,
+  list,
+}: {
+  actions: SheetAction[];
+  list: RefObject<HTMLUListElement | null>;
+}) {
+  const close = useSheetClose();
+  return (
+    <ul ref={list} className="flex flex-col gap-0.5">
+      {actions.map((action) => (
+        <li
+          key={action.id}
+          className={cn(
+            action.aside && "flex items-center gap-1",
+            action.divided && "mt-1.5 border-t border-border pt-1.5",
+          )}
+        >
+          <button
+            type="button"
+            data-sheet-action={action.id}
+            data-locked={action.locked || undefined}
+            aria-label={
+              action.locked ? `${action.label}, krever innlogging` : undefined
+            }
+            aria-pressed={action.pressed ?? action.selected}
+            role={action.checked !== undefined ? "switch" : undefined}
+            aria-checked={action.checked}
+            className={cn(
+              "flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-left text-body -outline-offset-2",
+              "transition-colors duration-150 active:bg-surface-muted motion-reduce:transition-none",
+              "[&>svg]:shrink-0 [&>svg]:text-muted",
+              action.locked && "text-muted [&>svg]:text-muted/60",
+              action.danger && "text-danger [&>svg]:text-danger",
+              action.selected && "font-medium",
+            )}
+            onClick={() => close(action.onSelect)}
+          >
+            {action.icon}
+            <span className="flex min-w-0 flex-1 flex-col">
+              {action.label}
+              {action.detail && (
+                <span className="text-xs text-muted">{action.detail}</span>
+              )}
+            </span>
+            {action.trailing}
+            {action.checked !== undefined && (
+              <SwitchTrack on={action.checked} />
+            )}
+            {action.selected && (
+              <Check
+                size={18}
+                strokeWidth={2.25}
+                className="text-ink!"
+                aria-hidden="true"
+              />
+            )}
+            {action.locked && <LogIn size={16} aria-hidden="true" />}
+          </button>
+          {action.aside && (
+            <button
+              type="button"
+              data-sheet-action={action.aside.id}
+              aria-label={action.aside.label}
+              className={cn(
+                "flex size-12 shrink-0 items-center justify-center rounded-lg text-muted -outline-offset-2",
+                "transition-colors duration-150 active:bg-surface-muted motion-reduce:transition-none",
+              )}
+              onClick={() => close(action.aside!.onSelect)}
+            >
+              {action.aside.icon}
+            </button>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }

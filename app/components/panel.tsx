@@ -10,6 +10,7 @@ import {
   useState,
   type ComponentProps,
   type ReactNode,
+  type Ref,
 } from "react";
 import { ArrowLeft, X } from "lucide-react";
 import { cn } from "../lib/cn";
@@ -335,6 +336,8 @@ export function PanelHeader({
   id,
   icon,
   actions,
+  onBack: back,
+  headingRef,
 }: {
   title: ReactNode;
   /** Before the title, such as a profile's avatar. */
@@ -343,11 +346,15 @@ export function PanelHeader({
   id?: string;
   /** Before the panel's own controls, such as a sort menu. */
   actions?: ReactNode;
+  /** Back within the panel, such as from editing; else the panel's own. */
+  onBack?: () => void;
+  /** The heading, focusable, for focus to land on when a view opens. */
+  headingRef?: Ref<HTMLHeadingElement>;
 }) {
   const frame = use(PanelFrameContext);
   if (!frame) throw new Error("PanelHeader must be used within a Panel.");
-  const { mobile, maximized, onToggleMaximized, onClose, onBack, closeLabel } =
-    frame;
+  const { mobile, maximized, onToggleMaximized, onClose, closeLabel } = frame;
+  const onBack = back ?? frame.onBack;
   const control = mobile
     ? cn(mobileControl, "size-10 active:scale-100")
     : controlButton;
@@ -382,7 +389,12 @@ export function PanelHeader({
         {icon}
         <h1
           id={id}
-          className={cn("m-0 min-w-0 truncate text-ink", panelTitle)}
+          ref={headingRef}
+          tabIndex={headingRef ? -1 : undefined}
+          className={cn(
+            "m-0 min-w-0 truncate text-ink outline-none",
+            panelTitle,
+          )}
         >
           {title}
         </h1>

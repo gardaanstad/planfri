@@ -656,22 +656,25 @@ for (const viewport of [
         };
       });
     const publicProfile = panel.locator("[data-public-profile]");
-    // Let the dialog or drawer finish opening before measuring.
+    // Let the panel or drawer finish moving before measuring.
     let before = await bounds();
-    await expect
-      .poll(async () => {
-        const current = await bounds();
-        const settled = JSON.stringify(current) === JSON.stringify(before);
-        before = current;
-        return settled;
-      })
-      .toBe(true);
+    const settle = () =>
+      expect
+        .poll(async () => {
+          const current = await bounds();
+          const settled = JSON.stringify(current) === JSON.stringify(before);
+          before = current;
+          return settled;
+        })
+        .toBe(true);
+    await settle();
     // The profile is the profile: shortcuts and settings live in the menu.
     for (const name of [/^Lagret/, /^Forslag/, /^Kontoinnstillinger/])
       await expect(panel.getByRole("button", { name })).toHaveCount(0);
     await expect(page).toHaveURL(/:\d+\/(\?|$)/);
+    // Named in the panel's header, like any other panel.
     await expect(
-      publicProfile.getByRole("heading", {
+      panel.locator("[data-panel-header]").getByRole("heading", {
         name: person.username,
         exact: true,
       }),
@@ -686,13 +689,19 @@ for (const viewport of [
       exact: true,
     });
     await edit.click();
+    // On phones the drawer rises from the middle height to edit.
+    if (viewport.width < 800)
+      await expect(
+        page.locator('[data-panel-drawer="account"]'),
+      ).not.toHaveAttribute("data-snap");
+    await settle();
     const bio = panel.getByRole("textbox", { name: "Om deg", exact: true });
     await expect(
       panel.getByRole("heading", { name: "Rediger profil", exact: true }),
     ).toBeFocused();
     await expect(
       panel.getByRole("button", { name: "Tilbake", exact: true }),
-    ).toHaveCount(0);
+    ).toBeVisible();
     await bio.fill("Flere trær og gode møteplasser.");
     await panel
       .getByRole("textbox", { name: "Sted", exact: true })
@@ -734,15 +743,25 @@ for (const viewport of [
     await expect(panel).toHaveCount(0);
     await trigger.click();
     await accountMenuItem(page, "Kontoinnstillinger").click();
-    await expect(panel.getByText("Koblet til Google")).toBeVisible();
+    // A panel on desktop; on phones, a sheet like the menu it came from.
+    const settings =
+      viewport.width >= 800
+        ? panel
+        : page.getByRole("dialog", { name: "Kontoinnstillinger" });
+    await expect(settings.getByText("Koblet til Google")).toBeVisible();
     await expect(
-      panel.getByRole("heading", { name: "Kontoinnstillinger" }),
+      settings.getByRole("heading", { name: "Kontoinnstillinger" }),
     ).toBeVisible();
-    await expect(panel.getByRole("tab")).toHaveCount(0);
+    await expect(settings.getByRole("tab")).toHaveCount(0);
     await expect(
-      panel.getByRole("button", { name: "Tilbake", exact: true }),
+      settings.getByRole("button", { name: "Tilbake", exact: true }),
     ).toHaveCount(0);
-    await expect.poll(bounds).toEqual(before);
+    // Logging out of other devices is a choice made when logging out.
+    await expect(
+      settings.getByRole("button", { name: /andre enheter/ }),
+    ).toHaveCount(0);
+    if (viewport.width >= 800) await expect.poll(bounds).toEqual(before);
+    else await expect(panel).toHaveCount(0);
     await shot(page, `account-settings-${viewport.width}`);
     if (viewport.width >= 800) {
       const close = page.getByRole("button", { name: "Lukk", exact: true });
@@ -788,10 +807,14 @@ test("account settings contain account actions and deletion can be cancelled", a
   await expect(
     page.getByRole("textbox", { name: "Om deg", exact: true }),
   ).toHaveCount(0);
-  await page.getByRole("button", { name: "Logg ut andre enheter" }).click();
-  await expect(page.getByRole("status")).toContainText(
-    "Du er logget ut på alle andre enheter",
-  );
+  // Logging out asks first, offering every device too.
+  await page.getByRole("button", { name: "Logg ut", exact: true }).click();
+  const prompt = page.getByRole("dialog", { name: "Logg ut?" });
+  await expect(
+    prompt.getByRole("checkbox", { name: /Logg ut på alle enheter/ }),
+  ).not.toBeChecked();
+  await prompt.getByRole("button", { name: "Avbryt", exact: true }).click();
+  await expect(prompt).toHaveCount(0);
   await page.getByRole("button", { name: "Slett kontoen min" }).click();
   await expect(
     page.getByLabel("Bekreft brukernavn for sletting"),
