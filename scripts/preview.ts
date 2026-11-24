@@ -7,9 +7,10 @@
  *
  * The hub owns port 3000 and proxies it, websockets included, to the dev server
  * of the worktree previewed last. Each worktree keeps its own `next dev` on a
- * port of its own, so switching back is instant. Open tabs reload when the hub
- * switches, keep their path, and show the thread's name in their title. The
- * hub stops dev servers whose worktree has been removed.
+ * port of its own, so switching back is instant, until Ctrl-C in its Preview
+ * terminal stops it. Open tabs reload when the hub switches, keep their path,
+ * and show the thread's name in their title. The hub stops dev servers whose
+ * worktree has been removed.
  */
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -66,10 +67,27 @@ async function preview() {
 
   await post("/__preview/switch", { dir, name, port: server.port, pgid: server.pgid } satisfies Site);
   console.log(`Previewing ${name} at http://localhost:${hubPort}`);
-  console.log(`Ctrl-C only stops this log. Stop the server with: bun scripts/preview.ts stop\n`);
+  console.log(`Ctrl-C stops the dev server.\n`);
 
-  // Follow the server's log so the Preview terminal stays useful.
+  // Follow the server's log so the Preview terminal stays useful. The server
+  // runs in its own process group, so Ctrl-C reaches it only through here.
   const tail = spawn("tail", ["-n", "40", "-F", `--pid=${process.pid}`, log], { stdio: "inherit" });
+  const { pgid } = server;
+  let stopping = false;
+  const shutdown = async () => {
+    if (stopping) return;
+    stopping = true;
+    killGroup(pgid);
+    tail.kill();
+    await post("/__preview/forget", { dir }).catch(() => {});
+    console.log(`\nStopped ${name}.`);
+    process.exit(0);
+  };
+  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.on(signal, shutdown);
+  // A server that exits on its own ends the Preview too.
+  setInterval(() => {
+    if (!alive(pgid)) shutdown();
+  }, 1000);
   await new Promise((resolve) => tail.on("exit", resolve));
 }
 
