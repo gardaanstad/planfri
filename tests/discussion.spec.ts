@@ -208,6 +208,127 @@ test("commenting under an update references it in the main discussion and preser
   );
 });
 
+test("moderators set a project's phase and dates on one timeline, with or without Foreslått", async ({
+  page,
+  context,
+  request,
+}) => {
+  const moderator = await member({
+    username: uniqueName(),
+    email: "timeline-moderator@example.test",
+  });
+  const id = `test-project-${randomUUID()}`;
+  const fresh = {
+    ...project,
+    id,
+    title: "Test av tidslinjen",
+    status: "planned" as const,
+    year: "",
+    phaseDates: { proposed: "2018", planned: "2020" },
+    updates: [],
+  };
+  expect(
+    (
+      await mutation(
+        request,
+        "/api/community",
+        { action: "project", project: fresh, create: true },
+        moderator,
+      )
+    ).ok(),
+  ).toBe(true);
+  await signIn(context, moderator);
+  await page.goto(`/prosjekt/${id}`);
+  await page
+    .getByRole("button", { name: "Rediger prosjekt", exact: true })
+    .click();
+  const timeline = page.locator('[data-field="timeline"]');
+  const preview = timeline.getByRole("list", { name: "Forhåndsvisning av fase" });
+  await expect(preview.getByRole("listitem")).toHaveText([
+    "Foreslått, 2018",
+    "Planstart, 2020",
+    "Byggestart",
+    "Ferdig",
+  ]);
+  // A phase ahead reads as expected; picking it makes it the current one.
+  await expect(timeline.locator("[data-phase-row=construction]")).toContainText(
+    "Ventet byggestart",
+  );
+  await timeline.getByRole("radio", { name: /^Under bygging/ }).check();
+  await expect(timeline.locator("[data-phase-row=construction]")).toContainText(
+    "Nå",
+  );
+  await timeline.getByRole("textbox", { name: "Byggestart" }).fill("4.2024");
+  await timeline.getByRole("textbox", { name: "Ferdigår" }).fill("2029");
+  // Never a proposal: Foreslått comes off the line, its date with it.
+  await timeline
+    .getByRole("button", { name: "Fjern Foreslått fra tidslinjen" })
+    .click();
+  await expect(preview.getByRole("listitem")).toHaveText([
+    "Planstart, 2020",
+    "Byggestart, apr. 2024",
+    "Ferdig, 2029",
+  ]);
+  await expect(
+    timeline.getByRole("button", { name: "Legg til Foreslått" }),
+  ).toBeVisible();
+  const bar = page.getByRole("region", { name: "Redigering", exact: true });
+  await expect(bar).toContainText("1 endring");
+  await bar.getByRole("button", { name: "Lagre", exact: true }).click();
+  await expect(bar).toContainText("Uten forslagsfase");
+  await bar
+    .getByRole("button", { name: "Bekreft og lagre", exact: true })
+    .click();
+  await expect(bar).toHaveCount(0);
+  const phases = page
+    .locator("[data-project-meta]")
+    .getByRole("list", { name: "Fase" });
+  await expect(phases.getByRole("listitem")).toHaveText([
+    "Planstart, 2020",
+    "Byggestart, apr. 2024",
+    "Ferdig, 2029",
+  ]);
+  // Back on the line, it's the first step again.
+  await page
+    .getByRole("button", { name: "Rediger prosjekt", exact: true })
+    .click();
+  await timeline.getByRole("button", { name: "Legg til Foreslått" }).click();
+  await expect(preview.getByRole("listitem").first()).toHaveText("Foreslått");
+});
+
+test("the drawing map opens over the whole screen and comes back with its points", async ({
+  page,
+  context,
+}) => {
+  const moderator = await member({
+    username: uniqueName(),
+    email: "drawing-moderator@example.test",
+  });
+  await signIn(context, moderator);
+  await page.goto(path);
+  await page
+    .getByRole("button", { name: "Rediger prosjekt", exact: true })
+    .click();
+  const field = page.locator('[data-field="geometry"]');
+  const points = project.geometry.length;
+  await expect(field.locator(".draw-vertex")).toHaveCount(points);
+  await field.getByRole("button", { name: "Forstørr kartet" }).click();
+  const big = page.getByRole("dialog", { name: "Tegn på kartet" });
+  await expect(big).toBeVisible();
+  const box = (await big.locator("[data-base-ui-swipe-ignore]").first().boundingBox())!;
+  expect(box.height).toBeGreaterThan(600);
+  await expect(big.locator(".draw-vertex")).toHaveCount(points);
+  // Escape leaves the big map, not the project.
+  await page.keyboard.press("Escape");
+  await expect(big).toHaveCount(0);
+  await expect(field.getByRole("button", { name: "Forstørr kartet" })).toBeFocused();
+  await expect(page.getByRole("region", { name: "Redigering" })).toBeVisible();
+  await field.getByRole("button", { name: "Forstørr kartet" }).click();
+  await big.getByRole("button", { name: "Ferdig", exact: true }).click();
+  await expect(big).toHaveCount(0);
+  await expect(field.locator(".draw-vertex")).toHaveCount(points);
+});
+
 test("moderators edit the reference page and publish sourced updates without new comment sections", async ({
   page,
   context,
@@ -257,11 +378,12 @@ test("moderators edit the reference page and publish sourced updates without new
     .getByRole("textbox", { name: "Prosjektlenke", exact: true })
     .fill("https://example.org/details");
   await page
-    .getByRole("combobox", { name: "Status", exact: true })
-    .selectOption("completed");
+    .getByRole("radiogroup", { name: "Status", exact: true })
+    .getByRole("radio", { name: "Ferdig", exact: true })
+    .check();
   await expect(bar).toContainText("4 endringer");
   await page
-    .getByRole("button", { name: "Tilbakestill status", exact: true })
+    .getByRole("button", { name: "Tilbakestill tidslinje", exact: true })
     .first()
     .click();
   await expect(bar).toContainText("3 endringer");

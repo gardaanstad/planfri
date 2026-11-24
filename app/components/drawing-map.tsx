@@ -1,10 +1,12 @@
 "use client";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   ArrowLeftRight,
   Check,
   ChevronDown,
+  Maximize2,
+  Minimize2,
   Pentagon,
   Plus,
   Route,
@@ -37,7 +39,8 @@ const coordinatePattern = /^\s*(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)\s*
  * The map a project's outline is drawn on, with its tools around it rather
  * than over it: area or route, which end of a route to extend, undo and clear
  * above; the point count and typed coordinates below. Clearing asks first
- * and can be undone.
+ * and can be undone. It can take the whole screen for detailed drawing,
+ * tools and all; Escape or "Ferdig" brings it back.
  */
 export default function DrawingMap({
   city,
@@ -64,8 +67,11 @@ export default function DrawingMap({
   const [typing, setTyping] = useState(false);
   const [coordinate, setCoordinate] = useState("");
   const [coordinateError, setCoordinateError] = useState("");
+  const [maximized, setMaximized] = useState(false);
   const keepClear = useRef<HTMLButtonElement>(null);
   const clearButton = useRef<HTMLButtonElement>(null);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const maximizeButton = useRef<HTMLButtonElement>(null);
   const ids = useId();
   const minimum = shape === "area" ? 3 : 2;
   const enough = points.length >= minimum;
@@ -77,6 +83,15 @@ export default function DrawingMap({
   useEffect(() => {
     if (clearing) keepClear.current?.focus();
   }, [clearing]);
+
+  // In the top layer, the map escapes the panel and the drawer around it.
+  useLayoutEffect(() => {
+    if (maximized && !dialog.current?.open) dialog.current?.showModal();
+  }, [maximized]);
+  function minimize() {
+    setMaximized(false);
+    requestAnimationFrame(() => maximizeButton.current?.focus());
+  }
 
   function change(next: Point[]) {
     setHistory((past) => [...past.slice(-49), points]);
@@ -111,10 +126,7 @@ export default function DrawingMap({
     setCoordinateError("");
   }
 
-  return (
-    <div
-      className="flex flex-col gap-2"
-      onKeyDown={(event) => {
+  const onKeyDown = (event: React.KeyboardEvent) => {
         const target = event.target as HTMLElement;
         if (
           (event.metaKey || event.ctrlKey) &&
@@ -125,8 +137,9 @@ export default function DrawingMap({
           event.preventDefault();
           undo();
         }
-      }}
-    >
+  };
+  const content = (
+    <>
       <div className="flex min-h-10 items-center gap-2" data-draw-tools="">
         {clearing ? (
           <div
@@ -238,13 +251,39 @@ export default function DrawingMap({
               >
                 <Trash2 size={17} aria-hidden="true" />
               </button>
+              <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+              {maximized ? (
+                <button
+                  type="button"
+                  className={cn(
+                    smallButton,
+                    "ml-1 border border-border-strong bg-surface text-ink hover:bg-surface-muted",
+                  )}
+                  onClick={minimize}
+                >
+                  <Minimize2 size={14} aria-hidden="true" />
+                  Ferdig
+                </button>
+              ) : (
+                <button
+                  ref={maximizeButton}
+                  type="button"
+                  className={toolButton}
+                  onClick={() => setMaximized(true)}
+                  aria-label="Forstørr kartet"
+                  data-tooltip="Forstørr kartet"
+                >
+                  <Maximize2 size={17} aria-hidden="true" />
+                </button>
+              )}
             </div>
           </>
         )}
       </div>
       <div
         className={cn(
-          "relative h-80 overflow-hidden rounded-lg border border-border-strong max-md:h-72",
+          "relative overflow-hidden rounded-lg border border-border-strong",
+          maximized ? "min-h-0 flex-1" : "h-80 max-md:h-72",
           frameClassName,
         )}
         data-base-ui-swipe-ignore
@@ -370,6 +409,40 @@ export default function DrawingMap({
           )}
         </div>
       )}
+    </>
+  );
+
+  if (!maximized)
+    return (
+      <div className="flex flex-col gap-2" onKeyDown={onKeyDown}>
+        {content}
+      </div>
+    );
+  return (
+    <div className="flex flex-col gap-2">
+      {/* Holds the map's place in the form while it's over everything. */}
+      <div className="flex h-80 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border-strong text-ui text-muted max-md:h-72">
+        Kartet er forstørret
+      </div>
+      <dialog
+        ref={dialog}
+        aria-label="Tegn på kartet"
+        className={cn(
+          "fixed inset-0 m-0 h-dvh max-h-none w-dvw max-w-none border-0 bg-surface text-ink",
+          "open:flex open:flex-col open:gap-2",
+          "px-[max(12px,env(safe-area-inset-left))] pt-[max(8px,env(safe-area-inset-top))] pb-[max(8px,env(safe-area-inset-bottom))]",
+          "backdrop:bg-scrim/33",
+        )}
+        data-base-ui-swipe-ignore
+        data-drawing-map-maximized=""
+        onCancel={(event) => {
+          event.preventDefault();
+          minimize();
+        }}
+        onKeyDown={onKeyDown}
+      >
+        {content}
+      </dialog>
     </div>
   );
 }

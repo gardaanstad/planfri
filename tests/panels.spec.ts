@@ -58,8 +58,8 @@ test("a project shows its phase and its facts, and opens on its updates", async 
   // Each step with its date, where it has one; "Ferdig" has the year.
   await expect(phases.getByRole("listitem")).toHaveText([
     "Foreslått",
-    "Planlagt, 2019",
-    "Under bygging, apr. 2023",
+    "Planstart, 2019",
+    "Byggestart, apr. 2023",
     `Ferdig, ${project.year}`,
   ]);
   await expect(phases.locator("[aria-current=step]")).toHaveCount(1);

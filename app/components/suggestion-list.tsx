@@ -569,10 +569,8 @@ function ProjectBody({
   onChange: (overrides: Overrides) => void;
 }) {
   const facts: FieldId[] = [
-    "status",
+    "timeline",
     "place",
-    "year",
-    "dates",
     "developer",
     "website",
     "geometry",

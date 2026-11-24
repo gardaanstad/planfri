@@ -12,9 +12,6 @@ import {
   centroid,
   presetPlaces,
   type Project,
-  type Status,
-  statuses,
-  statusOrder,
 } from "../lib/data";
 import { errorMessage } from "../lib/api-client";
 import { cn } from "../lib/cn";
@@ -22,6 +19,7 @@ import { fieldControl } from "../lib/ui";
 import ImagePicker from "./image-picker";
 import CategoryPicker from "./category-picker";
 import DrawingMap from "./drawing-map";
+import TimelineInput from "./timeline-input";
 import { PanelHeader } from "./panel";
 import {
   actionBar,
@@ -33,7 +31,6 @@ import {
   finalize,
   focusField,
   invalidFields,
-  PhaseDateInputs,
   primaryBarButton,
   quietBarButton,
 } from "./project-edit";
@@ -256,49 +253,12 @@ export default function ProjectEditor({
               onBusy={setUploading}
             />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field id="status" label="Status" control={`${ids}-status`}>
-              <select
-                {...control("status")}
-                className={input}
-                value={draft.status}
-                onChange={(event) =>
-                  change({ status: event.target.value as Status })
-                }
-              >
-                {statusOrder.map((status) => (
-                  <option value={status} key={status}>
-                    {statuses[status].label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            {draft.status !== "proposed" && (
-              <Field
-                id="year"
-                label={draft.status === "completed" ? "Ferdigstilt" : "Ferdigstilles"}
-                control={`${ids}-year`}
-                optional
-                error={error("year")}
-              >
-                <input
-                  {...control("year")}
-                  className={input}
-                  inputMode="numeric"
-                  maxLength={4}
-                  placeholder="2030"
-                  value={draft.year}
-                  onChange={(event) => change({ year: event.target.value })}
-                />
-              </Field>
-            )}
-          </div>
-          <Field id="dates" label="Datoer" optional error={error("dates")}>
-            <PhaseDateInputs
-              idPrefix={`${ids}-dates`}
-              inputClassName={input}
-              value={draft.phaseDates}
-              onChange={(phaseDates) => change({ phaseDates })}
+          <Field id="timeline" label="Tidslinje" error={error("timeline")}>
+            <TimelineInput
+              draft={draft}
+              change={change}
+              idPrefix={`${ids}-timeline`}
+              showErrors={attempted}
             />
           </Field>
           <Field id="categories" label="Kategori" error={error("categories")}>

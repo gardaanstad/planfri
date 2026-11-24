@@ -331,8 +331,9 @@ test("members suggest corrections and tips; moderators review a diff, approve, a
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Foreslå endring", exact: true }).click();
   await page
-    .getByRole("combobox", { name: "Status", exact: true })
-    .selectOption("construction");
+    .getByRole("radiogroup", { name: "Status", exact: true })
+    .getByRole("radio", { name: "Under bygging" })
+    .check();
   await page
     .getByRole("textbox", { name: "Byggherre", exact: true })
     .fill("Nye Veier");
@@ -431,10 +432,10 @@ test("members suggest corrections and tips; moderators review a diff, approve, a
       .getByRole("menuitem", { name: "Ikke ta med denne endringen" })
       .click();
   };
-  for (const label of ["byggherre", "status", "beskrivelse"]) await exclude(label);
+  for (const label of ["byggherre", "tidslinje", "beskrivelse"]) await exclude(label);
   await expect(developer).toHaveAttribute("data-excluded", "true");
   await expect(approve).toBeDisabled();
-  for (const field of ["status", "description"])
+  for (const field of ["timeline", "description"])
     await correction
       .locator(`[data-field="${field}"]`)
       .getByRole("button", { name: "Ta med igjen" })

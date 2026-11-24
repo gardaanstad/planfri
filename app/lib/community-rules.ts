@@ -63,6 +63,7 @@ export const projectFields = z.object({
     )
     .strict()
     .optional(),
+  noProposal: z.boolean().optional(),
   updated: z.string().min(1).max(40),
   comments: z.number().int().nonnegative(),
   developer: z.string().max(200),

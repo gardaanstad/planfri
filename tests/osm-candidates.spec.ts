@@ -421,8 +421,10 @@ test.describe("on the map", () => {
     await panel.getByRole("button", { name: "Opprett prosjekt" }).click();
     const editor = page.locator("[data-project-editor]");
     await expect(editor.getByLabel("Prosjektnavn")).toHaveValue("Altabanen");
-    await expect(editor.getByLabel("Status")).toHaveValue("construction");
-    await expect(editor.getByLabel("Ferdigstilles")).toHaveValue("2029");
+    await expect(
+      editor.getByRole("radio", { name: "Under bygging", exact: true }),
+    ).toBeChecked();
+    await expect(editor.getByLabel("Ferdigår")).toHaveValue("2029");
     await expect(editor.getByLabel("Byggherre")).toHaveValue("Bane NOR");
     await expect(editor.getByLabel("Sted")).toHaveValue("Alta");
     await expect(editor.locator('[data-field="categories"]')).toContainText("Jernbane");

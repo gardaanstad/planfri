@@ -1,4 +1,10 @@
-import { finishYear, type Project, type Status, statusOrder } from "./data";
+import {
+  finishYear,
+  type Project,
+  projectPhases,
+  type Status,
+  statusOrder,
+} from "./data";
 
 /**
  * The timeline's shape: how much room each stretch between two phases gets,
@@ -10,7 +16,7 @@ import { finishYear, type Project, type Status, statusOrder } from "./data";
  * steps stay evenly spread.
  */
 export type PhaseTrack = {
-  /** Flex weights of the three stretches, Foreslått→Planlagt first. */
+  /** Flex weights of the stretches between the project's phases, first first. */
   weights: number[];
   /** Least room per stretch, in em of the labels' type. */
   minimums: number[];
@@ -19,7 +25,7 @@ export type PhaseTrack = {
 };
 
 // Geist at the timeline's size averages about half an em per character;
-// medium-weight "Under bygging" and "mars" run widest.
+// medium-weight "Byggestart" and "mars" run widest.
 const emPerCharacter = 0.58;
 const gap = 1;
 const activeWeight = 3;
@@ -56,11 +62,12 @@ function nextDate(project: Project, status: Status) {
 
 export function phaseTrack(
   project: Project,
-  /** Each phase's label and date, as shown under the line. */
+  /** Each of `projectPhases(project)`'s label and date, as shown under the line. */
   texts: { label: string; date: string }[],
 ): PhaseTrack {
-  const current = statusOrder.indexOf(project.status);
-  const last = statusOrder.length - 1;
+  const phases = projectPhases(project);
+  const current = phases.indexOf(project.status);
+  const last = phases.length - 1;
   const from =
     project.status === "completed"
       ? ""
@@ -76,10 +83,10 @@ export function phaseTrack(
   const share = (index: number) =>
     index === 0 || index === last ? width[index] : width[index] / 2;
   return {
-    weights: statusOrder
+    weights: phases
       .slice(0, last)
       .map((_, index) => (index === active?.index ? activeWeight : 1)),
-    minimums: statusOrder
+    minimums: phases
       .slice(0, last)
       .map((_, index) => share(index) + share(index + 1) + gap),
     active,

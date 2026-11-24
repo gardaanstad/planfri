@@ -5,6 +5,7 @@ import {
   categoryLabels,
   centroid,
   datedPhases,
+  finishYear,
   formatPhaseDate,
   type PhaseDates,
   ownPhotos,
@@ -21,9 +22,7 @@ export type FieldId =
   | "title"
   | "description"
   | "images"
-  | "status"
-  | "year"
-  | "dates"
+  | "timeline"
   | "categories"
   | "place"
   | "developer"
@@ -68,34 +67,30 @@ export const fields: Record<
       return count ? plural(count, "bilde", "bilder") : "–";
     },
   },
-  status: {
-    label: "Status",
-    keys: ["status"],
-    show: (p) => statuses[p.status].label,
-  },
-  year: {
-    label: "Ferdig",
-    keys: ["year"],
-    show: (p) => p.year || "–",
-    error: (p) => (/^(\d{4})?$/.test(p.year) ? undefined : "Bruk fire sifre"),
-  },
-  dates: {
-    label: "Datoer",
-    keys: ["phaseDates"],
+  timeline: {
+    label: "Tidslinje",
+    keys: ["status", "year", "phaseDates", "noProposal"],
     show: (p) =>
-      datedPhases
-        .filter((phase) => p.phaseDates?.[phase])
-        .map(
-          (phase) =>
-            `${phaseNames[phase]} ${formatPhaseDate(p.phaseDates![phase]!)}`,
-        )
-        .join(" · ") || "–",
+      [
+        statuses[p.status].label,
+        ...datedPhases
+          .filter((phase) => p.phaseDates?.[phase])
+          .map(
+            (phase) =>
+              `${phaseNames[phase]} ${formatPhaseDate(p.phaseDates![phase]!)}`,
+          ),
+        finishYear(p) &&
+          `${p.status === "completed" ? "Ferdigstilt" : "Ferdig"} ${finishYear(p)}`,
+        p.noProposal && p.status !== "proposed" && "Uten forslagsfase",
+      ]
+        .filter(Boolean)
+        .join(" · "),
     error: (p) =>
-      datedPhases.every((phase) =>
-        /^\d{4}(-(0[1-9]|1[0-2]))?$/.test(p.phaseDates?.[phase] ?? "0000"),
-      )
-        ? undefined
-        : "Bruk år, eller måned.år",
+      !datedPhases.every((phase) => validDate(p.phaseDates?.[phase] ?? "0000"))
+        ? "Bruk år, eller måned.år"
+        : !/^(\d{4})?$/.test(p.year)
+          ? "Bruk fire sifre for året den er ferdig"
+          : undefined,
   },
   categories: {
     label: "Kategori",
@@ -143,11 +138,13 @@ export const phaseNames: Record<(typeof datedPhases)[number], string> = {
   construction: "Byggestart",
 };
 
+const validDate = (date: string) => /^\d{4}(-(0[1-9]|1[0-2]))?$/.test(date);
+
 /** `2024-03` as typed in a field: `03.2024`. */
 const typedDate = (date: string) => date.split("-").reverse().join(".");
 
 /** What's typed (`2024`, `3.2024`) as stored (`2024-03`); unclear text stays. */
-function storedDate(text: string) {
+export function storedDate(text: string) {
   const typed = text.trim();
   const month = /^(\d{1,2})[./-](\d{4})$/.exec(typed);
   if (month) return `${month[2]}-${month[1].padStart(2, "0")}`;
@@ -179,6 +176,9 @@ export function toDraft(project: Project): Project {
 /** What a draft saves as: trimmed, with the fallbacks new projects get. */
 export function finalize(project: Project): Project {
   const city = project.city.trim();
+  // A proposal is always its own first phase.
+  const noProposal =
+    project.noProposal && project.status !== "proposed" ? true : undefined;
   return {
     ...project,
     title: project.title.trim(),
@@ -187,7 +187,11 @@ export function finalize(project: Project): Project {
     district: project.district.trim() || city,
     // Only once it's more than a proposal does a project get a year.
     year: project.status === "proposed" ? "" : project.year.trim(),
-    phaseDates: mapDates(project.phaseDates, storedDate),
+    phaseDates: mapDates(
+      noProposal ? { ...project.phaseDates, proposed: undefined } : project.phaseDates,
+      storedDate,
+    ),
+    noProposal,
     developer: project.developer.trim() || unknownDeveloper,
     website: project.website?.trim() || undefined,
   };
@@ -223,11 +227,13 @@ export function focusField(id: FieldId, root: ParentNode = document) {
       ? "auto"
       : "smooth",
   });
-  field
-    .querySelector<HTMLElement>(
+  // The part that's wrong, in a field of several.
+  (
+    field.querySelector<HTMLElement>("[aria-invalid=true]") ??
+    field.querySelector<HTMLElement>(
       "input, textarea, select, button:not([data-revert])",
     )
-    ?.focus({ preventScroll: true });
+  )?.focus({ preventScroll: true });
 }
 
 /** The changed fields of a draft, ready to lay over the saved project. */
@@ -559,44 +565,3 @@ export function EditBar({
   );
 }
 
-/**
- * When the project was proposed, planned and started: each optional, a year
- * or a month (`3.2024`), side by side.
- */
-export function PhaseDateInputs({
-  value,
-  onChange,
-  inputClassName,
-  idPrefix,
-}: {
-  value: PhaseDates | undefined;
-  onChange: (dates: PhaseDates) => void;
-  inputClassName: string;
-  idPrefix: string;
-}) {
-  return (
-    <div className="grid grid-cols-3 gap-2">
-      {datedPhases.map((phase) => (
-        <div key={phase} className="min-w-0">
-          <label
-            htmlFor={`${idPrefix}-${phase}`}
-            className="mb-1 block truncate text-2xs leading-4 text-muted"
-          >
-            {phaseNames[phase]}
-          </label>
-          <input
-            id={`${idPrefix}-${phase}`}
-            className={cn(inputClassName, "w-full tabular-nums")}
-            inputMode="decimal"
-            maxLength={7}
-            placeholder="åååå"
-            value={value?.[phase] ?? ""}
-            onChange={(event) =>
-              onChange({ ...value, [phase]: event.target.value })
-            }
-          />
-        </div>
-      ))}
-    </div>
-  );
-}
