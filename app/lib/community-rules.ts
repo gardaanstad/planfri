@@ -113,5 +113,9 @@ export const mutationSchema = z.discriminatedUnion("action", [
     project: projectSchema,
     create: z.boolean(),
   }),
+  z.object({
+    action: z.literal("delete-project"),
+    projectId: id,
+  }),
 ]);
 export type CommunityMutation = z.input<typeof mutationSchema>;

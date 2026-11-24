@@ -5,13 +5,16 @@ import {
   type Locator,
   type Page,
 } from "@playwright/test";
+import { randomUUID } from "node:crypto";
 import { seedProjects } from "../scripts/seed-data";
 import {
   accountMenuItem,
   member,
+  mutation,
   openDiscussion,
   openOwnProfile,
   openSaved,
+  projectAction,
   shot,
   signIn,
   swipeDown,
@@ -503,6 +506,65 @@ test.describe("desktop headers", () => {
     await page.keyboard.press("End");
     await expect(menu).toHaveCount(0);
     await expect(actions.locator("[data-overflow-item]")).toHaveCount(3);
+  });
+
+  test("moderators delete a project from its menu, after asking", async ({
+    page,
+    context,
+    request,
+  }) => {
+    const moderator = await member({
+      username: uniqueName("delete_mod"),
+      email: "delete-moderator@example.test",
+    });
+    const someone = await member({ username: uniqueName("delete_member") });
+    const id = `test-project-${randomUUID()}`;
+    const title = `Slettes ${id.slice(-6)}`;
+    const fresh = { ...project, id, title, updates: [] };
+    const post = (data: unknown, account = moderator) =>
+      mutation(request, "/api/community", data, account);
+    expect((await post({ action: "project", project: fresh, create: true })).ok()).toBe(true);
+    expect(
+      (await post({ action: "comment", projectId: id, text: "Hei" }, someone)).ok(),
+    ).toBe(true);
+    expect((await post({ action: "save", projectId: id, saved: true }, someone)).ok()).toBe(true);
+    // Only moderators may delete.
+    expect(
+      (await post({ action: "delete-project", projectId: id }, someone)).status(),
+    ).toBe(403);
+
+    await signIn(context, moderator);
+    await page.goto(`/prosjekt/${id}`);
+    const panel = page.locator("[data-project-post]");
+    await expect(panel.locator("#project-card-title")).toHaveText(title);
+    await projectAction(page, "Slett prosjekt");
+    const confirm = page.getByRole("dialog", { name: "Slette prosjektet?" });
+    await expect(confirm).toContainText(title);
+    await shot(page, "delete-project-confirm");
+    // Cancelling keeps it.
+    await confirm.getByRole("button", { name: "Avbryt" }).click();
+    await expect(confirm).toHaveCount(0);
+    await projectAction(page, "Slett prosjekt");
+    await confirm.getByRole("button", { name: "Slett prosjekt" }).click();
+    await expect(panel).toHaveCount(0);
+    await expect(page.getByText("Prosjektet er slettet")).toBeVisible();
+    await expect(page).not.toHaveURL(/prosjekt/);
+    await expect(page.getByText(title)).toHaveCount(0);
+
+    // Gone for everyone, with its discussion and saves.
+    const data = await (
+      await request.get("/api/community", {
+        headers: { Cookie: `${someone.cookie.name}=${someone.cookie.value}` },
+      })
+    ).json();
+    expect(data.projects.some((item: { id: string }) => item.id === id)).toBe(false);
+    expect(data.saved).not.toContain(id);
+    expect(data.activity[id]).toBeUndefined();
+    expect((await request.get(`/api/comments?project=${id}`)).ok()).toBe(true);
+    expect(
+      (await (await request.get(`/api/comments?project=${id}`)).json()).comments,
+    ).toEqual([]);
+    expect((await post({ action: "delete-project", projectId: id })).status()).toBe(404);
   });
 
   test("Lagret and Forslag carry their title where a project does", async ({

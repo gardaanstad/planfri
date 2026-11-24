@@ -277,6 +277,19 @@ export function CommunityProvider({
             else projects[index] = result.project;
             return { ...data, projects };
           });
+        case "delete-project":
+          return update((data) => {
+            const activity = { ...data.activity };
+            delete activity[result.projectId];
+            return {
+              ...data,
+              projects: data.projects.filter(
+                (item) => item.id !== result.projectId,
+              ),
+              activity,
+              saved: data.saved.filter((id) => id !== result.projectId),
+            };
+          });
       }
     },
     [reloadWatched, setList],

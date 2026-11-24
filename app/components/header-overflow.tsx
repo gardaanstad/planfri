@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useEffect,
   useEffectEvent,
   useRef,
@@ -23,6 +24,8 @@ export type OverflowAction = {
   count?: number;
   /** A toggle, such as dark mode, ticked when on. */
   checked?: boolean;
+  /** Destructive, such as deleting: in the danger colour. */
+  danger?: boolean;
 };
 
 // The menu's button before it has been measured: an icon button and a gap.
@@ -40,6 +43,8 @@ export function useHeaderOverflow(
   nav: RefObject<HTMLElement | null>,
   order: string[],
   reserve?: number,
+  /** The menu stays for actions of its own, so it's part of the fixed width. */
+  menuAlways = false,
 ) {
   const [hidden, setHidden] = useState(0);
   // The reserve the items were last fitted to; `ready` once it's the current one.
@@ -67,7 +72,8 @@ export function useHeaderOverflow(
     const style = getComputedStyle(header);
     const brand = element.previousElementSibling as HTMLElement | null;
     return {
-      fixed: element.offsetWidth - inline - (menu ? trigger.current : 0),
+      fixed:
+        element.offsetWidth - inline - (menu && !menuAlways ? trigger.current : 0),
       around:
         parseFloat(style.paddingLeft) +
         parseFloat(style.paddingRight) +
@@ -83,7 +89,7 @@ export function useHeaderOverflow(
       order
         .slice(from)
         .reduce((sum, id) => sum + (widths.current.get(id) ?? fallbackItem), 0) +
-      (from > 0 ? trigger.current : 0)
+      (from > 0 && !menuAlways ? trigger.current : 0)
     );
   }
 
@@ -116,7 +122,7 @@ export function useHeaderOverflow(
     observer.observe(header);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [nav, key, reserve]);
+  }, [nav, key, reserve, menuAlways]);
 
   /** The header's width with every item in the nav, or in the menu. */
   const needed = (all: boolean) => {
@@ -169,7 +175,7 @@ export function OverflowMenu({ actions }: { actions: OverflowAction[] }) {
           className="z-[1000]"
         >
           <Menu.Popup className="min-w-52 rounded-xl border border-border bg-surface p-1.5 text-ui shadow-popover outline-none motion-safe:animate-menu-enter">
-            {actions.map((action) => {
+            {actions.map((action, index) => {
               const end =
                 (action.count ?? 0) > 0 ? (
                   <span className="ml-auto inline-grid h-4.5 min-w-4.5 place-items-center rounded-full bg-accent px-1.25 text-2xs leading-none font-semibold text-on-accent tabular-nums">
@@ -186,10 +192,19 @@ export function OverflowMenu({ actions }: { actions: OverflowAction[] }) {
                 action.count && action.count > 0
                   ? `${action.label} (${action.count})`
                   : undefined;
+              const separator = action.danger && index > 0 && (
+                <Menu.Separator className="mx-1 my-1.5 h-px bg-border" />
+              );
               return action.checked === undefined ? (
+                <Fragment key={action.id}>
+                  {separator}
                 <Menu.Item
                   key={action.id}
-                  className={item}
+                  className={cn(
+                    item,
+                    action.danger &&
+                      "text-danger [&>svg:first-child]:text-danger",
+                  )}
                   onClick={action.onSelect}
                   aria-label={label}
                   data-overflow-action={action.id}
@@ -198,6 +213,7 @@ export function OverflowMenu({ actions }: { actions: OverflowAction[] }) {
                   {action.label}
                   {end}
                 </Menu.Item>
+                </Fragment>
               ) : (
                 <Menu.CheckboxItem
                   key={action.id}

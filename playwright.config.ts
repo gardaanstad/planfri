@@ -60,6 +60,7 @@ export default defineConfig({
           "panel-moderator@example.test",
           "menu-moderator@example.test",
           "header-moderator@example.test",
+          "delete-moderator@example.test",
           "osm-api-moderator@example.test",
           "osm-create-moderator@example.test",
           "osm-filter-moderator@example.test",

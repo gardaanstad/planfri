@@ -5,6 +5,7 @@ import {
   addComment,
   castVote,
   deleteComment,
+  deleteProject,
   readCommunity,
   saveProject,
   setSaved,
@@ -46,6 +47,12 @@ export function POST(request: Request) {
           action: "project",
           project: await saveProject(body.project, body.create),
         };
+        break;
+      case "delete-project":
+        if (!moderates(member, request.headers))
+          throw new HttpError(403, "Bare moderatorer kan slette prosjekter.");
+        await deleteProject(body.projectId);
+        result = { action: "delete-project", projectId: body.projectId };
         break;
       case "vote":
         result = {

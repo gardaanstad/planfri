@@ -15,6 +15,7 @@ import {
   Minimize2,
   Pencil,
   Share2,
+  Trash2,
   X,
 } from "lucide-react";
 import type { Project } from "../lib/data";
@@ -65,6 +66,8 @@ export type ProjectActionsProps = {
   onShare: () => void;
   /** Signed out: saving and suggesting ask to log in first. */
   guest?: boolean;
+  /** Moderators: deletes the project, after asking. Always in the menu. */
+  onDelete?: () => void;
 };
 
 type HeaderProps = {
@@ -93,6 +96,7 @@ function DesktopActions({
   saved,
   onSave,
   onShare,
+  onDelete,
   hidden,
 }: ProjectActionsProps & { hidden: Set<string> }) {
   const editLabel = suggest ? "Foreslå endring" : "Rediger prosjekt";
@@ -127,6 +131,14 @@ function DesktopActions({
       onSelect: onShare,
     },
   ].filter((action) => hidden.has(action.id));
+  if (onDelete)
+    menu.push({
+      id: "delete",
+      label: "Slett prosjekt",
+      icon: <Trash2 size={16} />,
+      danger: true,
+      onSelect: onDelete,
+    });
   return (
     <>
       {inline(
@@ -185,6 +197,7 @@ function MobileActions({
   onSave,
   onShare,
   guest = false,
+  onDelete,
 }: ProjectActionsProps) {
   const [open, setOpen] = useState(false);
   const actions: SheetAction[] = [
@@ -213,6 +226,17 @@ function MobileActions({
       icon: copied ? <Check size={20} /> : <Share2 size={20} />,
       onSelect: onShare,
     },
+    ...(onDelete
+      ? [
+          {
+            id: "delete",
+            label: "Slett prosjekt",
+            icon: <Trash2 size={20} />,
+            danger: true,
+            onSelect: onDelete,
+          },
+        ]
+      : []),
   ];
   return (
     <>
@@ -270,6 +294,7 @@ export default function ProjectPostHeader({
     titleWidth === null
       ? titleReserve.max
       : Math.min(titleWidth + titleReserve.air, titleReserve.max),
+    Boolean(actions.onDelete),
   );
 
   useEffect(() => {

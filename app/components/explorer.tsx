@@ -878,7 +878,12 @@ export default memo(function Explorer({
   const [panelProfileName, setPanelProfileName] = useState(profileName);
   if (profileName && profileName !== panelProfileName)
     setPanelProfileName(profileName);
-  const post = projects.find((project) => project.id === panelPostId);
+  const found = projects.find((project) => project.id === panelPostId);
+  // A project deleted while open keeps showing until its panel has closed.
+  const [heldPost, setHeldPost] = useState(found);
+  if (found && found !== heldPost) setHeldPost(found);
+  const post =
+    found ?? (heldPost?.id === panelPostId ? heldPost : undefined);
 
   // The panel stack over the explorer, bottom to top: layers in the sidebar
   // on desktop, drawers on phones. A header page (Lagret, Forslag, your

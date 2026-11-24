@@ -45,7 +45,8 @@ export type MutationResult =
     }
   | { action: "vote"; commentId: string; value: number; votes: number }
   | { action: "save"; projectId: string; saved: boolean }
-  | { action: "project"; project: Project };
+  | { action: "project"; project: Project }
+  | { action: "delete-project"; projectId: string };
 
 /** A list of comments: one project's discussion, or one member's comments. */
 export type CommentList = `project:${string}` | `author:${string}`;

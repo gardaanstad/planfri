@@ -44,11 +44,14 @@ import {
   composer,
   composerField,
   composerSend,
+  dangerButton,
   pillButton,
+  secondaryButton,
   statusTone,
 } from "../lib/ui";
 import DrawingMap from "./drawing-map";
 import ProjectPostHeader from "./project-post-header";
+import Dialog from "./dialog";
 import ProjectDiscussion, { DiscussionSortSelect } from "./project-discussion";
 import type { DiscussionSort } from "../lib/discussion";
 import CategoryPicker from "./category-picker";
@@ -1096,6 +1099,7 @@ export default function ProjectPost({
   const [uploading, setUploading] = useState(false);
   // Members' edits become a suggestion, with an optional note.
   const [note, setNote] = useState("");
+  const [deleting, setDeleting] = useState<"confirm" | "busy" | null>(null);
   const changed = draft ? changedFields(draft, project) : [];
   const dirty = changed.length > 0;
   const edit = draft && {
@@ -1318,8 +1322,21 @@ export default function ProjectPost({
       onNotify("Kopier prosjektets lenke fra adressefeltet i nettleseren.");
     }
   }
+  async function deleteProject() {
+    setDeleting("busy");
+    try {
+      await mutate({ action: "delete-project", projectId: project.id });
+      setDeleting(null);
+      onClose();
+      onNotify("Prosjektet er slettet");
+    } catch (error) {
+      setDeleting("confirm");
+      onNotify(errorMessage(error, "Kunne ikke slette prosjektet."));
+    }
+  }
   const actions = {
     onEdit: startEditing,
+    onDelete: canModerate ? () => setDeleting("confirm") : undefined,
     suggest: !canModerate,
     copied,
     saved,
@@ -1600,6 +1617,42 @@ export default function ProjectPost({
         </div>
       </article>
       {feedback}
+      {deleting && (
+        <Dialog
+          title="Slette prosjektet?"
+          closeButton={false}
+          className="w-[400px]"
+          initialFocusSelector="[data-delete-cancel]"
+          onClose={() => deleting !== "busy" && setDeleting(null)}
+        >
+          <div className="p-5">
+            <h2 className="text-heading">Slette prosjektet?</h2>
+            <p className="mt-1.5 text-ui text-muted">
+              «{project.title}» forsvinner for alle, med oppdateringer,
+              kommentarer og forslag. Dette kan ikke angres.
+            </p>
+            <div className="mt-5 flex justify-end gap-2 max-sm:flex-col-reverse">
+              <button
+                type="button"
+                className={secondaryButton}
+                disabled={deleting === "busy"}
+                data-delete-cancel=""
+                onClick={() => setDeleting(null)}
+              >
+                Avbryt
+              </button>
+              <button
+                type="button"
+                className={dangerButton}
+                disabled={deleting === "busy"}
+                onClick={() => void deleteProject()}
+              >
+                {deleting === "busy" ? "Sletter …" : "Slett prosjekt"}
+              </button>
+            </div>
+          </div>
+        </Dialog>
+      )}
     </ProjectEditContext>
   );
   return content;

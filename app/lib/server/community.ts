@@ -283,6 +283,27 @@ export async function saveProject(data: Project, create: boolean) {
   return credit(updated.data, await readCredits());
 }
 
+/**
+ * Deletes a project with everything that hangs on it: its discussion and
+ * votes, members' views and saves, and suggestions about it. Spelled out
+ * rather than left to the foreign keys, which a connection may not enforce.
+ */
+export async function deleteProject(id: string) {
+  await findProject(id);
+  const db = getDb();
+  const comments = db
+    .select({ id: comment.id })
+    .from(comment)
+    .where(eq(comment.projectId, id));
+  await db.batch([
+    db.delete(vote).where(inArray(vote.commentId, comments)),
+    db.delete(comment).where(eq(comment.projectId, id)),
+    db.delete(projectView).where(eq(projectView.projectId, id)),
+    db.delete(suggestion).where(eq(suggestion.projectId, id)),
+    db.delete(project).where(eq(project.id, id)),
+  ]);
+}
+
 export async function castVote(
   userId: string,
   commentId: string,
