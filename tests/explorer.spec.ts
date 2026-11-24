@@ -2740,6 +2740,28 @@ test.describe("desktop explorer", () => {
     await expect(page.getByText("Kartet kunne ikke lastes")).toHaveCount(0);
   });
 
+  test("the list's header and filter controls hide with it as it collapses", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto(oslo);
+    // Read as the list is hidden, so none can linger visible after it.
+    await page.locator("[data-explorer-layer]").evaluate((layer) => {
+      const shown: string[] = [];
+      Object.assign(window, { shown });
+      new MutationObserver(() => {
+        if (!layer.classList.contains("invisible")) return;
+        for (const button of layer.querySelectorAll("button")) {
+          const name = button.getAttribute("aria-label") ?? button.textContent?.trim();
+          if (getComputedStyle(button).visibility === "visible") shown.push(name ?? "");
+        }
+      }).observe(layer, { attributeFilter: ["class"] });
+    });
+    await page.getByRole("button", { name: "Skjul prosjektlisten", exact: true }).click();
+    await expect(page.locator("[data-explorer-layer]")).toHaveClass(/\binvisible\b/);
+    expect(await page.evaluate(() => (window as unknown as { shown: string[] }).shown)).toEqual([]);
+  });
+
   test("the base map moves with the list's edge, in the same frame", async ({
     page,
   }) => {
