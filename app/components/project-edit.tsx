@@ -10,6 +10,8 @@ import {
   type PhaseDates,
   ownPhotos,
   projectPlace,
+  skippablePhases,
+  type SkippablePhase,
   statuses,
   type Project,
   unknownDeveloper,
@@ -69,7 +71,7 @@ export const fields: Record<
   },
   timeline: {
     label: "Tidslinje",
-    keys: ["status", "year", "phaseDates", "noProposal"],
+    keys: ["status", "year", "phaseDates", "skippedPhases"],
     show: (p) =>
       [
         statuses[p.status].label,
@@ -81,7 +83,8 @@ export const fields: Record<
           ),
         finishYear(p) &&
           `${p.status === "completed" ? "Ferdigstilt" : "Ferdig"} ${finishYear(p)}`,
-        p.noProposal && p.status !== "proposed" && "Uten forslagsfase",
+        p.skippedPhases?.length &&
+          `Uten ${p.skippedPhases.map((phase) => skippedNames[phase]).join(" og ")}`,
       ]
         .filter(Boolean)
         .join(" · "),
@@ -131,6 +134,13 @@ export const fields: Record<
 };
 const fieldOrder = Object.keys(fields) as FieldId[];
 
+/** Skipped phases, as the review of a change lists them. */
+const skippedNames: Record<SkippablePhase, string> = {
+  proposed: "Foreslått",
+  planned: "Planlagt",
+  completed: "Ferdig",
+};
+
 /** What each dated phase's start is called in the editors. */
 export const phaseNames: Record<(typeof datedPhases)[number], string> = {
   proposed: "Foreslått",
@@ -176,9 +186,13 @@ export function toDraft(project: Project): Project {
 /** What a draft saves as: trimmed, with the fallbacks new projects get. */
 export function finalize(project: Project): Project {
   const city = project.city.trim();
-  // A proposal is always its own first phase.
-  const noProposal =
-    project.noProposal && project.status !== "proposed" ? true : undefined;
+  // The phase it's in is always on the line; a phase left off loses its date.
+  const skipped = skippablePhases.filter(
+    (phase) =>
+      phase !== project.status && project.skippedPhases?.includes(phase),
+  );
+  const dates = { ...project.phaseDates };
+  for (const phase of skipped) if (phase !== "completed") delete dates[phase];
   return {
     ...project,
     title: project.title.trim(),
@@ -186,12 +200,12 @@ export function finalize(project: Project): Project {
     city,
     district: project.district.trim() || city,
     // Only once it's more than a proposal does a project get a year.
-    year: project.status === "proposed" ? "" : project.year.trim(),
-    phaseDates: mapDates(
-      noProposal ? { ...project.phaseDates, proposed: undefined } : project.phaseDates,
-      storedDate,
-    ),
-    noProposal,
+    year:
+      project.status === "proposed" || skipped.includes("completed")
+        ? ""
+        : project.year.trim(),
+    phaseDates: mapDates(dates, storedDate),
+    skippedPhases: skipped.length ? skipped : undefined,
     developer: project.developer.trim() || unknownDeveloper,
     website: project.website?.trim() || undefined,
   };

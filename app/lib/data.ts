@@ -152,8 +152,11 @@ export type Project = {
   year: string;
   /** When each phase began, as a year or a month (`2024`, `2024-03`). */
   phaseDates?: PhaseDates;
-  /** Planned from the start, never a proposal: its timeline begins at Planlagt. */
-  noProposal?: boolean;
+  /**
+   * Phases the project never had, left off its timeline: never a proposal,
+   * no planning of its own, or (as a joke, mostly) never done.
+   */
+  skippedPhases?: SkippablePhase[];
   updated: string;
   /** Set by the server when a moderator adds the project. */
   created?: string;
@@ -277,13 +280,18 @@ export const statuses: Record<Status, { label: string; color: string }> = {
   completed: { label: "Ferdigstilt", color: "#4f9279" },
 };
 export const statusOrder = Object.keys(statuses) as Status[];
-/** The phases on a project's timeline: all four, or from Planlagt on. */
+/** The phases a project's timeline can do without; never Under bygging. */
+export const skippablePhases = ["proposed", "planned", "completed"] as const;
+export type SkippablePhase = (typeof skippablePhases)[number];
+/** The phases on a project's timeline: all four but those it skipped. */
 export function projectPhases(
-  project: Pick<Project, "status" | "noProposal">,
+  project: Pick<Project, "status" | "skippedPhases">,
 ): Status[] {
-  return project.noProposal && project.status !== "proposed"
-    ? statusOrder.slice(1)
-    : statusOrder;
+  return statusOrder.filter(
+    (phase) =>
+      phase === project.status ||
+      !project.skippedPhases?.includes(phase as SkippablePhase),
+  );
 }
 /** Preset views for drawing maps, suggested when entering a project's place. */
 export const cities: Record<string, { center: Point; zoom: number }> = {

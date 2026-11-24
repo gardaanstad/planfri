@@ -5,6 +5,7 @@ import {
   datedPhases,
   type DatedPhase,
   normalizeCategories,
+  skippablePhases,
 } from "./data";
 export const id = z.string().min(1).max(100);
 export const sourceUrl = z
@@ -63,7 +64,7 @@ export const projectFields = z.object({
     )
     .strict()
     .optional(),
-  noProposal: z.boolean().optional(),
+  skippedPhases: z.array(z.enum(skippablePhases)).max(3).optional(),
   updated: z.string().min(1).max(40),
   comments: z.number().int().nonnegative(),
   developer: z.string().max(200),

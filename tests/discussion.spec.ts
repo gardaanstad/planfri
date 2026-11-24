@@ -274,7 +274,7 @@ test("moderators set a project's phase and dates on one timeline, with or withou
   const bar = page.getByRole("region", { name: "Redigering", exact: true });
   await expect(bar).toContainText("1 endring");
   await bar.getByRole("button", { name: "Lagre", exact: true }).click();
-  await expect(bar).toContainText("Uten forslagsfase");
+  await expect(bar).toContainText("Uten Foreslått");
   await bar
     .getByRole("button", { name: "Bekreft og lagre", exact: true })
     .click();
@@ -291,6 +291,39 @@ test("moderators set a project's phase and dates on one timeline, with or withou
   await projectAction(page, "Rediger prosjekt");
   await timeline.getByRole("button", { name: "Legg til Foreslått" }).click();
   await expect(preview.getByRole("listitem").first()).toHaveText("Foreslått");
+  // Planlagt can go too, and the line runs from Foreslått straight to building.
+  await timeline
+    .getByRole("button", { name: "Fjern Planlagt fra tidslinjen" })
+    .click();
+  await expect(timeline.locator("[data-phase-row=planned]")).toHaveAttribute(
+    "data-skipped",
+    "",
+  );
+  // The phase it's in can't come off.
+  await expect(
+    timeline.getByRole("button", { name: "Fjern Under bygging fra tidslinjen" }),
+  ).toHaveCount(0);
+  // Never done: no Ferdig, and the line runs off the end, fading.
+  await timeline
+    .getByRole("button", { name: "Fjern Ferdig fra tidslinjen" })
+    .click();
+  await expect(preview.getByRole("listitem")).toHaveText([
+    "Foreslått",
+    "Byggestart, apr. 2024",
+  ]);
+  await expect(
+    preview.locator("[data-phase=construction] [data-phase-tail]"),
+  ).toBeVisible();
+  await bar.getByRole("button", { name: "Lagre", exact: true }).click();
+  await expect(bar).toContainText("Uten Planlagt og Ferdig");
+  await bar
+    .getByRole("button", { name: "Bekreft og lagre", exact: true })
+    .click();
+  await expect(phases.getByRole("listitem")).toHaveText([
+    "Foreslått",
+    "Byggestart, apr. 2024",
+  ]);
+  await expect(phases).toHaveAttribute("data-phase-strip", "construction");
 });
 
 test("the drawing map opens over the whole screen and comes back with its points", async ({

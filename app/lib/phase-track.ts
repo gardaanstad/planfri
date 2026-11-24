@@ -3,7 +3,6 @@ import {
   type Project,
   projectPhases,
   type Status,
-  statusOrder,
 } from "./data";
 
 /**
@@ -16,12 +15,17 @@ import {
  * steps stay evenly spread.
  */
 export type PhaseTrack = {
-  /** Flex weights of the stretches between the project's phases, first first. */
+  /**
+   * Flex weights of the stretches after each of the project's phases, first
+   * first. Without Ferdig the last phase has one too, running off the end.
+   */
   weights: number[];
   /** Least room per stretch, in em of the labels' type. */
   minimums: number[];
   /** The stretch under way, if both its ends are dated. */
   active?: { index: number; start: number; end: number };
+  /** No Ferdig: the line runs on past the last phase. */
+  open: boolean;
 };
 
 // Geist at the timeline's size averages about half an em per character;
@@ -52,9 +56,12 @@ function stretch(from: string, to: string) {
   return endTo > startFrom ? { start: startFrom, end: endTo } : undefined;
 }
 
-/** When the phase after `status` begins, or for Ferdig the year it's due. */
-function nextDate(project: Project, status: Status) {
-  const next = statusOrder[statusOrder.indexOf(status) + 1];
+/**
+ * When the phase after `status` on the project's timeline begins, or for
+ * Ferdig the year it's due.
+ */
+function nextDate(project: Project, phases: Status[], status: Status) {
+  const next = phases[phases.indexOf(status) + 1];
   if (!next) return "";
   if (next === "completed") return finishYear(project);
   return project.phaseDates?.[next] ?? "";
@@ -73,23 +80,28 @@ export function phaseTrack(
       ? ""
       : (project.phaseDates?.[project.status as Exclude<Status, "completed">] ??
         "");
-  const to = nextDate(project, project.status);
+  const to = nextDate(project, phases, project.status);
   const span = from && to ? stretch(from, to) : undefined;
   const active = span && { index: current, ...span };
   const width = texts.map(
     ({ label, date }) => Math.max(label.length, date.length) * emPerCharacter,
   );
-  // The ends' labels sit inside the line; the middle two centre on their dots.
+  const open = !phases.includes("completed");
+  // The ends' labels sit inside the line; the middle ones centre on their
+  // dots. Running off the end, the last phase is a middle one.
   const share = (index: number) =>
-    index === 0 || index === last ? width[index] : width[index] / 2;
+    index === 0 || (index === last && !open) ? width[index] : width[index] / 2;
+  const stretches = open ? phases : phases.slice(0, last);
   return {
-    weights: phases
-      .slice(0, last)
-      .map((_, index) => (index === active?.index ? activeWeight : 1)),
-    minimums: phases
-      .slice(0, last)
-      .map((_, index) => share(index) + share(index + 1) + gap),
+    weights: stretches.map((_, index) =>
+      index === active?.index ? activeWeight : 1,
+    ),
+    minimums: stretches.map(
+      (_, index) =>
+        share(index) + (index < last ? share(index + 1) : width[index] / 2) + gap,
+    ),
     active,
+    open,
   };
 }
 

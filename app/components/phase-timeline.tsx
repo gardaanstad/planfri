@@ -67,7 +67,12 @@ export default function PhaseTimeline({
     track.active && now !== null ? trackProgress(track.active, now) : 0;
   const tone = statusTone[project.status];
   const step = (status: Status, index: number) => {
-    const edge = index === 0 ? "start" : index === last ? "end" : "middle";
+    const edge =
+      index === 0
+        ? "start"
+        : index === last && !track.open
+          ? "end"
+          : "middle";
     return (
       <>
         <i
@@ -126,13 +131,13 @@ export default function PhaseTimeline({
         data-phase-strip={project.status}
         data-phase-active={track.active ? project.status : undefined}
       >
-        {phases.slice(0, last).map((status, index) => (
+        {(track.open ? phases : phases.slice(0, last)).map((status, index) => (
           <li
             key={status}
             className="relative"
             style={{
               flex: `${track.weights[index]} 1 0`,
-              minWidth: `min(${track.minimums[index].toFixed(2)}em, ${100 / last}%)`,
+              minWidth: `min(${track.minimums[index].toFixed(2)}em, ${100 / track.weights.length}%)`,
             }}
             aria-current={index === current ? "step" : undefined}
             data-phase={status}
@@ -141,8 +146,16 @@ export default function PhaseTimeline({
               aria-hidden="true"
               className={cn(
                 "absolute inset-x-0 top-1.25 h-0.5 -translate-y-1/2 overflow-hidden rounded-full",
-                index < current ? "bg-ink-soft/55" : "bg-border",
+                index < current
+                  ? "bg-ink-soft/55"
+                  : index === last && index === current
+                    ? tone.dot
+                    : "bg-border",
+                // Never done: the line runs on and fades out.
+                index === last &&
+                  "rounded-r-none mask-[linear-gradient(to_right,black_15%,transparent)]",
               )}
+              data-phase-tail={index === last ? "" : undefined}
             >
               {index === track.active?.index && (
                 <span
@@ -158,13 +171,15 @@ export default function PhaseTimeline({
             {step(status, index)}
           </li>
         ))}
-        <li
-          className="absolute top-0 right-0 h-full"
-          aria-current={current === last ? "step" : undefined}
-          data-phase={phases[last]}
-        >
-          {step(phases[last], last)}
-        </li>
+        {!track.open && (
+          <li
+            className="absolute top-0 right-0 h-full"
+            aria-current={current === last ? "step" : undefined}
+            data-phase={phases[last]}
+          >
+            {step(phases[last], last)}
+          </li>
+        )}
       </ol>
       {track.active && now !== null && progressWords[project.status] && (
         <p className="sr-only">

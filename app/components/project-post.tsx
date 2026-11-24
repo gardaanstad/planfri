@@ -1202,9 +1202,11 @@ export default function ProjectPost({
             ...changes,
             ...("website" in changes && { website: changes.website ?? "" }),
             ...("images" in changes && { images: changes.images ?? [] }),
-            // Back on the timeline, Foreslått travels as a plain false.
-            ...("noProposal" in changes &&
-              project.noProposal && { noProposal: changes.noProposal ?? false }),
+            // Phases all back on the timeline travel as an empty list.
+            ...("skippedPhases" in changes &&
+              project.skippedPhases && {
+                skippedPhases: changes.skippedPhases ?? [],
+              }),
           },
           note,
         });
