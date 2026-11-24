@@ -133,6 +133,7 @@ function DesktopActions({
           className={cn(headerIconButton, saved && "text-accent hover:text-accent")}
           onClick={onSave}
           data-save=""
+          data-press=""
           aria-label={saved ? "Lagret" : "Lagre"}
           aria-pressed={saved}
           data-tooltip={saved ? "Fjern fra lagrede" : "Lagre"}
@@ -390,6 +391,7 @@ export default function ProjectPostHeader({
               aria-label={full ? "Vis i sidepanel" : "Vis som helside"}
               data-tooltip={full ? "Vis i sidepanel" : "Vis som helside"}
               data-project-full=""
+              data-press=""
               data-sidebar-maximize=""
             >
               {full ? <Minimize2 size={17} /> : <Maximize2 size={17} />}

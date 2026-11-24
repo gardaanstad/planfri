@@ -157,6 +157,7 @@ function FilterRows({
             type="button"
             data-filter-section={section.id}
             aria-expanded={open}
+            data-press=""
             className={cn(
               "flex w-full items-center rounded-lg text-left -outline-offset-2",
               "transition-colors duration-150 active:bg-surface-muted motion-reduce:transition-none",

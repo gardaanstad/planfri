@@ -343,6 +343,7 @@ export default memo(function ProjectCard({
             )}
             aria-pressed={saved}
             data-save=""
+            data-press=""
             data-tooltip={saved ? "Fjern fra lagrede" : undefined}
             onClick={() => onSave(project.id)}
           >

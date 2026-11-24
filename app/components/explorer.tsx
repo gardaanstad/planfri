@@ -1433,6 +1433,7 @@ export default memo(function Explorer({
       aria-expanded={searchOpen}
       aria-controls="project-search-field"
       data-active={searchActive || undefined}
+      data-press=""
       onClick={openSearch}
     >
       <Search size={isMobile ? 19 : 16} aria-hidden="true" />
@@ -1457,6 +1458,7 @@ export default memo(function Explorer({
       aria-haspopup="dialog"
       aria-expanded={filterSheetOpen}
       data-active={filtersSet || undefined}
+      data-press=""
       data-tooltip={isMobile ? undefined : "Filtre"}
       {...(isMobile
         ? { onClick: () => setFilterSheetOpen(true) }

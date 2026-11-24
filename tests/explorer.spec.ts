@@ -3494,3 +3494,93 @@ test("menus, the sidebar and projects open as the mouse goes down", async ({
   await page.mouse.up();
   await expect(page).toHaveURL(new RegExp(`/prosjekt/${id}`));
 });
+
+test("search, filters, saving and the full page act as the mouse goes down", async ({
+  page,
+  context,
+}) => {
+  await signIn(context, await member({ username: uniqueName() }));
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/");
+  const filters = page.getByRole("region", {
+    name: "Filtrer prosjekter",
+    exact: true,
+  });
+  const sort = page.getByRole("button", { name: /^Sorter prosjekter:/ });
+  await expect(async () => {
+    await sort.click();
+    await expect(sort).toHaveAttribute("aria-expanded", "true", {
+      timeout: 1000,
+    });
+  }).toPass();
+  await page.keyboard.press("Escape");
+  const press = async (target: Locator) => {
+    const box = (await target.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+  };
+
+  // The search opens, and keeps its focus past the release.
+  const searchButton = filters.getByRole("button", { name: "Åpne søk" });
+  const field = page.getByLabel("Søk etter prosjekt eller sted");
+  await press(searchButton);
+  await expect(field).toBeFocused();
+  await page.mouse.up();
+  await expect(field).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(searchButton).toBeFocused();
+
+  // A narrow sidebar's filter button opens its popover, and its rows open.
+  const handle = page.getByRole("separator", {
+    name: "Bredde på prosjektlisten",
+  });
+  const filterButton = filters.getByRole("button", {
+    name: "Filtre",
+    exact: true,
+  });
+  await handle.focus();
+  for (let step = 0; step < 20 && !(await filterButton.isVisible()); step++)
+    await page.keyboard.press("ArrowLeft");
+  const popover = page.locator("[data-filter-popover]");
+  await press(filterButton);
+  await expect(popover).toBeVisible();
+  await page.mouse.up();
+  await expect(popover).toBeVisible();
+  const statusRow = popover.getByRole("button", { name: /^Status/ });
+  await press(statusRow);
+  await expect(statusRow).toHaveAttribute("aria-expanded", "true");
+  await page.mouse.up();
+  await expect(statusRow).toHaveAttribute("aria-expanded", "true");
+  await press(filterButton);
+  await expect(popover).toBeHidden();
+  await page.mouse.up();
+  await expect(popover).toBeHidden();
+
+  // A card's save, in the expanded view, then the project's.
+  await page
+    .getByRole("group", { name: "Visning" })
+    .getByRole("button", { name: "Utvidet" })
+    .click();
+  const card = page.locator("[data-card-id]").first();
+  const cardSave = card.locator("[data-save]");
+  await press(cardSave);
+  await expect(cardSave).toHaveAttribute("aria-pressed", "true");
+  await page.mouse.up();
+  await expect(cardSave).toHaveAttribute("aria-pressed", "true");
+  await press(cardSave);
+  await expect(cardSave).toHaveAttribute("aria-pressed", "false");
+  await page.mouse.up();
+
+  await card.locator("h2 button").click();
+  const save = page.locator("[data-project-actions] [data-save]");
+  await press(save);
+  await expect(save).toHaveAttribute("aria-pressed", "true");
+  await page.mouse.up();
+  await expect(save).toHaveAttribute("aria-pressed", "true");
+
+  const full = page.locator("[data-project-full]");
+  await press(full);
+  await expect(page).toHaveURL(/[?&]visning=full/);
+  await page.mouse.up();
+  await expect(full).toHaveAccessibleName("Vis i sidepanel");
+});
