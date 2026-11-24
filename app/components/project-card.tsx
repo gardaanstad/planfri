@@ -213,7 +213,8 @@ export default memo(function ProjectCard({
         wash,
         "hover:before:bg-surface-muted/65",
         offMap && [
-          "opacity-55 transition-opacity duration-120 hover:opacity-100 focus-within:opacity-100",
+          "opacity-60 transition-opacity duration-120 hover:opacity-100 focus-within:opacity-100",
+          "dark:opacity-50 dark:hover:opacity-100 dark:focus-within:opacity-100",
           // Out of sight, these rows skip paint and hit tests: a place can
           // list many more of them than the map shows. The margin keeps the
           // hover wash, which bleeds past the row, from being clipped.

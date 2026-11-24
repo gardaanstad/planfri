@@ -1537,7 +1537,7 @@ test.describe("desktop explorer", () => {
       list.getByRole("button", { name: "Ikke synlige på kartet" }),
     ).toBeVisible();
     const first = muted.first();
-    await expect(first).toHaveCSS("opacity", "0.55");
+    await expect(first).toHaveCSS("opacity", "0.6");
     await first.hover();
     await expect(first).toHaveCSS("opacity", "1");
   });
