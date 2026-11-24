@@ -353,8 +353,9 @@ export type MapViewChange = MapView & {
 };
 // Vector maps from OpenFreeMap: free, without keys or limits, and drawn
 // by the browser, so labels and lines are sharp at any pixel density and at
-// half zoom steps. Positron is a quiet grey base for the projects, and Dark
-// its counterpart in dark mode; Liberty is a street map, light in both.
+// half zoom steps. The overview is OpenFreeMap's Dark, a quiet base for the
+// projects, recoloured in light mode (see lightOverview); Liberty is a
+// street map, light in both.
 // OpenStreetMap's own map is raster, but it draws what the vector styles
 // leave out, such as lines under construction, so it's the default when
 // drawing a project.
@@ -374,11 +375,116 @@ const osmStyle: maplibregl.StyleSpecification = {
   layers: [{ id: "osm", type: "raster", source: "osm" }],
 };
 const mapStyles: Record<MapLayer, string | maplibregl.StyleSpecification> = {
-  standard: "https://tiles.openfreemap.org/styles/positron",
+  standard: "https://tiles.openfreemap.org/styles/dark",
   streets: "https://tiles.openfreemap.org/styles/liberty",
   osm: osmStyle,
 };
-const darkStandardStyle = "https://tiles.openfreemap.org/styles/dark";
+type BaseTone = "light" | "dark";
+/**
+ * The overview's light tone: Dark's layers in Positron-like greys, each
+ * keeping its place in Dark's order of lighter and darker. Land is pale,
+ * roads white within grey casings, water a grey blue.
+ */
+const background = "#f2f2ef";
+const casing = "#d3d3ce";
+const lightOverview: Record<string, Record<string, unknown>> = {
+  background: { "background-color": background },
+  water: { "fill-color": "#c9d1d4" },
+  waterway: { "line-color": "#c9d1d4" },
+  landcover_ice_shelf: { "fill-color": "#fafafa" },
+  landcover_glacier: { "fill-color": "#fafafa" },
+  landuse_residential: { "fill-color": "#e6e6e2" },
+  landuse_park: { "fill-color": "#e3e7de" },
+  water_name: { "text-color": "#7b8a90", "text-halo-color": "rgba(255,255,255,0.7)" },
+  building: { "fill-color": "#e4e4e0", "fill-outline-color": "#d9d9d4" },
+  "aeroway-taxiway": { "line-color": "#fafafa" },
+  "aeroway-runway-casing": { "line-color": casing },
+  "aeroway-area": { "fill-color": "#fafafa" },
+  "aeroway-runway": { "line-color": "#fafafa" },
+  road_area_pier: { "fill-color": background },
+  road_pier: { "line-color": background },
+  highway_path: { "line-color": "#d6d6d1" },
+  highway_minor: { "line-color": "#ffffff" },
+  highway_major_casing: { "line-color": casing },
+  highway_major_inner: { "line-color": "#ffffff" },
+  highway_major_subtle: { "line-color": "#dcdcd7" },
+  highway_motorway_casing: { "line-color": "#cbcbc6" },
+  highway_motorway_inner: {
+    "line-color": ["interpolate", ["linear"], ["zoom"], 5.8, "hsla(0,0%,15%,0.53)", 6, "#ffffff"],
+  },
+  highway_motorway_subtle: { "line-color": "#dcdcd7" },
+  railway_transit: { "line-color": casing },
+  railway_transit_dashline: { "line-color": background },
+  railway_minor: { "line-color": casing },
+  railway_minor_dashline: { "line-color": background },
+  railway: { "line-color": casing },
+  railway_dashline: { "line-color": background },
+  highway_name_other: { "text-color": "#8a8a87", "text-halo-color": "#ffffff" },
+  boundary_state: { "line-color": "hsl(0,0%,80%)" },
+  "boundary_country_z0-4": { "line-color": "hsl(0,0%,76%)" },
+  "boundary_country_z5-": { "line-color": "hsl(0,0%,76%)" },
+};
+const lightPlaceLabel = {
+  "text-color": "rgb(112,112,112)",
+  "text-halo-color": "rgba(255,255,255,0.75)",
+};
+/** Dark's road names were too dark to read against its roads. */
+const darkOverview: Record<string, Record<string, unknown>> = {
+  highway_name_other: { "text-color": "rgb(112,112,112)" },
+};
+/**
+ * Road numbers, such as E18, on a small rounded plate instead of bare grey
+ * text on the road. The plate is drawn here and stretched to fit its text.
+ */
+const shieldColours: Record<BaseTone, { fill: string; edge: string; text: string }> = {
+  dark: { fill: "#262626", edge: "#3a3a3a", text: "#b4b4b4" },
+  light: { fill: "#ffffff", edge: "#cacac5", text: "#5e5e5b" },
+};
+const shieldImage = (tone: BaseTone) => `planfri-shield-${tone}`;
+function addShield(gl: maplibregl.Map, id: string) {
+  const tone = (["dark", "light"] as const).find((t) => shieldImage(t) === id);
+  if (!tone || gl.hasImage(id)) return;
+  const { fill, edge } = shieldColours[tone];
+  const ratio = 2;
+  const size = 20 * ratio;
+  const radius = 3 * ratio;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const context = canvas.getContext("2d");
+  if (!context) return;
+  context.fillStyle = fill;
+  context.strokeStyle = edge;
+  context.lineWidth = ratio;
+  context.beginPath();
+  context.roundRect(ratio / 2, ratio / 2, size - ratio, size - ratio, radius);
+  context.fill();
+  context.stroke();
+  // Stretched between the corners; the text may run up to near the edge.
+  const corner = radius + ratio;
+  const inset = ratio;
+  gl.addImage(id, context.getImageData(0, 0, size, size), {
+    pixelRatio: ratio,
+    stretchX: [[corner, size - corner]],
+    stretchY: [[corner, size - corner]],
+    content: [inset, inset, size - inset, size - inset],
+  });
+}
+function shield(layer: maplibregl.SymbolLayerSpecification, tone: BaseTone) {
+  const { text } = shieldColours[tone];
+  return {
+    ...layer,
+    filter: ["all", layer.filter ?? true, ["has", "ref"]],
+    layout: {
+      ...layer.layout,
+      "icon-image": shieldImage(tone),
+      "icon-text-fit": "both",
+      "icon-text-fit-padding": [0, 2, 0, 2],
+      "icon-rotation-alignment": "viewport",
+      "symbol-spacing": 400,
+    },
+    paint: { "text-color": text },
+  } as maplibregl.SymbolLayerSpecification;
+}
 const norwegianName: maplibregl.ExpressionSpecification = [
   "coalesce",
   ["get", "name:no"],
@@ -397,12 +503,25 @@ const missingImage = (value: unknown) =>
 function localize(
   style: maplibregl.StyleSpecification,
   standard: boolean,
+  tone: BaseTone,
 ): maplibregl.StyleSpecification {
+  const palette = !standard ? {} : tone === "light" ? lightOverview : darkOverview;
   return {
     ...style,
     layers: style.layers.flatMap((layer): maplibregl.LayerSpecification[] => {
       if (layer.type === "fill" && missingImage(layer.paint?.["fill-pattern"])) return [];
+      const colours =
+        palette[layer.id] ??
+        (standard && tone === "light" && layer.id.startsWith("place_")
+          ? lightPlaceLabel
+          : undefined);
+      if (colours)
+        layer = {
+          ...layer,
+          paint: { ...layer.paint, ...colours },
+        } as maplibregl.LayerSpecification;
       if (layer.type !== "symbol") return [layer];
+      if (standard && layer.id === "highway_name_motorway") layer = shield(layer, tone);
       const named = JSON.stringify(layer.layout?.["text-field"] ?? "").includes("name");
       // Keys are only set when changed: MapLibre rejects an undefined `paint`.
       const next = { ...layer };
@@ -569,7 +688,11 @@ export default function ProjectMap({
   const refreshBase = useRef<() => boolean>(() => false);
   // The base map, and the style it was last given.
   const glRef = useRef<maplibregl.Map | null>(null);
-  const glStyle = useRef<string | maplibregl.StyleSpecification | null>(null);
+  // The style the base map was last given, and in which tone.
+  const glStyle = useRef<{
+    style: string | maplibregl.StyleSpecification;
+    tone: BaseTone;
+  } | null>(null);
   const osmSelect = useRef(osm?.onSelect);
   const osmSelected = useRef(osm?.selectedId ?? null);
   // Restyles one candidate for the current selection.
@@ -590,7 +713,8 @@ export default function ProjectMap({
   }
   // Shapes outlined to stand out from the base map; see project-map.css.
   const darkBase = useTheme() === "dark" && layer === "standard";
-  const baseStyle = darkBase ? darkStandardStyle : mapStyles[layer];
+  const baseTone: BaseTone = darkBase ? "dark" : "light";
+  const baseStyle = mapStyles[layer];
   const layerMenu = useRef<HTMLDivElement>(null);
   const layerButton = useRef<HTMLButtonElement>(null);
   // Phones choose a layer from a sheet; the sheet minds its own focus.
@@ -818,6 +942,7 @@ export default function ProjectMap({
     const gl = base.getMaplibreMap();
     glRef.current = gl;
     glStyle.current = null;
+    gl.on("styleimagemissing", ({ id }: { id: string }) => addShield(gl, id));
     gl.on("error", () => {
       if (++failures > 4)
         setMapMessage("Kartet kunne ikke lastes. Prøv et annet kartlag.");
@@ -838,18 +963,19 @@ export default function ProjectMap({
       base.remove();
     };
   }, [ready, layer]);
-  // Overview and dark overview share their tiles, so switching between them
+  // The overview's two tones share their tiles, so switching between them
   // only repaints: the map changes colour with the page, without reloading.
   useEffect(() => {
     const gl = glRef.current;
-    if (!ready || !gl || glStyle.current === baseStyle) return;
+    const last = glStyle.current;
+    if (!ready || !gl || (last?.style === baseStyle && last.tone === baseTone)) return;
     const standard = layer === "standard";
     gl.setStyle(baseStyle, {
-      diff: glStyle.current !== null,
-      transformStyle: (_, next) => localize(next, standard),
+      diff: last !== null,
+      transformStyle: (_, next) => localize(next, standard, baseTone),
     });
-    glStyle.current = baseStyle;
-  }, [ready, layer, baseStyle]);
+    glStyle.current = { style: baseStyle, tone: baseTone };
+  }, [ready, layer, baseStyle, baseTone]);
   useEffect(() => {
     projectsRef.current = projects;
   }, [projects]);
