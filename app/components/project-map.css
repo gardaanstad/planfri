@@ -93,6 +93,11 @@
   }
 }
 
+/* Proposed projects sit lighter than those decided on, until opened. */
+[data-project-map] .is-proposed:not(.is-selected) {
+  opacity: 0.6;
+}
+
 /* With a project open, the others step back so it stands out. */
 [data-project-map][data-selection] .leaflet-overlay-pane path:not(.is-selected):not(.project-hit) {
   opacity: 0.4;

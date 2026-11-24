@@ -67,12 +67,16 @@ const dotRadius = (selected: boolean) => (selected ? 8 : 6);
 // Rail and road read as on OpenStreetMap. A road is a band in its status
 // colour, white every other stretch inside a thin border; a railway, metro
 // or tramway is square dashes with nothing between them, until it stands
-// out: then it widens over a casing, its dashes where they were.
-const roadWeight = (selected: boolean) => (selected ? 8.5 : 7);
-const roadStripes = (selected: boolean) => ({
-  weight: roadWeight(selected) - 2.5,
-  dashArray: "9, 9",
-});
+// out: then it widens over a casing, its dashes where they were. A road
+// not yet built is narrower and hollow: two thin edges in its colour.
+const unbuilt = (project: Project) =>
+  project.status === "proposed" || project.status === "planned";
+const roadWeight = (selected: boolean, built = true) =>
+  built ? (selected ? 8.5 : 7) : selected ? 7.5 : 5.5;
+const roadStripes = (selected: boolean, built = true) =>
+  built
+    ? { weight: roadWeight(selected) - 2.5, dashArray: "9, 9" }
+    : { weight: roadWeight(selected, false) - 3, dashArray: undefined };
 const railWeight = (selected: boolean) => (selected ? 7.5 : 5);
 const railCasing = (selected: boolean) => ({
   weight: railWeight(selected) + 4,
@@ -84,7 +88,11 @@ const projectStyle = (project: Project, selected: boolean) => {
   const base = shapeStyle(project.geometryType === "line", selected);
   const mode = lineMode(project);
   if (mode === "road")
-    return { ...base, weight: roadWeight(selected), dashArray: undefined };
+    return {
+      ...base,
+      weight: roadWeight(selected, !unbuilt(project)),
+      dashArray: undefined,
+    };
   if (mode === "rail") {
     // Dashes as long as the resting line is wide, so they stay put.
     const dash = railWeight(false);
@@ -1054,7 +1062,10 @@ export default function ProjectMap({
       const selected = project.id === selectedRef.current;
       const line = project.geometryType === "line";
       const mode = lineMode(project);
+      // Proposed projects step back; see project-map.css.
+      const faded = project.status === "proposed" ? " is-proposed" : "";
       const options = {
+        className: faded.trim() || undefined,
         color,
         bubblingMouseEvents: false,
         fillColor: color,
@@ -1066,7 +1077,7 @@ export default function ProjectMap({
       // dashes.
       const casing = line
         ? L.polyline(project.geometry, {
-            className: "project-casing",
+            className: `project-casing${faded}`,
             weight: options.weight + 4,
             opacity: 0.95,
             ...(mode === "rail" && railCasing(selected)),
@@ -1089,13 +1100,13 @@ export default function ProjectMap({
       const stripes =
         mode === "road"
           ? L.polyline(project.geometry, {
-              className: "project-stripes",
+              className: `project-stripes${faded}`,
               color: "#fff",
               opacity: 1,
               lineCap: "butt",
               lineJoin: "round",
               interactive: false,
-              ...roadStripes(selected),
+              ...roadStripes(selected, !unbuilt(project)),
             }).addTo(group)
           : undefined;
       shape.on("click", (event) => {
@@ -1147,7 +1158,7 @@ export default function ProjectMap({
         line ? lineMidpoint(project.geometry) : project.center,
         {
           // Slides along with the tiles while the map zooms; see dotSvg.
-          className: "project-dot leaflet-zoom-animated",
+          className: `project-dot leaflet-zoom-animated${faded}`,
           renderer: dotRenderer,
           radius: dotRadius(selected),
           weight: 2,
@@ -1359,7 +1370,7 @@ export default function ProjectMap({
           ? railCasing(emphasized)
           : { weight: shapeOptions.weight + 4 },
       );
-      stripes?.setStyle(roadStripes(emphasized));
+      stripes?.setStyle(roadStripes(emphasized, !unbuilt(project)));
       dot.setRadius(dotRadius(emphasized));
       const group = groupOf.get(id);
       // Inside a group, the group lights up in its place.
