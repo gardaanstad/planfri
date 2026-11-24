@@ -54,6 +54,16 @@ async function expectDrawerHeight(
     .toBeCloseTo(fraction, 1);
 }
 
+/** Folds the list down from the middle height it opens at. */
+async function foldList(page: Page) {
+  await expectDrawerHeight(page, 0.58);
+  await swipeDown(
+    page,
+    page.getByRole("button", { name: "Utvid prosjektlisten", exact: true }),
+  );
+  await expectDrawerHeight(page, compact);
+}
+
 /** Each project lies in the box: as its shape, its dot, or its group. */
 async function expectMembersIn(
   page: Page,
@@ -141,6 +151,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
 
   test("a tap beside an alignment still opens it", async ({ page }) => {
     await page.goto("/?kart=59.1200,5.5000,8");
+    await foldList(page);
     const line = page.locator('path[data-project-id="rogfast"]');
     await expect(line).toBeVisible();
     // A point midway along the line, and the way across it there.
@@ -171,9 +182,9 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
   test("projects open in their own drawer over the map and preserve map, history, and reading space", async ({
     page,
   }) => {
-    // The list opens folded down to its filters, and unfolds to full height.
+    // The list opens at the middle height, and unfolds to full height.
     await page.goto("/");
-    await expectDrawerHeight(page, compact);
+    await expectDrawerHeight(page, 0.58);
     const expand = page.getByRole("button", {
       name: "Utvid prosjektlisten",
       exact: true,
@@ -220,7 +231,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     // From the folded list, over the project on the map.
     await page.goto("/?kart=59.9100,10.7500,13");
     await expect(projectDrawer).toBeHidden();
-    await expectDrawerHeight(page, compact);
+    await foldList(page);
     // Until the map regroups at its new zoom, the shape can be hidden in a
     // group, and a key pressed on it would go elsewhere.
     const shape = page.locator(`[data-project-id="${project.id}"]`);
@@ -468,7 +479,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       .click();
     await expect(page).toHaveURL(atList);
     await expect(drawer).toBeHidden();
-    await expectDrawerHeight(page, compact);
+    await expectDrawerHeight(page, 0.58);
     // Back to the area it was opened from at the zoom it had.
     await expect
       .poll(() => new URL(page.url()).searchParams.get("kart"))
@@ -479,10 +490,6 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     page,
   }) => {
     await page.goto("/");
-    await swipeUp(
-      page,
-      page.getByRole("button", { name: "Utvid prosjektlisten", exact: true }),
-    );
     await expectDrawerHeight(page, 0.58);
     await page
       .getByRole("region", { name: "Prosjektliste", exact: true })
@@ -534,10 +541,6 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
   }) => {
     await page.goto("/?kart=59.9100,10.7500,13");
     // From the list at the middle height, which folds under the project.
-    await swipeUp(
-      page,
-      page.getByRole("button", { name: "Utvid prosjektlisten", exact: true }),
-    );
     await expectDrawerHeight(page, 0.58);
     const shape = page.locator(`path[data-project-id="${project.id}"]`);
     await shape.dispatchEvent("pointerdown");
@@ -588,6 +591,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
 
   test("a tap on the map closes a project opened from it", async ({ page }) => {
     await page.goto("/?kart=59.9100,10.7500,13");
+    await foldList(page);
     const shape = page.locator(`path[data-project-id="${project.id}"]`);
     await shape.dispatchEvent("pointerdown");
     await shape.dispatchEvent("click");
@@ -605,10 +609,38 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expectDrawerHeight(page, compact);
   });
 
+  test("a project that zoomed the map far in flies back out on closing", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto("/?kart=59.9100,10.7500,6");
+    await expectDrawerHeight(page, 0.58);
+    const kart = () => new URL(page.url()).searchParams.get("kart")!;
+    await expect.poll(kart).toMatch(/,6$/);
+    const before = kart().split(",").map(Number);
+    const dot = page.locator(`[data-project-id="${project.id}"]`);
+    await dot.dispatchEvent("pointerdown");
+    await dot.dispatchEvent("click");
+    await expect(page).toHaveURL(atProject);
+    await expect.poll(() => Number(kart().split(",")[2])).toBeGreaterThan(10);
+    await page
+      .getByRole("button", { name: "Lukk prosjekt", exact: true })
+      .click();
+    await expect(page).toHaveURL(atList);
+    await expectDrawerHeight(page, 0.58);
+    // Back where it was, at the zoom it had.
+    await expect.poll(() => kart().split(",").map(Number)).toEqual([
+      expect.closeTo(before[0], 2),
+      expect.closeTo(before[1], 2),
+      6,
+    ]);
+  });
+
   test("a project closed after the map was moved leaves the map there", async ({
     page,
   }) => {
     await page.goto("/?kart=59.9100,10.7500,13");
+    await foldList(page);
     const shape = page.locator(`path[data-project-id="${project.id}"]`);
     await shape.dispatchEvent("pointerdown");
     await shape.dispatchEvent("click");
@@ -639,7 +671,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     page,
   }) => {
     await page.goto("/");
-    await expectDrawerHeight(page, compact);
+    await foldList(page);
     const handle = page.getByRole("button", {
       name: "Utvid prosjektlisten",
       exact: true,
@@ -680,10 +712,6 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     page,
   }) => {
     await page.goto("/");
-    await swipeUp(
-      page,
-      page.getByRole("button", { name: "Utvid prosjektlisten", exact: true }),
-    );
     await expectDrawerHeight(page, 0.58);
     const list = page.locator("[data-explorer-drawer] [data-drawer-scroll]");
     // As if scrolled at the full height and brought back down.
@@ -713,11 +741,6 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     page,
   }) => {
     await page.goto("/");
-    await expectDrawerHeight(page, compact);
-    await swipeUp(
-      page,
-      page.getByRole("button", { name: "Utvid prosjektlisten", exact: true }),
-    );
     await expectDrawerHeight(page, 0.58);
     // A finger across the map above the list, not on the list itself.
     await touchMove(page, { x: 160, y: 100 }, { x: 100, y: 140 }, { steps: 10 });
@@ -742,12 +765,10 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     page,
   }) => {
     await page.goto("/");
-    await expectDrawerHeight(page, compact);
     const expand = page.getByRole("button", {
       name: "Utvid prosjektlisten",
       exact: true,
     });
-    await swipeUp(page, expand);
     await expectDrawerHeight(page, 0.58);
     // Two fingers spread apart on the map above the list.
     const session = await page.context().newCDPSession(page);
@@ -790,7 +811,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await page
       .getByRole("button", { name: "Lukk prosjekt", exact: true })
       .click();
-    await expectDrawerHeight(page, compact);
+    await expectDrawerHeight(page, 0.58);
     const filters = page.getByRole("region", {
       name: "Filtrer prosjekter",
       exact: true,
@@ -1272,7 +1293,7 @@ test("saved projects keep their collection and full reading height", async ({
   await openSaved(page);
   // Panels open in drawers of their own, over the explorer where it was.
   await expectDrawerHeight(page, 1, "saved");
-  await expectDrawerHeight(page, compact);
+  await expectDrawerHeight(page, 0.58);
   await page
     .getByRole("region", { name: "Lagret", exact: true })
     .getByRole("button", { name: new RegExp(project.title) })
@@ -2903,40 +2924,56 @@ test.describe("the place follows the map", () => {
       userAgent: devices["Pixel 7"].userAgent,
     });
 
-    test("the drawer picks and clears a place, framed above it", async ({
+    test("a picked place keeps the drawer's height, coming down from full, framed above it", async ({
       page,
     }) => {
       await page.goto("/?kart=64.0000,12.0000,4");
-      const filters = page
-        .locator("[data-explorer-drawer]")
-        .getByRole("region", { name: "Filtrer prosjekter", exact: true });
+      const drawer = page.locator("[data-explorer-drawer]");
+      const filters = drawer.getByRole("region", {
+        name: "Filtrer prosjekter",
+        exact: true,
+      });
       const place = (name: string) =>
         filters.getByRole("button", { name: `Sted: ${name}`, exact: true });
-      await expect(place("Hele Norge")).toHaveText("Hele Norge");
-      await place("Hele Norge").click();
       const options = page.getByRole("listbox", { name: "Sted", exact: true });
-      await options.getByRole("option", { name: /^Bergen/ }).click();
-      await expect(place("Bergen")).toBeVisible();
-      await expectDrawerHeight(page, compact);
-      await expect(listed(page, "Bybanen til Åsane")).toHaveCount(1);
-      // Bergen's centre lies in the map the drawer leaves open.
-      const top = await page
-        .locator("[data-explorer-drawer]")
-        .evaluate((element) => element.getBoundingClientRect().top);
-      await expect
-        .poll(() =>
-          page.evaluate(() => {
-            const shape = document.querySelector(
-              'path[data-project-id="bybanen"]',
-            );
-            return shape?.getBoundingClientRect().bottom ?? Infinity;
-          }),
-        )
-        .toBeLessThan(top);
-      await place("Bergen").click();
-      await options.getByRole("option", { name: /^Hele Norge/ }).click();
+      const pick = async (from: string, to: string) => {
+        await place(from).click();
+        await options.getByRole("option", { name: new RegExp(`^${to}`) }).click();
+        await expect(place(to)).toBeVisible();
+      };
+      // Bergen's projects lie in the map the drawer leaves open, framed
+      // close.
+      const framedAbove = async () => {
+        await expect(listed(page, "Bybanen til Åsane")).toHaveCount(1);
+        const top = await drawer.evaluate(
+          (element) => element.getBoundingClientRect().top,
+        );
+        await expectMembersIn(page, ["bybanen"], {
+          left: 0,
+          top: 0,
+          right: 390,
+          bottom: top,
+        });
+        await expect.poll(() => zoomOf(page)).toBeGreaterThanOrEqual(9.5);
+      };
+      // At the middle height it stays there.
       await expect(place("Hele Norge")).toHaveText("Hele Norge");
+      await pick("Hele Norge", "Bergen");
+      await expectDrawerHeight(page, 0.58);
+      await framedAbove();
+      // Folded, it stays folded.
+      await foldList(page);
+      await pick("Bergen", "Hele Norge");
+      await expectDrawerHeight(page, compact);
       await expect.poll(() => zoomOf(page)).toBeLessThan(7);
+      // At the full height, it comes down to the middle one.
+      await page
+        .getByRole("button", { name: "Utvid prosjektlisten", exact: true })
+        .click();
+      await expectDrawerHeight(page, 1);
+      await pick("Hele Norge", "Bergen");
+      await expectDrawerHeight(page, 0.58);
+      await framedAbove();
     });
 
     test("the compact drawer names the place the map shows above it", async ({
@@ -2949,7 +2986,7 @@ test.describe("the place follows the map", () => {
         .getByRole("region", { name: "Filtrer prosjekter", exact: true });
       const place = (name: string) =>
         filters.getByRole("button", { name: `Sted: ${name}`, exact: true });
-      await expectDrawerHeight(page, compact);
+      await foldList(page);
       await expect(place("Bergen")).toBeVisible();
     });
 
@@ -3196,7 +3233,7 @@ test.describe("the list holds what the uncovered map shows", () => {
       page,
     }) => {
       await page.goto("/?kart=59.8000,10.7500,9.5");
-      await expectDrawerHeight(page, compact);
+      await foldList(page);
       const group = page.locator(`.project-cluster[data-cluster~="${area.id}"]`);
       const members = (await group.getAttribute("data-cluster"))!.split(" ");
       const before = new URL(page.url()).searchParams.get("kart");
@@ -3218,7 +3255,7 @@ test.describe("the list holds what the uncovered map shows", () => {
     test("under the drawer is out; just above it is in", async ({ page }) => {
       await page.goto("/");
       const drawer = page.locator("[data-explorer-drawer]");
-      await expectDrawerHeight(page, compact);
+      await expectDrawerHeight(page, 0.58);
       const top = await drawer.evaluate(
         (element) => element.getBoundingClientRect().top,
       );

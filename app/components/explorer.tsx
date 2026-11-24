@@ -156,7 +156,8 @@ type PostTarget = {
   commentId?: string;
   section?: "discussion" | "updates";
 };
-// A project opened over the map rests at this height, the map above it.
+// A project opened over the map rests at this height, the map above it, and
+// so does the list as the page opens (its static shell is sized to match).
 const middleSnapPoint = 0.58;
 // The compact drawer shows just the header and filters along the bottom edge.
 const compactSnapPoint = "136px";
@@ -164,6 +165,12 @@ const compactSnapPoint = "136px";
 const middleMapInset = () => Math.round(window.innerHeight * middleSnapPoint);
 /** The map the drawer covers at its compact height. */
 const compactMapInset = Number.parseInt(compactSnapPoint);
+/**
+ * What of the map's bottom the list covers at a height, for framing: at the
+ * full height the map is out of sight, and counted as under the compact one.
+ */
+const listMapInset = (point: DrawerSnapPoint | null) =>
+  point === middleSnapPoint ? middleMapInset() : compactMapInset;
 // The list folds down to its filters, rests at the middle height with the
 // map above it, or takes the whole screen.
 const drawerSnapPoints: DrawerSnapPoint[] = [
@@ -333,10 +340,10 @@ export default memo(function Explorer({
     !initialProjectId && !initialProfile && !initialPanel,
   );
   const panelReady = useCallback(() => setPanelsReady(true), []);
-  // The list opens folded down to its filters, so the map shows. Projects
-  // open in their own drawer above it.
+  // The list opens at the middle height, the map above it. Projects open in
+  // their own drawer above it.
   const [snapPoint, setSnapPoint] = useState<DrawerSnapPoint | null>(
-    compactSnapPoint,
+    middleSnapPoint,
   );
   const snapRef = useRef(snapPoint);
   // A project opened over the map rests at the middle height with the list
@@ -556,9 +563,16 @@ export default memo(function Explorer({
     // Phones keep the view to return to; the list follows the map there.
     if (!isMobile && !postView.current && mapViewRef.current)
       setFrozenBounds(mapViewRef.current.bounds);
+    // Phones: what of the map is in sight above the list right now, which its
+    // last view may predate if the list has changed height since.
+    const view = mapViewRef.current;
     postView.current = {
       id,
-      before: postView.current ? postView.current.before : mapViewRef.current,
+      before: postView.current
+        ? postView.current.before
+        : view && isMobile && mapApi.current
+          ? { ...view, bounds: mapApi.current.boundsAbove(mapInset.current) }
+          : view,
     };
     if (isMobile) return;
     const project = projects.find((item) => item.id === id);
@@ -593,13 +607,16 @@ export default memo(function Explorer({
     postView.current = null;
     // Back to where the project was opened from; the list follows when the
     // map settles. Opened by link, the list takes the area around it.
-    // Phones: the list may rest higher than it did, so the middle of what
-    // was in sight comes back above it, at the zoom it had.
-    if (view.before)
+    // Phones: the list may come to rest at another height than it had, so
+    // the middle of what was in sight comes back above where it will rest,
+    // at the zoom it had.
+    if (view.before && isMobile)
       mapApi.current?.show(
         view.before,
-        isMobile ? view.before.bounds : undefined,
+        view.before.bounds,
+        listMapInset(listPointAfterPost()),
       );
+    else if (view.before) mapApi.current?.show(view.before);
     else setFrozenBounds(null);
     // The folded list shows only its filters, so it stays at its top.
     if (isMobile && snapPoint === compactSnapPoint) return;
@@ -800,11 +817,15 @@ export default memo(function Explorer({
       placeInView(inView, view.zoom, current, previousZoom),
     );
   }
-  // The drawer's height changes what of the map is in sight.
+  // The drawer's height changes what of the map is in sight, and so what the
+  // list holds. Under the full drawer the map is out of sight: the list
+  // keeps what it had.
   const placeUnderDrawer = useEffectEvent(() => {
     if (snapRef.current === snapPoint) return;
     snapRef.current = snapPoint;
-    if (mapViewRef.current) followPlace(mapViewRef.current);
+    const view = mapViewRef.current;
+    if (!view || !mapApi.current || snapPoint === 1) return;
+    onMapView({ ...view, bounds: mapApi.current.boundsAbove(mapInset.current) });
   });
   useEffect(() => placeUnderDrawer(), [snapPoint]);
   // Folded down, the list shows only its filters: a list left scrolled, as a
@@ -819,11 +840,13 @@ export default memo(function Explorer({
     setPlace(name);
     const found = findPlace(name);
     placeHold.current = { name: found ? name : "", until: Date.now() + 1500 };
-    // On phones, framed above the compact drawer it steps to, not the
-    // height it leaves.
+    // On phones the list keeps its height, but comes down from the full one
+    // so the map shows; the place is framed above where it comes to rest.
     if (isMobile) {
-      setSnapPoint(compactSnapPoint);
-      mapInset.current = compactMapInset;
+      const point =
+        snapPoint === compactSnapPoint ? compactSnapPoint : middleSnapPoint;
+      setSnapPoint(point);
+      mapInset.current = listMapInset(point);
     }
     if (found) mapApi.current?.fit(extentPoints(found.extent), { maxZoom: 14 });
     else mapApi.current?.showNorway();
@@ -1005,16 +1028,21 @@ export default memo(function Explorer({
   const mobileMapInset = useCallback(() => mapInset.current, []);
   // A project closed before the list reached it, or while folded over it,
   // leaves the list at the middle height all the same.
+  function listRisesAfterPost() {
+    return (
+      meetPost.current ||
+      meetPending.current ||
+      raiseBehindPost.current ||
+      listUnderFolded.current
+    );
+  }
+  /** Where the list comes to rest once the open project closes. */
+  function listPointAfterPost() {
+    return listRisesAfterPost() ? middleSnapPoint : snapPoint;
+  }
   useLayoutEffect(() => {
     if (!postId) listStaysFolded.current = false;
-    if (
-      postId ||
-      (!meetPost.current &&
-        !meetPending.current &&
-        !raiseBehindPost.current &&
-        !listUnderFolded.current)
-    )
-      return;
+    if (postId || !listRisesAfterPost()) return;
     meetPost.current = false;
     meetPending.current = false;
     raiseBehindPost.current = false;
@@ -2358,7 +2386,9 @@ export default memo(function Explorer({
         "fixed inset-x-0 bottom-0 z-[900] flex flex-col",
         snapPoint === 1
           ? "h-[calc(100dvh-12px-env(safe-area-inset-top))]"
-          : "inset-x-2 bottom-2 h-[128px] rounded-b-sheet",
+          : "inset-x-2 bottom-2 rounded-b-sheet",
+        snapPoint === middleSnapPoint && "h-[calc(58dvh-8px)]",
+        snapPoint === compactSnapPoint && "h-[128px]",
       )}
     >
       <div className="flex h-5 shrink-0 items-center justify-center">

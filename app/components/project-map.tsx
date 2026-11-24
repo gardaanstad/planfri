@@ -308,9 +308,10 @@ export type MapApi = {
   center: (points: Point[], options?: { bottom?: number; maxZoom?: number }) => void;
   /**
    * Shows the view; with `area`, the middle of that area is centered above
-   * a sheet that may have grown since, at the view's zoom.
+   * a sheet that may have changed height since, at the view's zoom.
+   * `bottom` is the height the sheet comes to rest at, if not its current.
    */
-  show: (view: MapView, area?: ViewBounds) => void;
+  show: (view: MapView, area?: ViewBounds, bottom?: number) => void;
   showNorway: () => void;
   /** The view down to `inset` pixels above the map's bottom edge. */
   boundsAbove: (inset: number) => ViewBounds;
@@ -925,6 +926,14 @@ export default function ProjectMap({
       else pending();
     };
     let pending = () => {};
+    // A change of zoom flies: `setView` jumps instead when it changes by
+    // more than four levels. At the same zoom it pans in step with a drawer
+    // sliding (450ms, easing out).
+    const moveTo = (target: L.LatLng, zoom: number) => {
+      if (reducedMotion()) map.setView(target, zoom, { animate: false });
+      else if (zoom !== map.getZoom()) map.flyTo(target, zoom, { duration: 0.8 });
+      else map.panTo(target, { duration: 0.45, easeLinearity: 0.2 });
+    };
     let wantedHighlight = highlightedRef.current;
     let highlightFrame = 0;
     handlers.current.onReady?.({
@@ -932,9 +941,12 @@ export default function ProjectMap({
         if (!points.length) return;
         settled(() => {
           const bounds = L.latLngBounds(points);
+          // A phone's map is small, and a sheet may cover half of it: the
+          // margins only clear the search above and the controls beside.
+          const narrow = window.matchMedia(mobileQuery).matches;
           const options = {
-            paddingTopLeft: L.point(64 + left, 64 + top),
-            paddingBottomRight: L.point(80, 64 + bottom),
+            paddingTopLeft: L.point((narrow ? 24 : 64) + left, (narrow ? 72 : 64) + top),
+            paddingBottomRight: L.point(narrow ? 60 : 80, (narrow ? 24 : 64) + bottom),
             maxZoom,
           };
           if (reducedMotion())
@@ -964,17 +976,13 @@ export default function ProjectMap({
               .add([0, bottom / 2]),
             zoom,
           );
-          if (reducedMotion()) map.setView(target, zoom, { animate: false });
-          else if (zoom !== current) map.flyTo(target, zoom, { duration: 0.8 });
-          // In step with the drawer sliding up (450ms, easing out).
-          else map.panTo(target, { duration: 0.45, easeLinearity: 0.2 });
+          moveTo(target, zoom);
         });
       },
-      show(view, area) {
+      show(view, area, bottom = inset()) {
         settled(() => {
           // At the zoom it had, the middle of that area centered in the part
           // of the map the sheet now leaves open.
-          const bottom = inset();
           const center = area
             ? map.unproject(
                 map
@@ -985,7 +993,7 @@ export default function ProjectMap({
                 view.zoom,
               )
             : view.center;
-          map.setView(center, view.zoom, { animate: !reducedMotion() });
+          moveTo(L.latLng(center), view.zoom);
         });
       },
       showNorway: () => settled(() => showNorway(!reducedMotion())),
