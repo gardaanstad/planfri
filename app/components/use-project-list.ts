@@ -26,6 +26,7 @@ export function useProjectList({
   selectedId,
   bounds,
   place,
+  nearby = "",
 }: {
   projects: Project[];
   activity: Record<string, ProjectActivity>;
@@ -39,6 +40,9 @@ export function useProjectList({
   bounds: Bounds | null;
   /** The list's place filter, when it isn't the map's view. */
   place: string;
+  /** Beside the map, the place its view is on: its projects out of view
+   * follow the list's, muted. */
+  nearby?: string;
 }) {
   const placesOf = useMemo(
     () =>
@@ -73,7 +77,7 @@ export function useProjectList({
         : matching,
     [matching, needle],
   );
-  const listed = useMemo(() => {
+  const [listed, offMap] = useMemo(() => {
     const inPlace = (project: Project) =>
       bounds
         ? projectInBounds(project, bounds)
@@ -86,8 +90,15 @@ export function useProjectList({
           ? projectAddedAt(b).localeCompare(projectAddedAt(a))
           : (activity[b.id]?.recent ?? 0) - (activity[a.id]?.recent ?? 0) ||
             b.updated.localeCompare(a.updated);
-    return searchHits.filter(inPlace).sort(compare);
-  }, [activity, bounds, place, placesOf, searchHits, sort]);
+    const shown: Project[] = [];
+    const rest: Project[] = [];
+    for (const project of searchHits) {
+      if (inPlace(project)) shown.push(project);
+      else if (bounds && nearby && placesOf.get(project.id)?.includes(nearby))
+        rest.push(project);
+    }
+    return [shown.sort(compare), rest.sort(compare)];
+  }, [activity, bounds, nearby, place, placesOf, searchHits, sort]);
   return {
     placesOf,
     matching,
@@ -95,6 +106,8 @@ export function useProjectList({
     needle,
     searchHits,
     listed,
+    /** Matches in `nearby` that the map's view leaves out, sorted alike. */
+    offMap,
     /** Matches, or search hits, the map's view leaves out of the list. */
     outsideHits: bounds ? searchHits.length - listed.length : 0,
   };

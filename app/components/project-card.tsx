@@ -122,6 +122,7 @@ export default memo(function ProjectCard({
   commentCount,
   density,
   saved,
+  offMap = false,
   news,
   onOpen,
   onSave,
@@ -131,6 +132,8 @@ export default memo(function ProjectCard({
   commentCount: number;
   density: CardDensity;
   saved: boolean;
+  /** In the place the map is on but out of its view: muted until hovered. */
+  offMap?: boolean;
   /** What is new since the user last opened it, for projects they have. */
   news?: ProjectNews;
   onOpen: (id: string, section?: Section) => void;
@@ -199,8 +202,19 @@ export default memo(function ProjectCard({
         "before:absolute before:inset-x-[-12px] before:-z-1 before:rounded-xl max-md:before:inset-x-[-8px]",
         wash,
         "hover:before:bg-surface-muted/65",
+        offMap && [
+          "opacity-55 transition-opacity duration-120 hover:opacity-100 focus-within:opacity-100",
+          // Out of sight, these rows skip paint and hit tests: a place can
+          // list many more of them than the map shows. The margin keeps the
+          // hover wash, which bleeds past the row, from being clipped.
+          "[content-visibility:auto] [overflow-clip-margin:12px]",
+          expanded
+            ? "[contain-intrinsic-size:auto_440px]"
+            : "[contain-intrinsic-size:auto_105px]",
+        ],
       )}
       data-card-id={project.id}
+      data-off-map={offMap || undefined}
       data-density={density}
       data-unread={fresh ? true : undefined}
       onPointerEnter={(event) => {

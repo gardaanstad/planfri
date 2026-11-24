@@ -9,9 +9,22 @@ const easeOutSoft = "cubic-bezier(0.22, 1, 0.36, 1)";
 const moveId = "list-move";
 const enterId = "list-enter";
 
-function stop(element: Element, id: string) {
-  for (const animation of element.getAnimations())
-    if (animation.id === id) animation.cancel();
+/**
+ * The rows' running animations, by row. Asked of the document once, as
+ * asking each row flushes style for every one.
+ */
+function animationsOf(rows: Iterable<Element>, ids?: string[]) {
+  const wanted = new Set(rows);
+  const found = new Map<Element, Animation[]>();
+  for (const animation of document.getAnimations()) {
+    const target = (animation.effect as KeyframeEffect | null)?.target;
+    if (!target || !wanted.has(target)) continue;
+    if (ids && !ids.includes(animation.id)) continue;
+    const list = found.get(target);
+    if (list) list.push(animation);
+    else found.set(target, [animation]);
+  }
+  return found;
 }
 
 type Sight = { top: number; bottom: number; height: number };
@@ -32,9 +45,16 @@ function overlaps(rect: DOMRect, view: Sight) {
 /** A copy of a row that left the list, fading where the row was. */
 type Ghost = { node: HTMLElement; rect: DOMRect; opacity: number };
 
-/** Lifts a leaving row's copy into `list`, over where the row was. */
-function place(node: HTMLElement, rect: DOMRect, list: HTMLElement) {
-  const origin = list.getBoundingClientRect();
+/**
+ * Lifts a leaving row's copy into `list`, whose box is `origin`, over where
+ * the row was.
+ */
+function place(
+  node: HTMLElement,
+  rect: DOMRect,
+  list: HTMLElement,
+  origin: DOMRect,
+) {
   Object.assign(node.style, {
     position: "absolute",
     top: `${rect.top - origin.top}px`,
@@ -96,30 +116,34 @@ export function useListMotion<T>(
       matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (still) {
       from.current = null;
-      for (const row of rows) row.getAnimations().forEach((a) => a.cancel());
+      for (const list of animationsOf(rows).values())
+        list.forEach((animation) => animation.cancel());
     } else {
       const rects = new Map<string, DOMRect>();
       const left: Ghost[] = [];
       const staying = new Set(items.map(keyRef.current));
+      // Every read before any write, so the list is laid out once, not once
+      // a row.
       for (const row of rows) {
         const id = row.getAttribute(attribute)!;
         // Mid-glide, from where the row is now, not where it is headed.
         const rect = row.getBoundingClientRect();
         rects.set(id, rect);
-        stop(row, moveId);
-        if (!staying.has(id) && overlaps(rect, view)) {
-          const node = row.cloneNode(true) as HTMLElement;
-          node.removeAttribute(attribute);
-          node
-            .querySelectorAll("[id]")
-            .forEach((el) => el.removeAttribute("id"));
+        if (!staying.has(id) && overlaps(rect, view))
           left.push({
-            node,
+            node: row,
             rect,
             opacity: Number(getComputedStyle(row).opacity),
           });
-        }
       }
+      for (const ghost of left) {
+        const node = ghost.node.cloneNode(true) as HTMLElement;
+        node.removeAttribute(attribute);
+        node.querySelectorAll("[id]").forEach((el) => el.removeAttribute("id"));
+        ghost.node = node;
+      }
+      for (const list of animationsOf(rows, [moveId]).values())
+        list.forEach((animation) => animation.cancel());
       from.current = rects;
       ghosts.current = left;
     }
@@ -138,9 +162,13 @@ export function useListMotion<T>(
     const rows = container.querySelectorAll<HTMLElement>(`[${attribute}]`);
     const list = container.querySelector<HTMLElement>("[data-list-motion]");
 
+    // Where every row landed, read before any of them starts to move.
+    const landed = Array.from(rows, (row) => row.getBoundingClientRect());
+    const entering = animationsOf(rows, [enterId]);
     if (list) {
+      const origin = list.getBoundingClientRect();
       for (const { node, rect, opacity } of left) {
-        place(node, rect, list);
+        place(node, rect, list, origin);
         fading.current.add(node);
         const fade = node.animate(
           { opacity: [opacity, 0], scale: [1, 0.985] },
@@ -155,8 +183,8 @@ export function useListMotion<T>(
 
     let moved = false;
     const arrivals: HTMLElement[] = [];
-    for (const row of rows) {
-      const to = row.getBoundingClientRect();
+    for (const [index, row] of rows.entries()) {
+      const to = landed[index];
       const was = rects.get(row.getAttribute(attribute)!);
       const inSight = overlaps(to, view);
       if (!was) {
@@ -186,7 +214,7 @@ export function useListMotion<T>(
     }
     // Arrivals follow the glide a beat behind, so the room opens first.
     for (const row of arrivals) {
-      stop(row, enterId);
+      entering.get(row)?.forEach((animation) => animation.cancel());
       row.animate(
         { opacity: [0, 1], translate: ["0 6px", "0 0"] },
         {

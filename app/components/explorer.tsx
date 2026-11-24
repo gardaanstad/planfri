@@ -716,6 +716,7 @@ export default memo(function Explorer({
     needle,
     searchHits,
     listed: listedProjects,
+    offMap: offMapProjects,
     outsideHits,
   } = useProjectList({
     projects,
@@ -727,6 +728,7 @@ export default memo(function Explorer({
     selectedId,
     bounds: listBounds,
     place: listPlace,
+    nearby: listBounds ? place : "",
   });
 
   // The project and profile panels keep theirs while sliding away.
@@ -1911,11 +1913,37 @@ export default memo(function Explorer({
     hoveredId.current = next;
     mapApi.current?.highlight(next);
   }, []);
+  // Below what's in view, the rest of the place it's on, muted.
+  const listItems = useMemo(
+    () =>
+      offMapProjects.length
+        ? [...listedProjects, ...offMapProjects]
+        : listedProjects,
+    [listedProjects, offMapProjects],
+  );
+  const offMapIds = useMemo(
+    () => new Set(offMapProjects.map((project) => project.id)),
+    [offMapProjects],
+  );
   const listRows = useListMotion(
-    listedProjects,
+    listItems,
     projectKey,
     listRef,
     "data-card-id",
+  );
+  const renderCard = (project: Project) => (
+    <ProjectCard
+      key={project.id}
+      project={project}
+      commentCount={activity[project.id]?.comments ?? 0}
+      density={cardDensity}
+      saved={savedIds.has(project.id)}
+      offMap={offMapIds.has(project.id)}
+      news={news.get(project.id)}
+      onOpen={openListCard}
+      onSave={saveCard}
+      onHover={hoverCard}
+    />
   );
   const projectResults = (
     <section
@@ -1969,20 +1997,20 @@ export default memo(function Explorer({
         )}
         {/* Kept when empty, so rows filtered out can fade in it. */}
         <ol className="relative" data-list-motion="">
-          {density !== "feed" && listRows.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              commentCount={activity[project.id]?.comments ?? 0}
-              density={cardDensity}
-              saved={savedIds.has(project.id)}
-              news={news.get(project.id)}
-              onOpen={openListCard}
-              onSave={saveCard}
-              onHover={hoverCard}
-            />
-          ))}
+          {density !== "feed" &&
+            listRows
+              .filter((project) => !offMapIds.has(project.id))
+              .map(renderCard)}
         </ol>
+        {/* A list of their own, so a project coming into view is one row
+            moving across rather than every row before it moving down. */}
+        {density !== "feed" && offMapIds.size > 0 && (
+          <ol aria-label={`Utenfor kartet i ${place}`}>
+            {listRows
+              .filter((project) => offMapIds.has(project.id))
+              .map(renderCard)}
+          </ol>
+        )}
         {(density === "feed"
           ? feedProjects.length === 0
           : listRows.length === 0) && (

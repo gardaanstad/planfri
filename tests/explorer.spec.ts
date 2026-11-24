@@ -1462,6 +1462,36 @@ test.describe("desktop explorer", () => {
     ).toHaveCount(0);
   });
 
+  test("the place's projects out of view follow the list's, muted until hovered", async ({
+    page,
+  }) => {
+    await page.goto("/?kart=59.9100,10.7500,14");
+    const inOslo = page.getByRole("button", {
+      name: /^\d+ i Oslo, vis Oslo på kartet$/,
+    });
+    await expect(inOslo).toBeVisible();
+    const visible = Number(
+      (await page
+        .getByRole("status", { name: /^\d+ synlige? prosjekte?r?$/ })
+        .getAttribute("aria-label"))!.match(/^\d+/)![0],
+    );
+    const count = Number(
+      (await inOslo.getAttribute("aria-label"))!.match(/^\d+/)![0],
+    );
+    const list = page.getByRole("region", { name: "Prosjektliste" });
+    const cards = list.locator("[data-card-id]");
+    await expect(cards).toHaveCount(count);
+    const muted = list.locator("[data-off-map]");
+    await expect(muted).toHaveCount(count - visible);
+    // Every muted card comes after the visible ones.
+    await expect(cards.nth(visible)).toHaveAttribute("data-off-map", "true");
+    await expect(cards.nth(visible - 1)).not.toHaveAttribute("data-off-map");
+    const first = muted.first();
+    await expect(first).toHaveCSS("opacity", "0.55");
+    await first.hover();
+    await expect(first).toHaveCSS("opacity", "1");
+  });
+
   test("the end of the list offers a missing project", async ({ page }) => {
     await page.goto("/");
     const missing = listRegion(page).getByRole("button", {
@@ -3133,9 +3163,11 @@ test.describe("desktop sidebar panels", () => {
 });
 
 test.describe("the list holds what the uncovered map shows", () => {
+  // Listed as in view: the place's projects out of it follow, muted.
   const listed = (page: Page, title: string) =>
     page
       .getByRole("region", { name: "Prosjektliste", exact: true })
+      .locator("[data-card-id]:not([data-off-map])")
       .getByRole("button", { name: new RegExp(`^${title} · `) });
   const byId = (id: string) => seedProjects.find((item) => item.id === id)!;
   const zoom = 14;
