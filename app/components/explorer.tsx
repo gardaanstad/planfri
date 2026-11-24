@@ -643,6 +643,9 @@ export default memo(function Explorer({
   const searchTriggerRef = useRef<HTMLButtonElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLElement>(null);
+  const listContentRef = useRef<HTMLDivElement>(null);
+  const listTopFade = useRef<HTMLDivElement>(null);
+  const listBottomFade = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   // The map is the place filter: the list holds what its view covers.
@@ -2215,6 +2218,36 @@ export default memo(function Explorer({
       onHover={hoverCard}
     />
   );
+  /**
+   * On desktop the header stays put over the list, and fades along the
+   * list's edges show there is more past either end, as in the phone's
+   * sheets: whole once a fade's height or more is left that way, gone at
+   * that end. Clamped, so a bounce past an end doesn't flash them.
+   */
+  function updateListFades() {
+    const scroller = listRef.current;
+    if (!scroller) return;
+    const below =
+      scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
+    for (const [overlay, left] of [
+      [listTopFade.current, scroller.scrollTop],
+      [listBottomFade.current, below],
+    ] as const) {
+      if (!overlay) continue;
+      const height = overlay.offsetHeight || 32;
+      overlay.style.opacity = String(Math.min(1, Math.max(0, left / height)));
+    }
+  }
+  const refreshListFades = useEffectEvent(updateListFades);
+  // Resizing, and rows coming and going, change what's left.
+  useLayoutEffect(() => {
+    if (isMobile) return;
+    refreshListFades();
+    const observer = new ResizeObserver(() => refreshListFades());
+    if (listRef.current) observer.observe(listRef.current);
+    if (listContentRef.current) observer.observe(listContentRef.current);
+    return () => observer.disconnect();
+  }, [isMobile]);
   const inView = listRows.filter((row) => !row.offMap);
   const outOfView = listRows.filter((row) => row.offMap);
   // On phones the header scrolls away with the rows.
@@ -2228,7 +2261,21 @@ export default memo(function Explorer({
         wide && "[scrollbar-gutter:stable_both-edges]",
       )}
       aria-label="Prosjektliste"
+      onScroll={isMobile ? undefined : updateListFades}
     >
+      {!isMobile && (
+        // Under the header: more above, once scrolled.
+        <div
+          aria-hidden="true"
+          className="pointer-events-none sticky top-0 z-10 h-0"
+        >
+          <div
+            ref={listTopFade}
+            data-list-fade="top"
+            className="h-8 bg-linear-to-b from-surface to-transparent opacity-0"
+          />
+        </div>
+      )}
       {header && (
         <>
           {/* Over the rows as they scroll under the screen's top, once the
@@ -2243,6 +2290,7 @@ export default memo(function Explorer({
         </>
       )}
       <div
+        ref={listContentRef}
         className={cn(
           // At least as tall as the list, so on desktop "Foreslå prosjekt"
           // sits at the bottom however few rows there are. On phones it
@@ -2325,6 +2373,19 @@ export default memo(function Explorer({
           </button>
         </div>
       </div>
+      {!isMobile && (
+        // More below: fades out over the last stretch of scrolling.
+        <div
+          aria-hidden="true"
+          className="pointer-events-none sticky bottom-0 z-10 h-0"
+        >
+          <div
+            ref={listBottomFade}
+            data-list-fade="bottom"
+            className="absolute inset-x-0 bottom-0 h-10 bg-linear-to-t from-surface to-transparent opacity-0"
+          />
+        </div>
+      )}
     </section>
   );
 

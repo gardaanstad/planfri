@@ -1666,6 +1666,44 @@ test.describe("desktop explorer", () => {
     );
   });
 
+  test("the list fades under the header once scrolled, and at its end while there is more", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const list = listRegion(page);
+    await expect(list.getByRole("button", { name: / · / }).first()).toBeVisible();
+    const fade = (edge: "top" | "bottom") =>
+      list.evaluate(
+        (element, edge) =>
+          Number(
+            getComputedStyle(
+              element.querySelector(`[data-list-fade=${edge}]`)!,
+            ).opacity,
+          ),
+        edge,
+      );
+    // At the top: more below only.
+    await expect.poll(() => fade("top")).toBe(0);
+    await expect.poll(() => fade("bottom")).toBe(1);
+    // A little way down, the top fades in part of the way.
+    await list.evaluate((element) => {
+      element.scrollTop = 16;
+      element.dispatchEvent(new Event("scroll"));
+    });
+    await expect.poll(() => fade("top")).toBeCloseTo(0.5, 1);
+    await list.evaluate((element) => (element.scrollTop = 200));
+    await expect.poll(() => fade("top")).toBe(1);
+    await expect.poll(() => fade("bottom")).toBe(1);
+    await shot(page, "desktop-list-both-fades");
+    // Near the end the bottom fades out, gone there.
+    await list.evaluate((element) => {
+      element.scrollTop = element.scrollHeight - element.clientHeight - 20;
+    });
+    await expect.poll(() => fade("bottom")).toBeCloseTo(0.5, 1);
+    await list.evaluate((element) => (element.scrollTop = element.scrollHeight));
+    await expect.poll(() => fade("bottom")).toBe(0);
+  });
+
   test("search opens out of its button on the filter row, and folds away", async ({
     page,
   }) => {
