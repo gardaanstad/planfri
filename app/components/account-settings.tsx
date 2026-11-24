@@ -22,8 +22,6 @@ import SignOutPrompt from "./sign-out-prompt";
 import { currentPath } from "./username-form";
 import { storeLoginIntent } from "../lib/login-intent";
 
-const sectionTitle = "text-xs font-semibold tracking-wide text-muted uppercase";
-
 /**
  * The account behind a profile: the Google account it signs in with,
  * logging out, and, set apart at the end, deleting it. On its own page
@@ -106,11 +104,8 @@ export default function AccountSettings({
         </header>
       )}
 
-      <section aria-labelledby={`${id}-account`}>
-        <h2 id={`${id}-account`} className={sectionTitle}>
-          Innlogging
-        </h2>
-        <div className="mt-2 flex items-center gap-3 rounded-xl border border-border bg-surface-subtle px-3.5 py-3">
+      <section aria-label="Innlogging">
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-surface-subtle px-3.5 py-3">
           <ShieldCheck
             size={18}
             className="shrink-0 text-accent"
