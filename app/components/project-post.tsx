@@ -184,12 +184,8 @@ function EditFacts() {
       <EditField id="place" wide>
         <div className="grid grid-cols-2 gap-1.5">
           <PlacePicker
-            className="min-w-0"
-            inputClassName={editInput}
-            triggerClassName={cn(
-              editState,
-              "min-h-9 rounded-lg border-border-strong px-2.5 pointer-coarse:min-h-11 max-sm:text-base",
-            )}
+            className={editInput}
+            aria-label="Sted"
             value={draft.city}
             onChange={(city) => change({ city })}
           />

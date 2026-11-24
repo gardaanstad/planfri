@@ -502,9 +502,7 @@ test.describe("on the map", () => {
     ).toBeChecked();
     await expect(editor.getByLabel("Ferdigår")).toHaveValue("2029");
     await expect(editor.getByLabel("Byggherre")).toHaveValue("Bane NOR");
-    await expect(
-      editor.getByRole("button", { name: "Sted: Alta", exact: true }),
-    ).toBeVisible();
+    await expect(editor.getByLabel("Sted", { exact: true })).toHaveValue("Alta");
     await expect(editor.locator('[data-field="categories"]')).toContainText("Jernbane");
     // The title is there; the description is what's left to write.
     await expect(editor.getByLabel("Beskrivelse")).toBeFocused();

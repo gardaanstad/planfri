@@ -540,22 +540,27 @@ test("members suggest new projects; moderators edit and publish them", async ({
   await categoryMenu.getByRole("option", { name: "Samferdsel", exact: true }).click();
   await categoryMenu.getByRole("option", { name: "Vei", exact: true }).click();
   await page.keyboard.press("Escape");
-  // The place is picked from the list, or added to it.
-  await dialog.getByRole("button", { name: "Sted: Oslo", exact: true }).click();
-  const placeMenu = page.getByRole("listbox", { name: "Sted", exact: true });
-  await expect(placeMenu.getByRole("option").nth(2)).toHaveText(
+  // Typing narrows the places below; one none match is added as new.
+  const place = dialog.getByRole("combobox", { name: "Sted", exact: true });
+  await expect(place).toHaveValue("Oslo");
+  await place.click();
+  const places = page.getByRole("listbox", { name: "Forslag til sted", exact: true });
+  await expect(places.getByRole("option").nth(2)).toHaveText(
     "Stavanger/Sandnes",
   );
-  await placeMenu.getByRole("option", { name: "Bergen", exact: true }).click();
-  await dialog.getByRole("button", { name: "Sted: Bergen", exact: true }).click();
-  await page.getByRole("button", { name: "Legg til sted", exact: true }).click();
-  const newPlace = dialog.getByRole("textbox", { name: "Nytt sted" });
-  await expect(newPlace).toBeFocused();
-  await newPlace.fill("Lysaker");
-  await newPlace.press("Enter");
-  await expect(
-    dialog.getByRole("button", { name: "Sted: Lysaker", exact: true }),
-  ).toBeVisible();
+  await place.fill("san");
+  await expect(places.getByRole("option").first()).toHaveText(
+    "Stavanger/Sandnes",
+  );
+  await place.press("Enter");
+  await expect(place).toHaveValue("Stavanger/Sandnes");
+  await expect(places).toBeHidden();
+  await place.fill("Lysak");
+  await expect(places.getByRole("option")).toHaveCount(1);
+  await place.pressSequentially("er");
+  await places.getByRole("option", { name: "Legg til Lysaker" }).click();
+  await expect(place).toHaveValue("Lysaker");
+  await expect(places).toBeHidden();
   await dialog
     .getByLabel("Legg til bilde")
     .setInputFiles({ name: "foto.png", mimeType: "image/png", buffer: png() });

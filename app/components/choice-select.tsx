@@ -45,8 +45,6 @@ type ChoiceSelectBase = {
   className?: string;
   /** Classes merged onto the trigger, e.g. to match a form's fields. */
   triggerClassName?: string;
-  /** The trigger's id, for a field's label to point at. */
-  triggerId?: string;
   triggerLabel?: string;
   /** Names the anchored menu above its options, as the phone sheet does. */
   menuTitle?: boolean;
@@ -65,8 +63,6 @@ type ChoiceSelectBase = {
    * chosen, and the menu opens on its first.
    */
   goTo?: boolean;
-  /** A last row that does something else, such as adding an option. */
-  action?: { label: string; icon?: ReactNode; onSelect: () => void };
 };
 
 type ChoiceSelectProps =
@@ -90,13 +86,11 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
     icon,
     className = "",
     triggerClassName,
-    triggerId,
     triggerLabel,
     menuTitle = false,
     smoothWidth = false,
     inline = false,
     goTo = false,
-    action,
   } = props;
   const multiple = props.multiple === true;
   const selectedValues = new Set(
@@ -585,7 +579,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
     // Options under a closed group are out of reach.
     const items = [
       ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
-        '[role="option"], [data-slot="choice-more"], [data-slot="choice-action"]',
+        '[role="option"], [data-slot="choice-more"]',
       ),
     ].filter((item) => !item.closest("[inert]"));
     const current = items.indexOf(
@@ -671,31 +665,6 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
           </div>
         </>
       )}
-      {action && (
-        <button
-          type="button"
-          data-slot="choice-action"
-          data-label={action.label}
-          tabIndex={-1}
-          className={cn(
-            "flex w-full shrink-0 items-center rounded-lg border border-transparent text-left text-ink -outline-offset-2",
-            "transition-colors duration-150 motion-reduce:transition-none",
-            "focus-visible:bg-surface-muted",
-            sheet
-              ? "min-h-12 gap-3 px-3 text-body active:bg-surface-muted"
-              : "min-h-9 gap-2 px-2.5 py-1.5 text-ui hover:bg-surface-muted",
-          )}
-          onClick={() => {
-            close();
-            action.onSelect();
-          }}
-        >
-          {action.icon && (
-            <span className="flex shrink-0 text-muted">{action.icon}</span>
-          )}
-          <span>{action.label}</span>
-        </button>
-      )}
     </div>
   );
 
@@ -740,7 +709,6 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
     >
       <button
         ref={trigger}
-        id={triggerId}
         type="button"
         data-slot="choice-trigger"
         className={cn(

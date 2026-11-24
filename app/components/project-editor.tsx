@@ -290,12 +290,8 @@ export default function ProjectEditor({
               error={error("place")}
             >
               <PlacePicker
-                id={`${ids}-place`}
-                inputClassName={input}
-                triggerClassName={cn(
-                  "min-h-10 rounded-lg border-border-strong px-3 pointer-coarse:min-h-11 max-sm:text-base",
-                  error("place") && "border-danger",
-                )}
+                {...control("place")}
+                className={input}
                 value={draft.city}
                 onChange={(city) => change({ city })}
               />
