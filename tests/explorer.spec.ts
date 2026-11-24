@@ -2359,6 +2359,36 @@ test.describe("desktop explorer", () => {
     await expect(page).toHaveURL(/\/prosjekt\/rogfast\?/);
   });
 
+  test("zoomed out, an area shows as its dot alone", async ({ page }) => {
+    const area = page.locator('path[data-project-id="bispevika-sor"]');
+    const dot = page.locator('path[data-project-dot="bispevika-sor"]');
+    await page.goto("/?kart=59.9035,10.7608,12");
+    await expect(area).toBeVisible();
+    await expect(dot).toHaveCount(0);
+    await page.goto("/?kart=59.9035,10.7608,11.5");
+    await expect(dot).toBeVisible();
+    await expect(area).toBeHidden();
+    await dot.focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/prosjekt\/bispevika-sor\?/);
+  });
+
+  test("dots slide with the map while it zooms", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto("/?kart=59.9035,10.7608,11.5");
+    const dot = page.locator('path[data-project-dot="bispevika-sor"]');
+    await expect(dot).toBeVisible();
+    // Mid-zoom, the dot takes Leaflet's transform transition, like the
+    // shapes and the base map, instead of jumping to where it lands.
+    const during = await dot.evaluate((element) => {
+      element.closest(".leaflet-map-pane")!.classList.add("leaflet-zoom-anim");
+      const { transitionProperty } = getComputedStyle(element);
+      element.closest(".leaflet-map-pane")!.classList.remove("leaflet-zoom-anim");
+      return transitionProperty;
+    });
+    expect(during.split(", ")).toContain("transform");
+  });
+
   test("the list panel resizes by pointer and keyboard, and remembers it", async ({
     page,
   }) => {

@@ -243,6 +243,14 @@
   }
 }
 
+/* While the map zooms, dots slide to where they land with Leaflet's own
+   timing, which the transitions above would otherwise replace. Even with
+   reduced motion: the map still zooms, and dots that skipped ahead of it
+   would jump. */
+[data-project-map] .leaflet-zoom-anim path.project-dot {
+  transition: transform 0.25s cubic-bezier(0, 0, 0.25, 1);
+}
+
 /* Drawing handles: a dot inside a larger hit area. */
 .draw-vertex,
 .draw-midpoint {

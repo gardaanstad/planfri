@@ -1320,8 +1320,8 @@ export default function ProjectMap({
           "is-selected",
           project.id === selectedRef.current,
         );
-        // An alignment's line is hidden while it's a dot, so the dot takes focus.
-        if (line && !draw) {
+        // The shape is hidden while it's a dot, so the dot takes focus.
+        if (!draw) {
           element.setAttribute("tabindex", "0");
           element.setAttribute("role", "button");
           element.setAttribute(
@@ -1476,8 +1476,8 @@ export default function ProjectMap({
         }
         const ungrouped = !grouped.has(project.id);
         const dotted = zoom < (line ? lineDotZoom : dotZoom);
-        // Areas keep their outline under the dot; alignments give way to it.
-        const shown = ungrouped && !(line && dotted);
+        // A project shows as its shape or its dot, never both.
+        const shown = ungrouped && !dotted;
         for (const layer of [shape, casing, stripes, hit]) {
           const element = layer?.getElement();
           if (element instanceof SVGElement)
