@@ -38,10 +38,10 @@ const progressWords: Partial<Record<Status, string>> = {
  * behind it quiet, the one it's in marked in its status colour, those ahead
  * hollow. Each step carries its date when it has one.
  *
- * The stretches it has passed are drawn solid. When the stretch it's in has
- * both ends dated (a start of building and a year it's due, say), the steps
- * behind move aside to give it room, and it fills in the phase's colour as
- * far as time has come.
+ * The stretches it has passed are drawn solid. Each step sits where its date
+ * falls between its neighbours' (see `phaseTrack`). When the stretch it's in
+ * has both ends dated (a start of building and a year it's due, say), it
+ * fills in the phase's colour as far as time has come.
  */
 export default function PhaseTimeline({
   project,

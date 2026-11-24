@@ -10,9 +10,12 @@ import {
  * and which one is under way with a known start and end, so its fill can
  * show how far along it is.
  *
- * Done stretches shrink to what their labels need; the stretch under way, when
- * both its ends are dated, takes the room that's left. Without both dates the
- * steps stay evenly spread.
+ * A stretch with both ends dated is as long as the time between them, so a
+ * step sits where its date falls between its neighbours': Byggestart moves
+ * with both when planning began and when it's due to be done. A stretch
+ * missing a date, or starting at Foreslått, takes the dated ones' average,
+ * and with no dates at all the steps stay evenly spread. Every stretch keeps
+ * room for its labels.
  */
 export type PhaseTrack = {
   /**
@@ -32,7 +35,7 @@ export type PhaseTrack = {
 // medium-weight "Byggestart" and "mars" run widest.
 const emPerCharacter = 0.58;
 const gap = 1;
-const activeWeight = 3;
+const year = 365.25 * 86_400_000;
 
 /** A phase date's span in ms: a whole year, or a month. */
 function period(date: string) {
@@ -56,15 +59,11 @@ function stretch(from: string, to: string) {
   return endTo > startFrom ? { start: startFrom, end: endTo } : undefined;
 }
 
-/**
- * When the phase after `status` on the project's timeline begins, or for
- * Ferdig the year it's due.
- */
-function nextDate(project: Project, phases: Status[], status: Status) {
-  const next = phases[phases.indexOf(status) + 1];
-  if (!next) return "";
-  if (next === "completed") return finishYear(project);
-  return project.phaseDates?.[next] ?? "";
+/** When a phase began, or for Ferdig the year it's done or due. */
+function phaseDate(project: Project, phase: Status | undefined) {
+  if (!phase) return "";
+  if (phase === "completed") return finishYear(project);
+  return project.phaseDates?.[phase] ?? "";
 }
 
 export function phaseTrack(
@@ -75,27 +74,36 @@ export function phaseTrack(
   const phases = projectPhases(project);
   const current = phases.indexOf(project.status);
   const last = phases.length - 1;
-  const from =
-    project.status === "completed"
-      ? ""
-      : (project.phaseDates?.[project.status as Exclude<Status, "completed">] ??
-        "");
-  const to = nextDate(project, phases, project.status);
-  const span = from && to ? stretch(from, to) : undefined;
+  const open = !phases.includes("completed");
+  const stretches = open ? phases : phases.slice(0, last);
+  // Each stretch's span in time, where both its ends are dated.
+  const spans = stretches.map((phase, index) => {
+    const from = phaseDate(project, phase);
+    const to = phaseDate(project, phases[index + 1]);
+    return from && to ? stretch(from, to) : undefined;
+  });
+  const span = spans[current];
   const active = span && { index: current, ...span };
+  // When it was first proposed is often long before the rest, and would
+  // squeeze the steps that matter; that stretch always takes the average.
+  const years = spans.map((span, index) =>
+    span && stretches[index] !== "proposed"
+      ? (span.end - span.start) / year
+      : undefined,
+  );
+  const dated = years.filter((length) => length !== undefined);
+  const average = dated.length
+    ? dated.reduce((sum, length) => sum + length, 0) / dated.length
+    : 1;
   const width = texts.map(
     ({ label, date }) => Math.max(label.length, date.length) * emPerCharacter,
   );
-  const open = !phases.includes("completed");
   // The ends' labels sit inside the line; the middle ones centre on their
   // dots. Running off the end, the last phase is a middle one.
   const share = (index: number) =>
     index === 0 || (index === last && !open) ? width[index] : width[index] / 2;
-  const stretches = open ? phases : phases.slice(0, last);
   return {
-    weights: stretches.map((_, index) =>
-      index === active?.index ? activeWeight : 1,
-    ),
+    weights: years.map((length) => length ?? average),
     minimums: stretches.map(
       (_, index) =>
         share(index) + (index < last ? share(index + 1) : width[index] / 2) + gap,

@@ -334,10 +334,7 @@ export default function TimelineInput({
           Skriv år, eller måned og år som 3.2026. Datoene er valgfrie.
         </p>
       </div>
-      <div className="rounded-b-xl border-t border-border bg-surface-muted/40 px-3 pt-2 pb-3">
-        <p className="mb-2 text-2xs leading-4 font-medium text-muted">
-          Slik vises den
-        </p>
+      <div className="rounded-b-xl border-t border-border bg-surface-muted/40 px-3 py-3">
         <PhaseTimeline
           project={preview(draft)}
           label="Forhåndsvisning av fase"

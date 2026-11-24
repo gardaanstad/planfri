@@ -64,15 +64,22 @@ test("a project shows its phase and its facts, and opens on its updates", async 
   ]);
   await expect(phases.locator("[aria-current=step]")).toHaveCount(1);
   await expect(phases).toHaveAttribute("data-phase-strip", project.status);
-  // Under way with a start and a year it's due, the stretch to Ferdig takes
-  // the room the done ones don't need, and fills as far as time has come.
+  // Under way with a start and a year it's due, the stretch to Ferdig fills
+  // as far as time has come. Dated stretches are as long as the time they
+  // span, so Byggestart (apr. 2023) sits between Planstart (2019) and Ferdig
+  // by both: mid-2019 to mid-April 2023, then on to mid-2028.
   await expect(phases).toHaveAttribute("data-phase-active", "construction");
   const width = (phase: string) =>
     phases
       .locator(`[data-phase=${phase}]`)
       .evaluate((element) => element.getBoundingClientRect().width);
-  expect(await width("construction")).toBeGreaterThan(
-    (await width("planned")) * 1.4,
+  const mid = (year: number, month = 7) => Date.UTC(year, month - 1, 1);
+  const spans =
+    (mid(Number(project.year)) - Date.UTC(2023, 3, 16)) /
+    (Date.UTC(2023, 3, 16) - mid(2019));
+  expect((await width("construction")) / (await width("planned"))).toBeCloseTo(
+    spans,
+    1,
   );
   const fill = Number(
     await phases.locator("[data-phase-progress]").getAttribute("data-phase-progress"),
