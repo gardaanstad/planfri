@@ -35,12 +35,14 @@ export default function OffMapGroup({
       <button
         type="button"
         className={cn(
-          "relative isolate flex w-full items-center gap-1.5 py-2.5 text-left text-xs leading-4.5 font-medium text-muted outline-none",
+          // The border's colour is set folded too, or unfolding fades it
+          // in from the text's colour.
+          "relative isolate flex w-full items-center gap-1.5 border-border py-2.5 text-left text-xs leading-4.5 font-medium text-muted outline-none",
           "transition-colors duration-120 hover:text-ink motion-reduce:transition-none",
           // The cards' hover wash and focus ring, bleeding past the text.
           "before:absolute before:inset-x-[-12px] before:inset-y-1 before:-z-1 before:rounded-lg hover:before:bg-surface-muted/65 max-md:before:inset-x-[-8px]",
           "focus-visible:before:outline-2 focus-visible:before:outline-focus",
-          !collapsed && "border-b border-border",
+          !collapsed && "border-b",
         )}
         aria-expanded={!collapsed}
         aria-controls={id}
