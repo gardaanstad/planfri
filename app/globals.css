@@ -249,7 +249,8 @@
 @utility unfolded {
   grid-template-columns: 1fr;
   opacity: 1;
-  visibility: visible;
+  /* Not `visible`: that would show it inside a hidden sidebar. */
+  visibility: inherit;
 }
 
 /*

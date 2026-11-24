@@ -332,6 +332,9 @@ async function turnOn(page: Page) {
   await expect(page.locator("[data-overlay-on]")).toBeVisible();
   await expect(page.getByRole("region", { name: "Prosjektliste", exact: true })).toBeHidden();
   await expect(page.locator("[data-sidebar-toggle]")).toBeHidden();
+  // Nor do any of its header's or filter row's controls stay behind.
+  for (const name of ["Mørk modus", "Vis som helside", "Kategori"])
+    await expect(page.getByRole("button", { name, exact: true })).toBeHidden();
   return page.getByRole("region", { name: "Nye veier og baner fra OpenStreetMap" });
 }
 
