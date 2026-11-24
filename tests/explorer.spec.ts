@@ -3136,7 +3136,51 @@ test.describe("the place follows the map", () => {
       await expect(place("Bergen")).toBeVisible();
     });
 
-    test("a shorter place's chevron slides in behind it", async ({ page }) => {
+    test("the compact drawer names the place while the map is still moving", async ({
+      page,
+    }) => {
+      await page.goto("/?kart=60.4400,5.3200,12");
+      const filters = page
+        .locator("[data-explorer-drawer]")
+        .getByRole("region", { name: "Filtrer prosjekter", exact: true });
+      await foldList(page);
+      const trigger = filters.getByRole("button", { name: /^Sted: / });
+      await expect(trigger).toHaveText("Bergen");
+      const start = page.url();
+      // Renaming the pill mid-pan leaves the rest of the list as it is.
+      const list = page.getByRole("region", { name: "Prosjektliste", exact: true });
+      await list.evaluate((element) => {
+        const win = window as unknown as { listChanges: number };
+        win.listChanges = 0;
+        new MutationObserver((records) => {
+          win.listChanges += records.filter(
+            (record) =>
+              !(record.target as Element).closest?.("[data-slot=choice-select]") &&
+              !record.target.parentElement?.closest("[data-slot=choice-select]"),
+          ).length;
+        }).observe(element, { childList: true, subtree: true, attributes: true });
+      });
+      // Bergen dragged off the screen: the finger still down, the map not
+      // yet settled, the name has already let go of it.
+      await touchMove(
+        page,
+        { x: 370, y: 200 },
+        { x: 20, y: 200 },
+        {
+          before: async () => {
+            await expect(trigger).not.toHaveText("Bergen");
+            expect(page.url()).toBe(start);
+            expect(
+              await page.evaluate(
+                () => (window as unknown as { listChanges: number }).listChanges,
+              ),
+            ).toBe(0);
+          },
+        },
+      );
+    });
+
+    test("a picked place resizes its pill at once", async ({ page }) => {
       await page.emulateMedia({ reducedMotion: "no-preference" });
       await page.goto("/?sted=Vestland");
       const filters = page
@@ -3146,52 +3190,17 @@ test.describe("the place follows the map", () => {
         filters.getByRole("button", { name: `Sted: ${name}`, exact: true });
       await expect(place("Vestland")).toHaveText("Vestland");
       await place("Vestland").click();
-      type Gaps = { words: number; edge: number };
-      type Window_ = { gaps: (button: Element) => Gaps; midway?: Gaps };
-      // Early in the narrowing (held there for a moment), where the
-      // chevron sits: past the words, and short of the pill's edge.
-      await place("Vestland").evaluate((button) => {
-        const win = window as unknown as Window_;
-        win.gaps = (button) => {
-          const words = button.querySelector(":scope > span")!;
-          const chevron = button.querySelector(":scope > svg:last-child")!;
-          const box = chevron.getBoundingClientRect();
-          return {
-            words: box.left - words.getBoundingClientRect().right,
-            edge: button.getBoundingClientRect().right - box.right,
-          };
-        };
-        const observer = new MutationObserver(() => {
-          const motion = button
-            .parentElement!.getAnimations()
-            .find((animation) => animation.id === "choice-width");
-          if (!motion) return;
-          observer.disconnect();
-          motion.pause();
-          motion.currentTime = 20;
-          win.midway = win.gaps(button);
-          motion.play();
-        });
-        observer.observe(button, {
-          childList: true,
-          characterData: true,
-          subtree: true,
-        });
-      });
       await page
         .getByRole("listbox", { name: "Sted", exact: true })
         .getByRole("option", { name: /^Oslo/ })
         .click();
       await expect(place("Oslo")).toHaveText("Oslo");
-      const [midway, rest] = await place("Oslo").evaluate((button) => {
-        const win = window as unknown as Window_;
-        button.parentElement!.getAnimations().forEach((a) => a.finish());
-        return [win.midway!, win.gaps(button)];
-      });
-      // It rides the narrowing edge, rather than jumping in behind the
-      // shorter words at once, and comes to rest beside them.
-      expect(midway.edge).toBeCloseTo(rest.edge, 0);
-      expect(midway.words).toBeGreaterThan(rest.words + 10);
+      const resizing = await place("Oslo").evaluate((button) =>
+        button
+          .parentElement!.getAnimations()
+          .some((animation) => animation.id === "choice-width"),
+      );
+      expect(resizing).toBe(false);
     });
   });
 });

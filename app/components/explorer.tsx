@@ -193,6 +193,62 @@ const foldPadding = 14;
 /** The floating drawer's gap below it; see `useFloatingGap`. */
 const sheetGap = 8;
 /**
+ * The place a panning map shows on phones, ahead of the explorer: only the
+ * "Sted" pill reads it, so naming a new place mid-pan re-renders just that,
+ * not the list. `base` is the explorer's place it was named over; once that
+ * moves on, the explorer has caught up and the pill shows its place again.
+ */
+type LivePlace = { name: string; base: string } | null;
+function createLivePlace() {
+  let current: LivePlace = null;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => current,
+    set(next: LivePlace) {
+      if (next?.name === current?.name && next?.base === current?.base) return;
+      current = next;
+      listeners.forEach((listener) => listener());
+    },
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+  };
+}
+type LivePlaceStore = ReturnType<typeof createLivePlace>;
+const noLivePlace = () => null;
+
+/** The phone's "Sted" pill, naming the live place while the map pans. */
+function LivePlaceSelect({
+  live,
+  place,
+  fallback,
+  className,
+  ...props
+}: Omit<
+  Extract<Parameters<typeof ChoiceSelect>[0], { multiple?: false }>,
+  "triggerLabel" | "value"
+> & {
+  live: LivePlaceStore;
+  place: string;
+  fallback: string;
+}) {
+  const shown = useSyncExternalStore(live.subscribe, live.get, noLivePlace);
+  const name = shown && shown.base === place ? shown.name : place;
+  return (
+    <ChoiceSelect
+      {...props}
+      value={place}
+      triggerLabel={name || fallback}
+      className={cn(
+        className,
+        !name && "[&_[data-slot=choice-trigger]]:font-medium",
+      )}
+    />
+  );
+}
+
+/**
  * How much of the open project's drawer shows folded: down to the end of
  * its phase timeline, scrolled to its top. Never lower than the folded list,
  * which it covers, nor near the middle height.
@@ -474,6 +530,8 @@ export default memo(function Explorer({
   );
   // A picked place holds while the map flies there.
   const placeHold = useRef<{ name: string; until: number } | null>(null);
+  const [livePlace] = useState(createLivePlace);
+  useLayoutEffect(() => livePlace.set(null), [livePlace, place]);
   const lastZoom = useRef<number | null>(null);
   const [profileName, setProfileName] = useState<string | null>(
     initialProfile || null,
@@ -775,8 +833,9 @@ export default memo(function Explorer({
   }
   function onMapView(view: MapViewChange) {
     // On phones the drawer is folded down while the map pans, so the list
-    // waits for it to settle; following it mid-pan stalled Safari.
-    if (view.moving && isMobile) return;
+    // waits for it to settle; following it mid-pan stalled Safari. Only the
+    // place it names keeps up, through the pill alone (see `LivePlace`).
+    if (view.moving && isMobile) return followPlace(view);
     // The URL and the view to return to take only views the map rests on.
     if (!view.moving) mapViewRef.current = view;
     const shown = projectsInView(view);
@@ -801,16 +860,24 @@ export default memo(function Explorer({
     // is passing. Under the full drawer the map is out of sight.
     if ((maximized && !isMobile) || postView.current) return;
     if (isMobile && snapRef.current === 1) return;
-    shown ??= projectsInView(view);
+    const live = view.moving && isMobile;
+    // Settled, the explorer takes the name; the pill's own copy is let go
+    // once it has (see the layout effect on `place`).
+    const name = (next: string) => {
+      if (live) livePlace.set({ name: next, base: place });
+      else if (next === place) livePlace.set(null);
+      else setPlace(next);
+    };
     const previousZoom = lastZoom.current ?? view.zoom;
     lastZoom.current = view.zoom;
     const hold = placeHold.current;
-    if (hold && Date.now() < hold.until) return setPlace(hold.name);
+    if (hold && Date.now() < hold.until) return name(hold.name);
     placeHold.current = null;
+    shown ??= projectsInView(view);
     const inView = shown.map((project) => placesOf.get(project.id) ?? []);
-    setPlace((current) =>
-      placeInView(inView, view.zoom, current, previousZoom),
-    );
+    const current = livePlace.get();
+    const shownName = current && current.base === place ? current.name : place;
+    name(placeInView(inView, view.zoom, shownName, previousZoom));
   }
   // The drawer's height changes what of the map is in sight, and so what the
   // list holds. Under the full drawer the map is out of sight: the list
@@ -832,6 +899,7 @@ export default memo(function Explorer({
   }, [isMobile, snapPoint]);
   /** Moves the map to a place, or out to Norway for none. */
   function goToPlace(name: string) {
+    livePlace.set(null);
     setPlace(name);
     const found = findPlace(name);
     placeHold.current = { name: found ? name : "", until: Date.now() + 1500 };
@@ -847,6 +915,7 @@ export default memo(function Explorer({
     else mapApi.current?.showNorway();
   }
   function pickPlace(name: string) {
+    livePlace.set(null);
     if (maximized && !isMobile) return setPlace(name);
     goToPlace(name);
   }
@@ -1539,16 +1608,15 @@ export default memo(function Explorer({
     />
   );
   const mobileFilters = filterBar(
-    <ChoiceSelect
+    <LivePlaceSelect
+      live={livePlace}
       label="Sted"
-      smoothWidth
-      value={place}
+      place={place}
+      fallback={placeFallback}
       onChange={pickPlace}
-      triggerLabel={place || placeFallback}
       className={cn(
         inlineChoiceClasses,
         "[&_[data-slot=choice-trigger]>span:nth-of-type(2)]:hidden",
-        !place && "[&_[data-slot=choice-trigger]]:font-medium",
       )}
       options={placeOptions}
     />,
