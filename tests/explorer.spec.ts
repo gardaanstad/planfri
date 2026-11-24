@@ -1481,30 +1481,59 @@ test.describe("desktop explorer", () => {
     page,
   }) => {
     await page.goto("/?kart=59.9100,10.7500,14");
-    const inOslo = page.getByRole("button", {
-      name: /^\d+ i Oslo, vis Oslo på kartet$/,
-    });
-    await expect(inOslo).toBeVisible();
-    const visible = Number(
-      (await page
-        .getByRole("status", { name: /^\d+ synlige? prosjekte?r?$/ })
-        .getAttribute("aria-label"))!.match(/^\d+/)![0],
-    );
-    const count = Number(
-      (await inOslo.getAttribute("aria-label"))!.match(/^\d+/)![0],
-    );
     const list = page.getByRole("region", { name: "Prosjektliste" });
     const cards = list.locator("[data-card-id]");
-    await expect(cards).toHaveCount(count);
+    await expect(
+      list.getByRole("list", { name: "Utenfor kartet i Oslo" }),
+    ).toBeVisible();
     const muted = list.locator("[data-off-map]");
-    await expect(muted).toHaveCount(count - visible);
+    // Once the map has settled on what it shows.
+    let visible = 0;
+    await expect(async () => {
+      visible = Number(
+        (await page
+          .getByRole("status", { name: /^\d+ synlige? prosjekte?r?$/ })
+          .getAttribute("aria-label"))!.match(/^\d+/)![0],
+      );
+      expect(visible).toBeGreaterThan(0);
+      const count = await cards.count();
+      expect(count).toBeGreaterThan(visible);
+      expect(await muted.count()).toBe(count - visible);
+    }).toPass();
     // Every muted card comes after the visible ones.
     await expect(cards.nth(visible)).toHaveAttribute("data-off-map", "true");
     await expect(cards.nth(visible - 1)).not.toHaveAttribute("data-off-map");
+    await expect(
+      list.getByRole("button", { name: "Ikke synlige på kartet" }),
+    ).toBeVisible();
     const first = muted.first();
     await expect(first).toHaveCSS("opacity", "0.55");
     await first.hover();
     await expect(first).toHaveCSS("opacity", "1");
+  });
+
+  test("the projects out of view fold away, and stay so in this browser", async ({
+    page,
+  }) => {
+    await page.goto("/?kart=59.9100,10.7500,14");
+    const list = page.getByRole("region", { name: "Prosjektliste" });
+    const toggle = list.getByRole("button", { name: "Ikke synlige på kartet" });
+    const offMap = list.getByRole("list", { name: "Utenfor kartet i Oslo" });
+    // Open by default.
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(offMap).toBeVisible();
+    await expect(toggle).toHaveCSS("border-bottom-width", "1px");
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(offMap).toBeHidden();
+    await expect(list.locator("[data-off-map]").first()).toBeHidden();
+    // No divider below it, folded: the last row's is above it.
+    await expect(toggle).toHaveCSS("border-bottom-width", "0px");
+    await page.reload();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(offMap).toBeHidden();
+    await toggle.click();
+    await expect(offMap).toBeVisible();
   });
 
   test("the end of the list offers a missing project", async ({ page }) => {

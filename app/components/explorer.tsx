@@ -63,6 +63,7 @@ import {
   type ListDensity,
 } from "../lib/explore-state";
 import type { MapApi, MapViewChange } from "./project-map";
+import OffMapGroup from "./off-map-group";
 import {
   extentPoints,
   findPlace,
@@ -2181,11 +2182,11 @@ export default memo(function Explorer({
         {/* A list of their own, so a project coming into view is one row
             moving across rather than every row before it moving down. */}
         {density !== "feed" && offMapIds.size > 0 && (
-          <ol aria-label={`Utenfor kartet i ${place}`}>
+          <OffMapGroup label={`Utenfor kartet i ${place}`}>
             {listRows
               .filter((project) => offMapIds.has(project.id))
               .map(renderCard)}
-          </ol>
+          </OffMapGroup>
         )}
         {(density === "feed"
           ? feedProjects.length === 0
