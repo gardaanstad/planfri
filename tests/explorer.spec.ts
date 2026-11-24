@@ -1623,14 +1623,76 @@ test.describe("desktop explorer", () => {
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await expect(offMap).toBeHidden();
     await expect(list.locator("[data-off-map]").first()).toBeHidden();
-    // No divider below it, folded: the last row's is above it.
-    await expect(toggle).toHaveCSS("border-bottom-width", "0px");
+    // Its divider below stays, folded.
+    await expect(toggle).toHaveCSS("border-bottom-width", "1px");
     await page.reload();
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await expect(offMap).toBeHidden();
     await toggle.click();
     await expect(offMap).toBeVisible();
   });
+
+  for (const motion of ["reduce", "no-preference"] as const) {
+    test(`unfolding the projects out of view scrolls them in, as far as the toggle at the top (${motion})`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion: motion });
+      const list = page.getByRole("region", { name: "Prosjektliste" });
+      const toggle = list.getByRole("button", {
+        name: "Ikke synlige på kartet",
+      });
+      const offMap = list.getByRole("list", { name: "Utenfor kartet i Oslo" });
+      const unfold = async () => {
+        if ((await toggle.getAttribute("aria-expanded")) === "true")
+          await toggle.click();
+        await expect(toggle).toHaveAttribute("aria-expanded", "false");
+        // The toggle at the list's bottom.
+        await toggle.evaluate((el) => el.scrollIntoView({ block: "end" }));
+        await toggle.click();
+        await expect(toggle).toHaveAttribute("aria-expanded", "true");
+      };
+      await page.goto("/?kart=59.9100,10.7500,14");
+      // Room for them all: the last comes into view.
+      await unfold();
+      await expect(async () => {
+        const [region, last] = await Promise.all([
+          list.boundingBox(),
+          offMap.locator("[data-card-id]").last().boundingBox(),
+        ]);
+        expect(last!.y + last!.height).toBeLessThanOrEqual(
+          region!.y + region!.height + 1,
+        );
+      }).toPass();
+      // At the list's end, it stays there, with room before the toggle
+      // reaches the top.
+      await page.setViewportSize({ width: 1280, height: 1100 });
+      await toggle.click();
+      await expect(toggle).toHaveAttribute("aria-expanded", "false");
+      await list.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+      await toggle.click();
+      await expect(toggle).toHaveAttribute("aria-expanded", "true");
+      await expect(async () => {
+        expect(
+          await list.evaluate(
+            (el) => el.scrollHeight - el.scrollTop - el.clientHeight,
+          ),
+        ).toBeLessThan(2);
+      }).toPass();
+      await expect(
+        list.getByRole("button", { name: "Foreslå prosjekt" }),
+      ).toBeInViewport({ ratio: 1 });
+      // Too little: it stops with the toggle at the top.
+      await page.setViewportSize({ width: 1280, height: 420 });
+      await unfold();
+      await expect(async () => {
+        const [region, button] = await Promise.all([
+          list.boundingBox(),
+          toggle.boundingBox(),
+        ]);
+        expect(Math.abs(button!.y - region!.y)).toBeLessThan(2);
+      }).toPass();
+    });
+  }
 
   test("the end of the list offers a missing project", async ({ page }) => {
     await page.goto("/");
