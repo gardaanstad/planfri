@@ -2077,17 +2077,31 @@ export default memo(function Explorer({
       onHover={hoverCard}
     />
   );
-  const projectResults = (
+  // On phones the header scrolls away with the rows.
+  const projectResults = (header?: ReactNode) => (
     <section
       ref={listRef}
       data-drawer-scroll
       className={cn(
-        "min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain bg-surface scrollbar-thin max-md:bg-transparent",
+        "group/list min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain bg-surface scrollbar-thin max-md:bg-transparent",
         // Centred on the window, like the header above it.
         wide && "[scrollbar-gutter:stable_both-edges]",
       )}
       aria-label="Prosjektliste"
     >
+      {header && (
+        <>
+          {/* Over the rows as they scroll under the screen's top, once the
+              header has scrolled away with them. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none sticky top-0 z-10 h-0"
+          >
+            <div className="h-8 bg-linear-to-b from-surface to-transparent opacity-0 transition-opacity duration-150 group-data-scrolled/list:opacity-100 motion-reduce:transition-none" />
+          </div>
+          {header}
+        </>
+      )}
       <div
         className={cn(
           // At least as tall as the list, so on desktop "Foreslå prosjekt"
@@ -2532,16 +2546,17 @@ export default memo(function Explorer({
         inert={liveLayers.length > 0}
         aria-hidden={liveLayers.length > 0 || undefined}
       >
-        <div className="relative z-10 shrink-0 bg-surface px-4.5 pb-0.5 max-xs:px-3.5">
-          <div className="flex h-11 items-center justify-between">
-            {brand}
-            <div className="flex items-center gap-0.5">
-              <ThemeToggle tooltip={false} />
-              {profileButton}
+        {projectResults(
+          <div className="px-4.5 pb-0.5 max-xs:px-3.5">
+            <div className="flex h-11 items-center justify-between">
+              {brand}
+              <div className="flex items-center gap-0.5">
+                <ThemeToggle tooltip={false} />
+                {profileButton}
+              </div>
             </div>
-          </div>
-        </div>
-        {projectResults}
+          </div>,
+        )}
       </div>
     </>
   );
@@ -2822,7 +2837,7 @@ export default memo(function Explorer({
             </header>
             <div className="relative min-h-0 flex-1">
               <div className="absolute inset-0 flex flex-col">
-                {projectResults}
+                {projectResults()}
               </div>
             </div>
           </div>
