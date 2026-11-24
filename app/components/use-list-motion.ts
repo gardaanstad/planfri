@@ -1,5 +1,11 @@
 "use client";
-import { useLayoutEffect, useRef, useState, type RefObject } from "react";
+import {
+  startTransition,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 
 const exitMs = 120;
 const moveMs = 320;
@@ -148,7 +154,9 @@ export function useListMotion<T>(
       ghosts.current = left;
     }
     // The swap waits on the rows as they were, so it follows their commit.
-    setShown(items);
+    // Set here, in a layout effect, it would render at once, holding up the
+    // frame however the change came: a pan bringing many rows in stuttered.
+    startTransition(() => setShown(items));
   }, [attribute, items, scroller]);
 
   useLayoutEffect(() => {
