@@ -1866,6 +1866,8 @@ export default memo(function Explorer({
   // sidebar. Measured whether shown or not, so it returns once there's room.
   const countRowRef = useRef<HTMLDivElement>(null);
   const [placeFits, setPlaceFits] = useState(true);
+  // With room to spare, the count names what it counts, as when alone.
+  const [wordFits, setWordFits] = useState(false);
   useLayoutEffect(() => {
     const row = countRowRef.current;
     const parts = row?.querySelector<HTMLElement>("[data-count-parts]");
@@ -1877,19 +1879,35 @@ export default memo(function Explorer({
       // frame first.
       const place = parts.querySelector<HTMLElement>("[data-count-place]");
       if (place && getComputedStyle(place).display === "none")
-        return flushSync(() => setPlaceFits(false));
+        return flushSync(() => {
+          setPlaceFits(false);
+          setWordFits(true);
+        });
+      // The word gives way before the place does.
+      const word = parts.querySelector<HTMLElement>("[data-count-word]");
+      // Fractional widths, so rounding never tips it back and forth.
+      const width = (element: Element) =>
+        element.getBoundingClientRect().width;
+      const wordWidth = word ? width(word) : 0;
+      const wordInLine =
+        !!word && getComputedStyle(word).position !== "absolute";
       // Every part at its own width, less the first dot, clipped.
       const needed =
         Array.from(parts.children).reduce(
-          (sum, part) => sum + (part as HTMLElement).offsetWidth,
+          (sum, part) => sum + width(part),
           0,
-        ) - 16;
+        ) -
+        16 -
+        (wordInLine ? wordWidth : 0);
       const room =
         row.clientWidth -
-        actions.offsetWidth -
+        width(actions) -
         (parseFloat(getComputedStyle(row).columnGap) || 0);
       // Before the next paint, so it never shows where it won't fit.
-      flushSync(() => setPlaceFits(needed <= room + 0.5));
+      flushSync(() => {
+        setPlaceFits(needed <= room + 0.5);
+        setWordFits(needed + wordWidth <= room + 0.5);
+      });
     };
     const observer = new ResizeObserver(fit);
     observer.observe(row);
@@ -1950,9 +1968,18 @@ export default memo(function Explorer({
               aria-label={`${shown} ${shown === 1 ? "synlig prosjekt" : "synlige prosjekter"}`}
             >
               {shown} {shown === 1 ? "synlig" : "synlige"}
-              {/* Beside the others, the shorter words; alone, in a narrow
-                  sidebar, the whole of it. */}
-              <span className="hidden narrow:inline">
+              {/* Alone, in a narrow sidebar, or with room beside the others,
+                  the whole of it; otherwise the shorter words. Out of the
+                  line, but still measured, until it fits. */}
+              <span
+                // Its leading space kept out of the line too, so it
+                // measures the same either way.
+                className={cn(
+                  "whitespace-pre max-md:hidden",
+                  !wordFits && "invisible absolute",
+                )}
+                data-count-word=""
+              >
                 {shown === 1 ? " prosjekt" : " prosjekter"}
               </span>
             </span>

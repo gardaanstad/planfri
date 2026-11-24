@@ -1410,6 +1410,33 @@ test.describe("desktop explorer", () => {
       name: /^\d+ totalt, vis alle på kartet$/,
     });
     await expect(total).toBeVisible();
+    // Given the room beside the others, the count names what it counts:
+    // dragged wider a pixel at a time, it shows once, never flipping back
+    // and forth where it only just fits.
+    const word = page.locator("[data-count-word]");
+    await expect(word).toBeHidden();
+    await word.evaluate((element) => {
+      const counted = window as unknown as { wordFlips: number };
+      counted.wordFlips = 0;
+      new MutationObserver(() => counted.wordFlips++).observe(element, {
+        attributeFilter: ["class"],
+      });
+    });
+    const handle = (await page
+      .getByRole("separator", { name: "Bredde på prosjektlisten" })
+      .boundingBox())!;
+    const x = handle.x + handle.width / 2;
+    const y = handle.y + handle.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    for (let step = 1; step <= 200; step++) await page.mouse.move(x + step, y);
+    await page.mouse.up();
+    await expect(word).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { wordFlips: number }).wordFlips,
+      ),
+    ).toBe(1);
     await expect(
       page
         .getByRole("region", { name: "Filtrer prosjekter", exact: true })
@@ -1444,6 +1471,9 @@ test.describe("desktop explorer", () => {
     await expect(
       page.getByRole("button", { name: /^\d+ totalt, vis alle på kartet$/ }),
     ).toBeVisible();
+    // The word gives way before the place.
+    const word = page.locator("[data-count-word]");
+    await expect(word).toBeHidden();
     await page
       .getByRole("separator", { name: "Bredde på prosjektlisten" })
       .focus();
