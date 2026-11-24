@@ -288,7 +288,9 @@ const controlsSlotClasses = cn(
   "[&_[data-map-controls]]:bottom-[15px]!",
 );
 /** Hides the map controls in a slot while its drawer would cover them. */
-const projectKey = (project: Project) => project.id;
+/** A row of the list, and whether it is out of the map's view. */
+type ListRow = { project: Project; offMap: boolean };
+const rowKey = (row: ListRow) => row.project.id;
 
 function coverControls(slot: HTMLElement | null, motion: DrawerMotion) {
   if (!slot) return;
@@ -2072,38 +2074,40 @@ export default memo(function Explorer({
     hoveredId.current = next;
     mapApi.current?.highlight(next);
   }, []);
-  // Below what's in view, the rest of the place it's on, muted.
+  // Below what's in view, the rest of the place it's on, muted. Which side
+  // a row is on travels with it through the list's motion, so it changes
+  // sides in the swap, measured, not a render ahead of it: split by the
+  // live set, rows changed lists before their places were read, jumping
+  // and mounting anew outside the transition.
   const listItems = useMemo(
-    () =>
-      offMapProjects.length
-        ? [...listedProjects, ...offMapProjects]
-        : listedProjects,
+    () => [
+      ...listedProjects.map((project) => ({ project, offMap: false })),
+      ...offMapProjects.map((project) => ({ project, offMap: true })),
+    ],
     [listedProjects, offMapProjects],
-  );
-  const offMapIds = useMemo(
-    () => new Set(offMapProjects.map((project) => project.id)),
-    [offMapProjects],
   );
   const listRows = useListMotion(
     listItems,
-    projectKey,
+    rowKey,
     listRef,
     "data-card-id",
   );
-  const renderCard = (project: Project) => (
+  const renderCard = ({ project, offMap }: ListRow) => (
     <ProjectCard
       key={project.id}
       project={project}
       commentCount={activity[project.id]?.comments ?? 0}
       density={cardDensity}
       saved={savedIds.has(project.id)}
-      offMap={offMapIds.has(project.id)}
+      offMap={offMap}
       news={news.get(project.id)}
       onOpen={openListCard}
       onSave={saveCard}
       onHover={hoverCard}
     />
   );
+  const inView = listRows.filter((row) => !row.offMap);
+  const outOfView = listRows.filter((row) => row.offMap);
   // On phones the header scrolls away with the rows.
   const projectResults = (header?: ReactNode) => (
     <section
@@ -2174,18 +2178,13 @@ export default memo(function Explorer({
         )}
         {/* Kept when empty, so rows filtered out can fade in it. */}
         <ol className="relative" data-list-motion="">
-          {density !== "feed" &&
-            listRows
-              .filter((project) => !offMapIds.has(project.id))
-              .map(renderCard)}
+          {density !== "feed" && inView.map(renderCard)}
         </ol>
         {/* A list of their own, so a project coming into view is one row
             moving across rather than every row before it moving down. */}
-        {density !== "feed" && offMapIds.size > 0 && (
+        {density !== "feed" && outOfView.length > 0 && (
           <OffMapGroup label={`Utenfor kartet i ${place}`}>
-            {listRows
-              .filter((project) => offMapIds.has(project.id))
-              .map(renderCard)}
+            {outOfView.map(renderCard)}
           </OffMapGroup>
         )}
         {(density === "feed"
