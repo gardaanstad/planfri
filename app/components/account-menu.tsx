@@ -172,7 +172,11 @@ export default function AccountMenu({
           >
             <div className="flex gap-1">
               <Menu.Item
-                className={cn(item, "h-13 min-w-0 flex-1 gap-3 py-0")}
+                // Reaches across the gap to settings, so none is dead.
+                className={cn(
+                  item,
+                  "relative h-13 min-w-0 flex-1 gap-3 py-0 before:absolute before:inset-y-0 before:left-0 before:-right-1",
+                )}
                 onClick={() => run(onProfile)}
               >
                 <ProfileAvatar name={username} className="size-8 text-xs" />

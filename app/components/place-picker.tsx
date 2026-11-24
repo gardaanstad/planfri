@@ -124,6 +124,8 @@ export default function PlacePicker({
     cn(
       "flex min-h-9 w-full shrink-0 cursor-default items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-ui text-ink",
       "pointer-coarse:min-h-11 hover:bg-surface-muted",
+      // Reaches halfway across the gaps, so none is dead to the pointer.
+      "relative before:absolute before:inset-x-0 before:-inset-y-0.5",
       index === active && "bg-surface-muted",
     );
 

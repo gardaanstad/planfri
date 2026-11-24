@@ -79,6 +79,20 @@ type ChoiceSelectProps =
 
 const widthMotion = "choice-width";
 
+/**
+ * On desktop, a row's hit area reaches halfway across the gap to each
+ * neighbour, so no strip between rows is dead to the pointer. The reach is
+ * transparent: rows and their hover tint look as they did. It sits above
+ * the subcategory list, which would otherwise cover the parent's reach.
+ */
+const reach = "relative before:absolute before:z-1 before:inset-x-0";
+// Rows with a border reach from inside it: 1px more, past it.
+const reachBordered = cn(reach, "before:-inset-x-px before:-inset-y-[3px]");
+// Below an open group: across the whole gap and the group's bottom border,
+// as the group's last child can't reach past its clipping.
+const reachPastGroup =
+  "[[data-slot=choice-group][data-open=true]+&]:before:-top-[6px]";
+
 export default function ChoiceSelect(props: ChoiceSelectProps) {
   const {
     label,
@@ -433,6 +447,11 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
             ? "min-h-12! gap-3 px-3 text-body active:bg-surface-muted"
             : [
                 "min-h-9 gap-2 px-2.5 py-1.5 text-ui hover:bg-surface-muted",
+                reachBordered,
+                // A group's parent also spans the group's border.
+                option.children?.length
+                  ? "before:-inset-y-1 [[data-slot=choice-group][data-open=true]+[data-slot=choice-group]>&]:before:-top-[7px]"
+                  : reachPastGroup,
                 // One choice: outlined like a chosen group, not checked.
                 !grouped && !multiple && "aria-selected:border-border-strong",
               ],
@@ -497,7 +516,12 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
           "aria-selected:font-medium",
           sheet
             ? "ml-6 min-h-11 w-auto gap-3 pr-2 pl-3.25 text-ui active:bg-surface-muted"
-            : "ml-5.5 min-h-8 w-auto gap-2 pr-1.75 pl-2.25 text-ui hover:bg-surface-muted",
+            : [
+                "ml-5.5 min-h-8 w-auto gap-2 pr-1.75 pl-2.25 text-ui hover:bg-surface-muted",
+                // Across the rows' gaps, and the list's padding at its ends.
+                reach,
+                "before:-inset-y-px first:before:-top-0.5 last:before:-bottom-1",
+              ],
         )}
         onClick={() => toggle(option.value)}
       >
@@ -627,7 +651,13 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
               "hover:text-ink focus-visible:bg-surface-muted focus-visible:text-ink",
               sheet
                 ? "min-h-12 gap-3 px-3 text-body active:bg-surface-muted"
-                : "min-h-9 gap-2 px-2.5 py-1.5 text-ui hover:bg-surface-muted",
+                : [
+                    "min-h-9 gap-2 px-2.5 py-1.5 text-ui hover:bg-surface-muted",
+                    // Open, across the whole gap: the extra rows are clipped.
+                    reachBordered,
+                    reachPastGroup,
+                    "aria-expanded:before:-bottom-[5px]",
+                  ],
             )}
             onClick={() => setExpanded(!expanded)}
           >
