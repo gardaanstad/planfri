@@ -45,6 +45,7 @@ import {
   osmStatusLabels,
 } from "../lib/osm-candidates";
 import { cn } from "../lib/cn";
+import { extentPoints, placeExtent } from "../lib/places";
 import { mobileQuery, reducedMotion, useMediaQuery } from "../lib/media";
 import ActionSheet, { SwitchTrack, type SheetAction } from "./action-sheet";
 import { mapIconButton } from "../lib/ui";
@@ -871,7 +872,11 @@ export default function ProjectMap({
         maxZoom: 17,
       });
     else if (place) map.setView(place.center, place.zoom);
-    else map.fitBounds(norwayBounds);
+    else {
+      // Other places frame their extent.
+      const extent = city ? placeExtent(city) : undefined;
+      map.fitBounds(extent ? extentPoints(extent) : norwayBounds);
+    }
   }, [city, ready, draw, frame]);
   // The explorer reports every view, which filters the list and fills the URL.
   useEffect(() => {

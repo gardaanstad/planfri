@@ -8,16 +8,13 @@ import {
   type RefObject,
 } from "react";
 import { AlertCircle } from "lucide-react";
-import {
-  centroid,
-  presetPlaces,
-  type Project,
-} from "../lib/data";
+import { centroid, type Project } from "../lib/data";
 import { errorMessage } from "../lib/api-client";
 import { cn } from "../lib/cn";
 import { fieldControl } from "../lib/ui";
 import ImagePicker from "./image-picker";
 import CategoryPicker from "./category-picker";
+import PlacePicker from "./place-picker";
 import DrawingMap from "./drawing-map";
 import TimelineInput from "./timeline-input";
 import { PanelHeader } from "./panel";
@@ -292,19 +289,16 @@ export default function ProjectEditor({
               control={`${ids}-place`}
               error={error("place")}
             >
-              <input
-                {...control("place")}
-                className={input}
-                list={`${ids}-places`}
-                maxLength={80}
+              <PlacePicker
+                id={`${ids}-place`}
+                inputClassName={input}
+                triggerClassName={cn(
+                  "min-h-10 rounded-lg border-border-strong px-3 pointer-coarse:min-h-11 max-sm:text-base",
+                  error("place") && "border-danger",
+                )}
                 value={draft.city}
-                onChange={(event) => change({ city: event.target.value })}
+                onChange={(city) => change({ city })}
               />
-              <datalist id={`${ids}-places`}>
-                {presetPlaces.map((place) => (
-                  <option key={place} value={place} />
-                ))}
-              </datalist>
             </Field>
             <Field
               id="district"

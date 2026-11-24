@@ -7,6 +7,7 @@ import {
 } from "@playwright/test";
 import { seedProjects } from "../scripts/seed-data";
 import { getProjectUpdates } from "../app/lib/data";
+import { mainCities, placeInView, projectPlaces } from "../app/lib/places";
 import {
   accountMenuItem,
   member,
@@ -2905,6 +2906,57 @@ test.describe("desktop explorer", () => {
     // Long enough for a fly to the place to have moved the map.
     await page.waitForTimeout(800);
     expect(mapParam(page)).toBe("59.9100,10.7500,16");
+  });
+});
+
+test("a view of two places names both; twin cities count as one", () => {
+  const oslo = projectPlaces("Oslo", [59.91, 10.75]);
+  const baerum = projectPlaces("Bærum", [59.9, 10.53]);
+  const bergen = projectPlaces("Bergen", [60.39, 5.32]);
+  const vestland = projectPlaces("Vestland", [61.2, 6.0]);
+  expect(placeInView([oslo, oslo, baerum], 12)).toBe("Oslo og Bærum");
+  expect(placeInView([baerum, baerum, oslo], 12)).toBe("Bærum og Oslo");
+  expect(placeInView([oslo, oslo], 12)).toBe("Oslo");
+  // A city and its county is the city's, not both.
+  expect(placeInView([bergen, bergen, vestland], 12)).toBe("Bergen");
+  // Zoomed out, only the two named already stay named.
+  expect(placeInView([oslo, baerum], 10, "", 11)).toBe("");
+  expect(placeInView([oslo, baerum], 10, "Oslo og Bærum", 10)).toBe(
+    "Oslo og Bærum",
+  );
+  expect(projectPlaces("Sandnes", [58.85, 5.74])).toEqual([
+    "Stavanger/Sandnes",
+    "Rogaland",
+  ]);
+  expect(projectPlaces("Stavanger", [58.97, 5.73])[0]).toBe("Stavanger/Sandnes");
+});
+
+test.describe("the place menu", () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
+  test("goes to the main cities first, then the rest A–Å, none marked", async ({
+    page,
+  }) => {
+    await page.goto("/?kart=59.9100,10.7500,12");
+    const trigger = page
+      .getByRole("region", { name: "Filtrer prosjekter", exact: true })
+      .getByRole("button", { name: "Sted: Oslo", exact: true });
+    await trigger.click();
+    const menu = page.getByRole("listbox", { name: "Sted", exact: true });
+    const labels = await menu
+      .getByRole("option")
+      .evaluateAll((options) => options.map((option) => option.dataset.label));
+    expect(labels.slice(0, 11)).toEqual(["Hele Norge", ...mainCities]);
+    const rest = labels.slice(11) as string[];
+    expect(rest.length).toBeGreaterThan(0);
+    expect(rest).toEqual([...rest].sort((a, b) => a.localeCompare(b, "nb")));
+    expect(rest).not.toContain("Stavanger");
+    // A line sets the rest apart.
+    await expect(menu.getByRole("separator")).toHaveCount(1);
+    await expect(
+      menu.locator('[data-label="Ålesund"] + [role="separator"]'),
+    ).toHaveCount(1);
+    // Oslo is where the map is, not a choice kept.
+    await expect(menu.getByRole("option", { selected: true })).toHaveCount(0);
   });
 });
 

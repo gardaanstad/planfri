@@ -540,6 +540,22 @@ test("members suggest new projects; moderators edit and publish them", async ({
   await categoryMenu.getByRole("option", { name: "Samferdsel", exact: true }).click();
   await categoryMenu.getByRole("option", { name: "Vei", exact: true }).click();
   await page.keyboard.press("Escape");
+  // The place is picked from the list, or added to it.
+  await dialog.getByRole("button", { name: "Sted: Oslo", exact: true }).click();
+  const placeMenu = page.getByRole("listbox", { name: "Sted", exact: true });
+  await expect(placeMenu.getByRole("option").nth(2)).toHaveText(
+    "Stavanger/Sandnes",
+  );
+  await placeMenu.getByRole("option", { name: "Bergen", exact: true }).click();
+  await dialog.getByRole("button", { name: "Sted: Bergen", exact: true }).click();
+  await page.getByRole("button", { name: "Legg til sted", exact: true }).click();
+  const newPlace = dialog.getByRole("textbox", { name: "Nytt sted" });
+  await expect(newPlace).toBeFocused();
+  await newPlace.fill("Lysaker");
+  await newPlace.press("Enter");
+  await expect(
+    dialog.getByRole("button", { name: "Sted: Lysaker", exact: true }),
+  ).toBeVisible();
   await dialog
     .getByLabel("Legg til bilde")
     .setInputFiles({ name: "foto.png", mimeType: "image/png", buffer: png() });
@@ -591,6 +607,7 @@ test("members suggest new projects; moderators edit and publish them", async ({
     (project) => project.title === `${title} (ny)`,
   )!;
   expect(published).toMatchObject({
+    city: "Lysaker",
     description: "En ny bru over fjorden.",
     imageCredit: `@${person.username}`,
     updates: [],

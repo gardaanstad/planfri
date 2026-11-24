@@ -8,7 +8,7 @@ import {
   type Project,
 } from "../lib/data";
 import type { ProjectActivity } from "../lib/community";
-import { projectPlaces } from "../lib/places";
+import { inPlace as placeHas, projectPlaces } from "../lib/places";
 import { searchText } from "../lib/project-filters";
 
 /**
@@ -81,7 +81,7 @@ export function useProjectList({
     const inPlace = (project: Project) =>
       bounds
         ? projectInBounds(project, bounds)
-        : !place || !!placesOf.get(project.id)?.includes(place);
+        : !place || placeHas(placesOf.get(project.id), place);
     // "Aktuelt" ranks by discussion over the past week, then by latest update.
     const compare = (a: Project, b: Project) =>
       sort === "title"
@@ -94,7 +94,7 @@ export function useProjectList({
     const rest: Project[] = [];
     for (const project of searchHits) {
       if (inPlace(project)) shown.push(project);
-      else if (bounds && nearby && placesOf.get(project.id)?.includes(nearby))
+      else if (bounds && nearby && placeHas(placesOf.get(project.id), nearby))
         rest.push(project);
     }
     return [shown.sort(compare), rest.sort(compare)];

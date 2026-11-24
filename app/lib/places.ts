@@ -70,27 +70,93 @@ const cities: [string, Point, number, string][] = [
   ["Kirkenes", [69.73, 30.05], 4, "Finnmark"],
 ];
 
+// Neighbouring cities that grow into one, listed and named together. A
+// project naming either belongs to both.
+const pairs: [string, string][] = [
+  ["Stavanger", "Sandnes"],
+  ["Fredrikstad", "Sarpsborg"],
+  ["Porsgrunn", "Skien"],
+];
+const pairOf = new Map(
+  pairs.flatMap(([a, b]) => [a, b].map((name) => [name, `${a}/${b}`])),
+);
+
+/** The cities first in the place menus, largest first; the rest follow A–Å. */
+export const mainCities = [
+  "Oslo",
+  "Bergen",
+  "Stavanger/Sandnes",
+  "Trondheim",
+  "Drammen",
+  "Fredrikstad/Sarpsborg",
+  "Porsgrunn/Skien",
+  "Kristiansand",
+  "Tønsberg",
+  "Ålesund",
+];
+
 function around([lat, lng]: Point, km: number): Extent {
   const dLat = km / 111;
   const dLng = km / (111 * Math.cos((lat * Math.PI) / 180));
   return [lat - dLat, lng - dLng, lat + dLat, lng + dLng];
+}
+const union = (a: Extent, b: Extent): Extent => [
+  Math.min(a[0], b[0]),
+  Math.min(a[1], b[1]),
+  Math.max(a[2], b[2]),
+  Math.max(a[3], b[3]),
+];
+
+const cityPlaces = new Map<string, Place>();
+for (const [name, center, km, county] of cities) {
+  const extent = around(center, km);
+  const key = pairOf.get(name) ?? name;
+  const known = cityPlaces.get(key);
+  cityPlaces.set(
+    key,
+    known
+      ? { ...known, extent: union(known.extent, extent) }
+      : { name: key, kind: "city", extent, ...(county && { county }) },
+  );
 }
 
 export const places: Place[] = [
   ...Object.entries(counties).map(
     ([name, extent]): Place => ({ name, kind: "county", extent }),
   ),
-  ...cities.map(
-    ([name, center, km, county]): Place => ({
-      name,
-      kind: "city",
-      extent: around(center, km),
-      ...(county && { county }),
-    }),
-  ),
+  ...cityPlaces.values(),
 ];
 const byName = new Map(places.map((place) => [place.name, place]));
-export const findPlace = (name: string) => byName.get(name);
+/** A place by name, a city of a pair finding the pair. */
+export const findPlace = (name: string) =>
+  byName.get(pairOf.get(name) ?? name);
+/** The name a place is listed under: a city of a pair as the pair. */
+export const placeName = (name: string) => pairOf.get(name) ?? name;
+
+/**
+ * Two places a view shows at once, named together. Its parts, as places;
+ * a place's own name, which may hold "og" itself, is one part.
+ */
+export const bothPlaces = (a: string, b: string) => `${a} og ${b}`;
+export function placeParts(name: string): Place[] {
+  const whole = byName.get(name);
+  if (whole) return [whole];
+  const words = name.split(" og ");
+  for (let i = 1; i < words.length; i++) {
+    const a = byName.get(words.slice(0, i).join(" og "));
+    const b = byName.get(words.slice(i).join(" og "));
+    if (a && b) return [a, b];
+  }
+  return [];
+}
+/** Whether a project in `names` (see `projectPlaces`) is in the place. */
+export const inPlace = (names: string[] | undefined, name: string) =>
+  placeParts(name).some((part) => names?.includes(part.name) ?? false);
+/** A place's framing: for two, both together. */
+export function placeExtent(name: string): Extent | undefined {
+  const parts = placeParts(name);
+  return parts.length ? parts.map((part) => part.extent).reduce(union) : undefined;
+}
 
 export function extentPoints([south, west, north, east]: Extent): Point[] {
   return [
@@ -104,8 +170,7 @@ const contains = ([south, west, north, east]: Extent, [lat, lng]: Point) =>
 
 /** Whether a point lies within the named place. */
 export function placeContains(name: string, point: Point) {
-  const place = byName.get(name);
-  return Boolean(place && contains(place.extent, point));
+  return placeParts(name).some((place) => contains(place.extent, point));
 }
 
 // Areas are compared as drawn on the map (Web Mercator), not on the globe.
@@ -122,7 +187,7 @@ const size = new Map(places.map((place) => [place, area(place.extent)]));
  * city around it, and the smallest county framing it.
  */
 export function projectPlaces(city: string, center: Point): string[] {
-  const named = byName.get(city);
+  const named = findPlace(city);
   if (named) return named.county ? [named.name, named.county] : [named.name];
   const near = places.find(
     (place) => place.kind === "city" && contains(place.extent, center),
@@ -163,5 +228,31 @@ export function placeInView(
     if (name !== current && zoom < placeZoom) continue;
     if (!best || size.get(place)! < size.get(best)!) best = place;
   }
+  // Projects from just two places, one not inside the other, name both
+  // rather than the one with more of them.
+  const both = twoPlaces(inView);
+  if (both && (zoom >= placeZoom || both === current)) return both;
   return best?.name ?? "";
+}
+
+/** The two places the projects lie in, if two: each project's smallest. */
+function twoPlaces(inView: string[][]): string {
+  const counts = new Map<string, number>();
+  for (const names of inView) {
+    if (!names.length) return "";
+    counts.set(names[0], (counts.get(names[0]) ?? 0) + 1);
+  }
+  if (counts.size !== 2) return "";
+  const rank = (name: string) => {
+    const main = mainCities.indexOf(name);
+    return main < 0 ? mainCities.length : main;
+  };
+  const [a, b] = [...counts.keys()].sort(
+    (a, b) =>
+      counts.get(b)! - counts.get(a)! ||
+      rank(a) - rank(b) ||
+      a.localeCompare(b, "nb"),
+  );
+  if (byName.get(a)?.county === b || byName.get(b)?.county === a) return "";
+  return bothPlaces(a, b);
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useEffectEvent,
   useLayoutEffect,
   useId,
@@ -30,6 +31,8 @@ type Option = {
   children?: Option[];
   /** Kept under "Vis flere" until asked for, or while it's chosen. */
   more?: boolean;
+  /** A line above it, setting it and those after apart from those before. */
+  divider?: boolean;
 };
 
 const flatten = (options: Option[]): Option[] =>
@@ -42,6 +45,8 @@ type ChoiceSelectBase = {
   className?: string;
   /** Classes merged onto the trigger, e.g. to match a form's fields. */
   triggerClassName?: string;
+  /** The trigger's id, for a field's label to point at. */
+  triggerId?: string;
   triggerLabel?: string;
   /** Names the anchored menu above its options, as the phone sheet does. */
   menuTitle?: boolean;
@@ -55,6 +60,13 @@ type ChoiceSelectBase = {
    * sheet: for a sheet of filters holding several of them.
    */
   inline?: boolean;
+  /**
+   * Options are places to go rather than a state to keep: none shows as
+   * chosen, and the menu opens on its first.
+   */
+  goTo?: boolean;
+  /** A last row that does something else, such as adding an option. */
+  action?: { label: string; icon?: ReactNode; onSelect: () => void };
 };
 
 type ChoiceSelectProps =
@@ -78,15 +90,20 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
     icon,
     className = "",
     triggerClassName,
+    triggerId,
     triggerLabel,
     menuTitle = false,
     smoothWidth = false,
     inline = false,
+    goTo = false,
+    action,
   } = props;
   const multiple = props.multiple === true;
   const selectedValues = new Set(
     props.multiple === true ? props.value : [props.value],
   );
+  // What the menu marks as chosen: nothing, for places to go.
+  const marked = goTo ? new Set<string>() : selectedValues;
   const selectedOptions = flatten(options).filter((option) =>
     selectedValues.has(option.value),
   );
@@ -106,7 +123,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
   const [open, setOpen] = useState(false);
   const primary = options.filter((option) => !option.more);
   const extra = options.filter((option) => option.more);
-  const extraChosen = extra.some((option) => selectedValues.has(option.value));
+  const extraChosen = extra.some((option) => marked.has(option.value));
   // Opens expanded when something under it is chosen.
   const [expanded, setExpanded] = useState(inline && extraChosen);
   // Grouped menus get room for their subcategories to sit side by side.
@@ -138,9 +155,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
     const focusIndex = Math.max(
       0,
       // In the order they're shown, the extras last.
-      [...primary, ...extra].findIndex((option) =>
-        selectedValues.has(option.value),
-      ),
+      [...primary, ...extra].findIndex((option) => marked.has(option.value)),
     );
     list.current
       ?.querySelectorAll<HTMLButtonElement>('[data-slot="choice-option"]')
@@ -337,7 +352,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
 
   /** A parent narrowed to some of its children, rather than all of it. */
   const narrowed = (option: Option) =>
-    option.children?.some((child) => selectedValues.has(child.value)) ?? false;
+    option.children?.some((child) => marked.has(child.value)) ?? false;
 
   /**
    * Multiple choice. A parent stands for all of it and opens its children;
@@ -401,7 +416,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
 
   function renderOption(option: Option) {
     // A narrowed parent isn't chosen itself; its open group shows the picks.
-    const open = selectedValues.has(option.value);
+    const open = marked.has(option.value);
     const chosen = open && !narrowed(option);
     return (
       <button
@@ -460,6 +475,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
           </span>
         )}
         {(sheet || grouped || multiple) &&
+          !goTo &&
           check(chosen, sheet ? 18 : 15, option.count === undefined)}
       </button>
     );
@@ -470,7 +486,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
    * label in line with the parent's and its count and check too.
    */
   function renderSuboption(option: Option) {
-    const chosen = selectedValues.has(option.value);
+    const chosen = marked.has(option.value);
     return (
       <button
         key={option.value}
@@ -504,7 +520,18 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
 
   /** An option, or a group holding its children underneath it. */
   function renderEntry(option: Option) {
-    const open = selectedValues.has(option.value);
+    if (option.divider)
+      return (
+        <Fragment key={option.value}>
+          <div
+            role="separator"
+            data-slot="choice-divider"
+            className={cn("mx-2.5 shrink-0 border-t border-border", sheet ? "my-1.5" : "my-1")}
+          />
+          {renderEntry({ ...option, divider: false })}
+        </Fragment>
+      );
+    const open = marked.has(option.value);
     if (!option.children?.length) return renderOption(option);
     return (
       <div
@@ -545,7 +572,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
             !open
               ? []
               : narrowed(option)
-                ? chosenRuns(option.children, selectedValues)
+                ? chosenRuns(option.children, marked)
                 : [whole]
           }
         />
@@ -558,7 +585,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
     // Options under a closed group are out of reach.
     const items = [
       ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
-        '[role="option"], [data-slot="choice-more"]',
+        '[role="option"], [data-slot="choice-more"], [data-slot="choice-action"]',
       ),
     ].filter((item) => !item.closest("[inert]"));
     const current = items.indexOf(
@@ -644,6 +671,31 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
           </div>
         </>
       )}
+      {action && (
+        <button
+          type="button"
+          data-slot="choice-action"
+          data-label={action.label}
+          tabIndex={-1}
+          className={cn(
+            "flex w-full shrink-0 items-center rounded-lg border border-transparent text-left text-ink -outline-offset-2",
+            "transition-colors duration-150 motion-reduce:transition-none",
+            "focus-visible:bg-surface-muted",
+            sheet
+              ? "min-h-12 gap-3 px-3 text-body active:bg-surface-muted"
+              : "min-h-9 gap-2 px-2.5 py-1.5 text-ui hover:bg-surface-muted",
+          )}
+          onClick={() => {
+            close();
+            action.onSelect();
+          }}
+        >
+          {action.icon && (
+            <span className="flex shrink-0 text-muted">{action.icon}</span>
+          )}
+          <span>{action.label}</span>
+        </button>
+      )}
     </div>
   );
 
@@ -688,6 +740,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
     >
       <button
         ref={trigger}
+        id={triggerId}
         type="button"
         data-slot="choice-trigger"
         className={cn(

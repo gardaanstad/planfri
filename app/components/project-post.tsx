@@ -23,7 +23,6 @@ import {
 import {
   arrangePhotos,
   getProjectUpdates,
-  presetPlaces,
   type Project,
   projectHref,
   hasPhoto,
@@ -54,6 +53,7 @@ import ProjectPostHeader from "./project-post-header";
 import ProjectDiscussion, { DiscussionSortSelect } from "./project-discussion";
 import type { DiscussionSort } from "../lib/discussion";
 import CategoryPicker from "./category-picker";
+import PlacePicker from "./place-picker";
 import RelativeTime from "./relative-time";
 import PhaseTimeline from "./phase-timeline";
 import TimelineInput from "./timeline-input";
@@ -184,19 +184,16 @@ function EditFacts() {
       </EditField>
       <EditField id="place" wide>
         <div className="grid grid-cols-2 gap-1.5">
-          <input
-            className={editInput}
-            aria-label="Sted"
-            list={`places-${draft.id}`}
-            maxLength={80}
+          <PlacePicker
+            className="min-w-0"
+            inputClassName={editInput}
+            triggerClassName={cn(
+              editState,
+              "min-h-9 rounded-lg border-border-strong px-2.5 pointer-coarse:min-h-11 max-sm:text-base",
+            )}
             value={draft.city}
-            onChange={(event) => change({ city: event.target.value })}
+            onChange={(city) => change({ city })}
           />
-          <datalist id={`places-${draft.id}`}>
-            {presetPlaces.map((city) => (
-              <option key={city} value={city} />
-            ))}
-          </datalist>
           <input
             className={editInput}
             aria-label="Område / bydel"

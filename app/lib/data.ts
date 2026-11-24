@@ -292,7 +292,6 @@ export const cities: Record<string, { center: Point; zoom: number }> = {
   Trondheim: { center: [63.432, 10.401], zoom: 13 },
   Stavanger: { center: [58.969, 5.738], zoom: 13 },
 };
-export const presetPlaces = Object.keys(cities);
 /** Mainland Norway, south-west and north-east corners. */
 export const norwayBounds: [Point, Point] = [
   [57.9, 4.4],

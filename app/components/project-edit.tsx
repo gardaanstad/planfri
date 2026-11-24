@@ -102,7 +102,7 @@ export const fields: Record<
     label: "Sted",
     keys: ["city", "district"],
     show: projectPlace,
-    error: (p) => (p.city ? undefined : "Skriv inn et sted"),
+    error: (p) => (p.city ? undefined : "Velg et sted"),
   },
   developer: {
     label: "Byggherre",

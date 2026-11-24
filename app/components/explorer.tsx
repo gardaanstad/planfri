@@ -66,8 +66,12 @@ import type { MapApi, MapViewChange } from "./project-map";
 import {
   extentPoints,
   findPlace,
+  inPlace as inPlaceNamed,
+  mainCities,
   placeContains,
+  placeExtent,
   placeInView,
+  placeParts,
   places,
 } from "../lib/places";
 import { errorMessage } from "../lib/api-client";
@@ -526,7 +530,9 @@ export default memo(function Explorer({
   // The place shown in "Velg sted". Beside the map it follows the view and
   // picking one moves the map there; maximized, it filters the list instead.
   const [place, setPlace] = useState(
-    initial.place && findPlace(initial.place) ? initial.place : "",
+    () =>
+      findPlace(initial.place ?? "")?.name ??
+      (placeParts(initial.place ?? "").length ? initial.place! : ""),
   );
   // A picked place holds while the map flies there.
   const placeHold = useRef<{ name: string; until: number } | null>(null);
@@ -901,7 +907,7 @@ export default memo(function Explorer({
   function goToPlace(name: string) {
     livePlace.set(null);
     setPlace(name);
-    const found = findPlace(name);
+    const found = placeExtent(name);
     placeHold.current = { name: found ? name : "", until: Date.now() + 1500 };
     // On phones the list keeps its height, but comes down from the full one
     // so the map shows; the place is framed above where it comes to rest.
@@ -911,7 +917,7 @@ export default memo(function Explorer({
       setSnapPoint(point);
       mapInset.current = listMapInset(point);
     }
-    if (found) mapApi.current?.fit(extentPoints(found.extent), { maxZoom: 14 });
+    if (found) mapApi.current?.fit(extentPoints(found), { maxZoom: 14 });
     else mapApi.current?.showNorway();
   }
   function pickPlace(name: string) {
@@ -1556,7 +1562,8 @@ export default memo(function Explorer({
     more: lessUsedCategories.has(node.name),
     children: node.subcategories.map((sub) => ({ value: sub, label: sub })),
   }));
-  // Cities and counties with projects, counted by the other filters.
+  // The main cities, then other cities and counties with projects, A–Å;
+  // counted by the other filters.
   const placeOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const project of matching)
@@ -1565,18 +1572,20 @@ export default memo(function Explorer({
     const listed = new Set(
       projects.flatMap((project) => placesOf.get(project.id) ?? []),
     );
-    if (place) listed.add(place);
+    for (const part of placeParts(place)) listed.add(part.name);
+    const option = (name: string) => ({
+      value: name,
+      label: name,
+      ...(!isMobile && { count: counts.get(name) ?? 0 }),
+    });
     return [
       { value: "", label: "Hele Norge" },
+      ...mainCities.map(option),
       ...places
-        .filter(({ name }) => listed.has(name))
+        .filter(({ name }) => listed.has(name) && !mainCities.includes(name))
         .map(({ name }) => name)
         .sort((a, b) => a.localeCompare(b, "nb"))
-        .map((name) => ({
-          value: name,
-          label: name,
-          ...(!isMobile && { count: counts.get(name) ?? 0 }),
-        })),
+        .map((name, index) => ({ ...option(name), divider: index === 0 })),
     ];
   }, [isMobile, matching, place, placesOf, projects]);
   // With every match in sight, the view is as good as all of Norway.
@@ -1613,6 +1622,7 @@ export default memo(function Explorer({
     <LivePlaceSelect
       live={livePlace}
       label="Sted"
+      goTo
       place={place}
       fallback={placeFallback}
       onChange={pickPlace}
@@ -1778,6 +1788,7 @@ export default memo(function Explorer({
     <ChoiceSelect
       label="Sted"
       smoothWidth
+      goTo
       value={place}
       onChange={pickPlace}
       triggerLabel={place || placeFallback}
@@ -1827,7 +1838,7 @@ export default memo(function Explorer({
     () =>
       countPlace
         ? searchHits.filter((project) =>
-            placesOf.get(project.id)?.includes(countPlace),
+            inPlaceNamed(placesOf.get(project.id), countPlace),
           ).length
         : 0,
     [countPlace, placesOf, searchHits],
