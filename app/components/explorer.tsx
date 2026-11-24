@@ -27,6 +27,7 @@ import {
   PanelLeftOpen,
   GalleryVertical,
   LayoutList,
+  LogIn,
   Map as MapIcon,
   MapPin,
   Plus,
@@ -78,8 +79,10 @@ import AccountMenu from "./account-menu";
 import { authClient } from "../lib/auth-client";
 import ProfileAvatar from "./profile-avatar";
 import ChoiceSelect from "./choice-select";
-import FilterSheet from "./filter-sheet";
-import StatusDots from "./status-dots";
+import FilterSheet, {
+  FilterPopover,
+  type FilterSection,
+} from "./filter-sheet";
 import CategoryIcon from "./category-icon";
 import ProjectEditor from "./project-editor";
 import { OsmPanel, useOsmModeStored, useOsmReview } from "./osm-review";
@@ -127,11 +130,7 @@ import { routeParam } from "../lib/explore-route";
 import { cn } from "../lib/cn";
 import { mobileQuery, useMediaQuery } from "../lib/media";
 import ThemeToggle, { toggleTheme, useTheme } from "./theme-toggle";
-import {
-  OverflowMenu,
-  useHeaderOverflow,
-  type OverflowAction,
-} from "./header-overflow";
+import { OverflowMenu, type OverflowAction } from "./header-overflow";
 import { openProfileEvent } from "../lib/profile-overlay";
 import ProfileOverlay from "./profile-overlay";
 import SuggestionList from "./suggestion-list";
@@ -275,6 +274,14 @@ const panelChoiceClasses = [
 // Set, a filter's pill gets a firmer edge and bolder words; nothing else.
 const panelChoiceActive =
   "[&_[data-slot=choice-trigger]]:border-ink/45 [&_[data-slot=choice-trigger]]:font-semibold";
+
+// The sort's name, which folds away to leave its icon.
+const sortLabel =
+  "[&_[data-slot=choice-trigger]>span]:max-w-24 [&_[data-slot=choice-trigger]>span]:transition-[max-width,margin,opacity] [&_[data-slot=choice-trigger]>span]:duration-220 [&_[data-slot=choice-trigger]>span]:ease-out-soft";
+const sortLabelFolded =
+  "[&_[data-slot=choice-trigger]>span]:max-w-0 [&_[data-slot=choice-trigger]>span]:-ml-1.5 [&_[data-slot=choice-trigger]>span]:opacity-0";
+const sortLabelNarrow =
+  "narrow:[&_[data-slot=choice-trigger]>span]:max-w-0 narrow:[&_[data-slot=choice-trigger]>span]:-ml-1.5 narrow:[&_[data-slot=choice-trigger]>span]:opacity-0";
 
 // Mobile filters read as inline text; the menus carry the structure.
 const inlineChoiceClasses = [
@@ -490,6 +497,7 @@ export default memo(function Explorer({
   const editorDirty = useRef<(() => boolean) | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const searchTriggerRef = useRef<HTMLButtonElement>(null);
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -585,21 +593,6 @@ export default memo(function Explorer({
   /** The width panels take beside the map. */
   function sidebarWidth() {
     return panelWidth(panelRef.current);
-  }
-  // As the sidebar narrows, the list header's actions move into a menu,
-  // last of all the maximize button; the sidebar is never narrower than
-  // what stays.
-  const headerNavRef = useRef<HTMLElement>(null);
-  const headerOverflow = useHeaderOverflow(
-    headerNavRef,
-    ["theme", "maximize"],
-  );
-  /** The header's width plus the sidebar's border. */
-  function headerWidth(all: boolean) {
-    const header = headerNavRef.current?.parentElement;
-    const aside = panelRef.current;
-    if (!header || !aside) return 0;
-    return headerOverflow.needed(all) + aside.offsetWidth - header.offsetWidth;
   }
   function leavePostView() {
     const view = postView.current;
@@ -1376,27 +1369,38 @@ export default memo(function Explorer({
       <Search size={isMobile ? 19 : 16} aria-hidden="true" />
     </button>
   );
-  // Phones gather category and status in one sheet, behind this button.
+  // Phones, and a narrow sidebar, gather category and status in one sheet
+  // or popover, behind this button.
   const filtersSet = statusChanged || category.length > 0;
   const filterButton = (
     <button
+      ref={filterButtonRef}
       type="button"
       className={cn(
-        "relative flex size-11 shrink-0 items-center justify-center rounded-full text-muted",
-        "transition-colors duration-150 [-webkit-tap-highlight-color:transparent] motion-reduce:transition-none",
+        "relative flex shrink-0 items-center justify-center rounded-full text-muted",
+        "transition-colors duration-150 motion-reduce:transition-none",
+        isMobile
+          ? "size-11 [-webkit-tap-highlight-color:transparent]"
+          : "size-9 hover:text-ink",
         filtersSet && "text-ink",
       )}
       aria-label="Filtre"
       aria-haspopup="dialog"
       aria-expanded={filterSheetOpen}
       data-active={filtersSet || undefined}
-      onClick={() => setFilterSheetOpen(true)}
+      data-tooltip={isMobile ? undefined : "Filtre"}
+      {...(isMobile
+        ? { onClick: () => setFilterSheetOpen(true) }
+        : { popoverTarget: "project-filters" })}
     >
-      <SlidersHorizontal size={19} aria-hidden="true" />
+      <SlidersHorizontal size={isMobile ? 19 : 16} aria-hidden="true" />
       {filtersSet && (
         <span
           aria-hidden="true"
-          className="absolute top-2.5 right-2 size-2 rounded-full border-[1.5px] border-surface bg-accent box-content"
+          className={cn(
+            "absolute size-2 rounded-full border-[1.5px] border-surface bg-accent box-content",
+            isMobile ? "top-2.5 right-2" : "top-1.5 right-1",
+          )}
         />
       )}
     </button>
@@ -1408,18 +1412,13 @@ export default memo(function Explorer({
         "relative",
         isMobile
           ? "-mx-2 mt-1.5 mb-0.5 h-11 [--search-button:2.75rem]"
-          : cn(
-              "@container mb-1 h-9 [--search-button:2.25rem]",
-              // Narrower still, the pills drop their chevrons.
-              "@max-[300px]:[&_[data-slot=choice-trigger]>svg:last-child]:hidden",
-            ),
+          : "mb-1 h-9 [--search-button:2.25rem]",
       )}
       aria-label="Filtrer prosjekter"
     >
       <div
         className={cn(
           "flex h-full min-w-0 items-center transition-opacity duration-200 ease-out motion-reduce:transition-none",
-          !isMobile && "gap-1.5",
           searchOpen ? "pointer-events-none opacity-0" : "opacity-100",
         )}
         inert={searchOpen}
@@ -1446,7 +1445,14 @@ export default memo(function Explorer({
               Nullstill filtre
             </button>
           )}
-          {isMobile && filterButton}
+          {isMobile ? (
+            filterButton
+          ) : (
+            // Narrow, in place of the category and status pills.
+            <div className="fold folded narrow:unfolded">
+              <div>{filterButton}</div>
+            </div>
+          )}
           {searchButton}
         </div>
       </div>
@@ -1524,14 +1530,10 @@ export default memo(function Explorer({
       value={statusValue}
       onChange={pickStatus}
       triggerLabel="Status"
-      icon={<StatusDots values={status} />}
       className={cn(
         panelChoiceClasses,
-        "shrink-0",
-        // Narrow, its dots alone; the menu carries the name.
-        // The dots already count what is shown.
-        "[&_[data-slot=choice-trigger]>span:nth-of-type(2)]:hidden",
-        "@max-[360px]:[&_[data-slot=choice-trigger]>span]:sr-only [&_[data-slot=choice-menu]]:min-w-[200px]",
+        "shrink-0 [&_[data-slot=choice-menu]]:min-w-[200px]",
+        statusChanged && panelChoiceActive,
       )}
       options={statusOptions}
     />
@@ -1554,47 +1556,57 @@ export default memo(function Explorer({
   const shownStatuses = statusOrder.filter((value) =>
     statusValue.includes(value),
   );
+  const filterSections: FilterSection[] = [
+    {
+      id: "category",
+      label: "Kategori",
+      summary: category.length ? categorySummary(category) : "Alle",
+      content: (
+        <ChoiceSelect
+          inline
+          label="Kategori"
+          multiple
+          value={category}
+          onChange={setCategory}
+          options={categoryOptions}
+        />
+      ),
+    },
+    {
+      id: "status",
+      label: "Status",
+      summary:
+        shownStatuses.length === statusOrder.length
+          ? "Alle"
+          : shownStatuses.length === 1
+            ? statuses[shownStatuses[0]].label
+            : `${shownStatuses.length} av ${statusOrder.length}`,
+      content: (
+        <ChoiceSelect
+          inline
+          label="Prosjektstatus"
+          multiple
+          value={statusValue}
+          onChange={pickStatus}
+          options={statusOptions}
+        />
+      ),
+    },
+  ];
   const filterSheet = filterSheetOpen && (
     <FilterSheet
       label="Filtre"
       onClose={() => setFilterSheetOpen(false)}
-      sections={[
-        {
-          id: "category",
-          label: "Kategori",
-          summary: category.length ? categorySummary(category) : "Alle",
-          content: (
-            <ChoiceSelect
-              inline
-              label="Kategori"
-              multiple
-              value={category}
-              onChange={setCategory}
-              options={categoryOptions}
-            />
-          ),
-        },
-        {
-          id: "status",
-          label: "Status",
-          summary:
-            shownStatuses.length === statusOrder.length
-              ? "Alle"
-              : shownStatuses.length === 1
-                ? statuses[shownStatuses[0]].label
-                : `${shownStatuses.length} av ${statusOrder.length}`,
-          content: (
-            <ChoiceSelect
-              inline
-              label="Prosjektstatus"
-              multiple
-              value={statusValue}
-              onChange={pickStatus}
-              options={statusOptions}
-            />
-          ),
-        },
-      ]}
+      sections={filterSections}
+    />
+  );
+  const filterPopover = (
+    <FilterPopover
+      id="project-filters"
+      label="Filtre"
+      anchor={filterButtonRef}
+      onOpenChange={setFilterSheetOpen}
+      sections={filterSections}
     />
   );
 
@@ -1602,17 +1614,16 @@ export default memo(function Explorer({
     <ChoiceSelect
       label="Sorter prosjekter"
       value={sort}
-      // A narrow list keeps the icon; the menu names the order.
+      // Beside the longer count, or in a narrow sidebar, the order keeps its
+      // icon alone, its name folding away; the menu names it.
       className={cn(
         sortChoice,
         // Beside the view switch, not at the edge: no overhang.
         "mr-0",
-        "md:@max-[320px]/list:[&_[data-slot=choice-trigger]>span]:sr-only",
+        sortLabel,
+        outsideHits > 0 ? sortLabelFolded : sortLabelNarrow,
         // Phones: beside the view button, a narrow list keeps the icon alone.
         "max-md:@max-[360px]/list:[&_[data-slot=choice-trigger]>span]:sr-only",
-        // Beside the longer count, a narrow list keeps its icon alone too.
-        outsideHits > 0 &&
-          "@max-[560px]/list:[&_[data-slot=choice-trigger]>span]:sr-only",
       )}
       icon={<ArrowDownUp size={14} />}
       onChange={setSort}
@@ -1673,11 +1684,10 @@ export default memo(function Explorer({
               symbol as the last one folds away. */}
           <span
             className={cn(
-              "grid transition-[grid-template-columns,opacity] duration-180 ease-out-soft motion-reduce:transition-none",
-              // A narrow list keeps the symbols alone.
-              "@max-[360px]/list:hidden",
+              "grid transition-[grid-template-columns,opacity,visibility] duration-180 ease-out-soft motion-reduce:transition-none",
               density === value
-                ? "grid-cols-[1fr] opacity-100"
+                ? // A narrow sidebar keeps the symbols alone.
+                  "grid-cols-[1fr] opacity-100 narrow:invisible narrow:grid-cols-[0fr] narrow:opacity-0"
                 : "grid-cols-[0fr] opacity-0",
             )}
             aria-hidden="true"
@@ -1704,9 +1714,8 @@ export default memo(function Explorer({
       icon={<MapPin size={15} aria-hidden="true" />}
       className={cn(
         panelChoiceClasses,
-        "shrink-0",
-        // Narrow, its pin alone; the menu names the place.
-        "@max-[400px]:[&_[data-slot=choice-trigger]>span]:sr-only",
+        // Always named; narrow, a long name gives way.
+        "shrink-0 narrow:shrink",
         place && panelChoiceActive,
       )}
       options={placeOptions}
@@ -1715,20 +1724,28 @@ export default memo(function Explorer({
   const desktopFilters = filterBar(
     <>
       {placeFilter}
-      <ChoiceSelect
-        label="Kategori"
-        smoothWidth
-        multiple
-        value={category}
-        onChange={setCategory}
-        triggerLabel={categorySummary(category)}
-        className={cn(
-          panelChoiceClasses,
-          category.length > 0 && panelChoiceActive,
-        )}
-        options={categoryOptions}
-      />
-      <span className="flex shrink-0">{statusFilter}</span>
+      {/* Narrow, these fold into the filter button at the row's end. */}
+      <div className="fold unfolded min-w-0 narrow:folded">
+        {/* The space before them inside, so it folds away too. */}
+        <div>
+          <div className="flex min-w-0 items-center gap-1.5 pl-1.5">
+            <ChoiceSelect
+              label="Kategori"
+              smoothWidth
+              multiple
+              value={category}
+              onChange={setCategory}
+              triggerLabel={categorySummary(category)}
+              className={cn(
+                panelChoiceClasses,
+                category.length > 0 && panelChoiceActive,
+              )}
+              options={categoryOptions}
+            />
+            {statusFilter}
+          </div>
+        </div>
+      </div>
     </>,
   );
 
@@ -1747,6 +1764,42 @@ export default memo(function Explorer({
   );
   const showInPlace = !!countPlace && inPlace !== shown;
   const showTotal = total !== (showInPlace ? inPlace : shown);
+  // Beside the map, the count keeps to one line beside the order and views:
+  // where it would not fit, the place gives way first, as in a narrow
+  // sidebar. Measured whether shown or not, so it returns once there's room.
+  const countRowRef = useRef<HTMLDivElement>(null);
+  const [placeFits, setPlaceFits] = useState(true);
+  useLayoutEffect(() => {
+    const row = countRowRef.current;
+    const parts = row?.querySelector<HTMLElement>("[data-count-parts]");
+    const actions = row?.lastElementChild as HTMLElement | null;
+    if (isMobile || !row || !parts || !actions) return;
+    const fit = () => {
+      // Hidden in a narrow sidebar, it counts as not fitting, so widening
+      // brings it back only once measured, rather than showing it for a
+      // frame first.
+      const place = parts.querySelector<HTMLElement>("[data-count-place]");
+      if (place && getComputedStyle(place).display === "none")
+        return flushSync(() => setPlaceFits(false));
+      // Every part at its own width, less the first dot, clipped.
+      const needed =
+        Array.from(parts.children).reduce(
+          (sum, part) => sum + (part as HTMLElement).offsetWidth,
+          0,
+        ) - 16;
+      const room =
+        row.clientWidth -
+        actions.offsetWidth -
+        (parseFloat(getComputedStyle(row).columnGap) || 0);
+      // Before the next paint, so it never shows where it won't fit.
+      flushSync(() => setPlaceFits(needed <= room + 0.5));
+    };
+    const observer = new ResizeObserver(fit);
+    observer.observe(row);
+    observer.observe(actions);
+    for (const part of parts.children) observer.observe(part);
+    return () => observer.disconnect();
+  }, [isMobile, showInPlace, showTotal, countPlace, density]);
   // "Nytt" shows the news of every match in the place, not just those in
   // view; with no place, all of Norway.
   const feedProjects = useMemo(
@@ -1787,9 +1840,12 @@ export default memo(function Explorer({
         {feedCount}
       </span>
     ) : outsideHits > 0 ? (
-      <span className="-my-3 min-w-0 overflow-hidden py-3">
-        <span className="text-ui -ml-4 flex min-w-0 flex-wrap items-center gap-y-1 text-muted tabular-nums">
-          <span className="inline-flex min-w-0 items-center">
+      <span className="relative -my-3 min-w-0 overflow-hidden py-3">
+        <span
+          className="text-ui -ml-4 flex min-w-0 flex-wrap items-center gap-y-1 text-muted tabular-nums md:flex-nowrap"
+          data-count-parts=""
+        >
+          <span className="inline-flex min-w-0 items-center md:shrink-0">
             {countSeparator}
             <span
               className="whitespace-nowrap"
@@ -1797,14 +1853,22 @@ export default memo(function Explorer({
               aria-label={`${shown} ${shown === 1 ? "synlig prosjekt" : "synlige prosjekter"}`}
             >
               {shown} {shown === 1 ? "synlig" : "synlige"}
-              {/* A narrow list keeps the line whole with the shorter words. */}
-              <span className="@max-[560px]/list:hidden">
+              {/* Beside the others, the shorter words; alone, in a narrow
+                  sidebar, the whole of it. */}
+              <span className="hidden narrow:inline">
                 {shown === 1 ? " prosjekt" : " prosjekter"}
               </span>
             </span>
           </span>
           {showInPlace && (
-            <span className="inline-flex min-w-0 items-center whitespace-nowrap">
+            <span
+              className={cn(
+                "inline-flex min-w-0 items-center whitespace-nowrap narrow:hidden md:shrink-0",
+                // Out of the line, but still measured, until it fits.
+                !placeFits && "md:invisible md:absolute",
+              )}
+              data-count-place=""
+            >
               {countSeparator}
               <button
                 type="button"
@@ -1820,7 +1884,7 @@ export default memo(function Explorer({
             </span>
           )}
           {showTotal && (
-            <span className="inline-flex items-center whitespace-nowrap">
+            <span className="inline-flex items-center whitespace-nowrap narrow:hidden md:shrink-0">
               {countSeparator}
               <button
                 type="button"
@@ -1967,10 +2031,14 @@ export default memo(function Explorer({
         )}
       >
         {isMobile ? mobileFilters : desktopFilters}
-        {isMobile && filterSheet}
-        {/* Too narrow for both, the views and order go under the count;
-            on phones they stay beside it, and the count wraps instead. */}
-        <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border py-1.5 max-md:flex-nowrap">
+        {isMobile ? filterSheet : filterPopover}
+        {/* One line: the order and views beside the count, which gives up
+            its place where it would not fit (see `placeFits`); on phones it
+            wraps instead. */}
+        <div
+          ref={countRowRef}
+          className="flex min-h-12 items-center justify-between gap-x-3 border-b border-border py-1.5"
+        >
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
             <h1 className="sr-only">Prosjekter</h1>
             {listCount}
@@ -2195,45 +2263,47 @@ export default memo(function Explorer({
     </button>
   ) : (
     // Signed out, logging in is the header's one action: a label in the
-    // icon row, borderless like its neighbours so it doesn't echo the filter pills.
+    // icon row, borderless like its neighbours so it doesn't echo the filter
+    // pills. A narrow sidebar folds the label into its icon.
     <button
       type="button"
       className={cn(
         compactIconAction,
         "w-auto px-3 text-ui font-medium text-ink",
       )}
+      aria-label="Logg inn"
       aria-haspopup="dialog"
       data-login-button=""
       data-press=""
+      data-tooltip="Logg inn"
       onClick={() => requireLogin()}
     >
-      Logg inn
+      <span className="fold folded narrow:unfolded" aria-hidden="true">
+        <span>
+          <LogIn size={18} />
+        </span>
+      </span>
+      <span className="fold unfolded narrow:folded" data-tooltip-label="">
+        <span className="whitespace-nowrap">Logg inn</span>
+      </span>
     </button>
   );
-  /** One of the list header's actions, while it fits beside the others. */
-  const inline = (id: string, node: ReactNode) =>
-    node && !headerOverflow.hidden.has(id) ? (
-      <div className="flex shrink-0" data-overflow-item={id}>
-        {node}
-      </div>
-    ) : null;
-  const overflowActions = (
-    [
-      {
-        id: "theme",
-        label: "Mørk modus",
-        icon: <Moon size={16} />,
-        checked: dark,
-        onSelect: toggleTheme,
-      },
-      {
-        id: "maximize",
-        label: "Vis som helside",
-        icon: <Maximize2 size={16} />,
-        onSelect: maximize,
-      },
-    ] satisfies OverflowAction[]
-  ).filter((action) => headerOverflow.hidden.has(action.id));
+  // Narrow, the header's extras wait in its menu.
+  const overflowActions: OverflowAction[] = [
+    {
+      id: "theme",
+      label: "Mørk modus",
+      icon: <Moon size={16} />,
+      checked: dark,
+      onSelect: toggleTheme,
+    },
+    {
+      id: "maximize",
+      label: "Vis som helside",
+      icon: <Maximize2 size={16} />,
+      onSelect: maximize,
+    },
+  ];
   const sidebarToggle = (
     <button
       type="button"
@@ -2576,14 +2646,12 @@ export default memo(function Explorer({
           */}
           <div
             className={cn(
-              "absolute top-2.5 z-[35] transition-[left,opacity] duration-320 ease-out-soft motion-reduce:transition-none",
-              "[[data-resizing]_&]:transition-none",
+              "absolute top-2.5 z-[35] motion-reduce:transition-none",
+              // It tracks the edge as the sidebar resizes, and slides as
+              // the maximize button folds into the menu or out of it.
+              "[transition:translate_220ms_var(--ease-out-soft),opacity_320ms_var(--ease-out-soft)]",
               sidebarMode !== "collapsed" &&
-                // Left of the maximize button, the header's last, or last
-                // itself once that is in the menu.
-                headerOverflow.hidden.has("maximize")
-                ? "left-[calc(var(--sidebar-width)-0.75rem-2.75rem)]"
-                : "left-[calc(var(--sidebar-width)-0.75rem-5.625rem)]",
+                "sidebar-toggle left-[calc(var(--sidebar-width)-0.75rem-2.75rem)]",
               sidebarMode === "maximized" && "pointer-events-none opacity-0",
             )}
             style={
@@ -2598,7 +2666,8 @@ export default memo(function Explorer({
           {/* The base layer: stays mounted under panels, so it keeps its scroll. */}
           <div
             className={cn(
-              "absolute inset-y-0 left-0 flex flex-col bg-surface",
+              // The container `narrow:` measures (see globals.css).
+              "@container/sidebar absolute inset-y-0 left-0 flex flex-col bg-surface",
               wide
                 ? "z-30 w-screen"
                 : asideCollapsed
@@ -2633,15 +2702,22 @@ export default memo(function Explorer({
             >
               <div data-explorer-brand="">{brand}</div>
               <nav
-                ref={headerNavRef}
                 className="flex items-center gap-0.5"
                 aria-label="Konto"
                 data-explorer-nav=""
               >
-                {inline("theme", <ThemeToggle />)}
-                {overflowActions.length > 0 && (
-                  <OverflowMenu actions={overflowActions} />
-                )}
+                {/* Dark mode and the maximize button fold into the menu as
+                    the sidebar narrows, which unfolds in their place. */}
+                <div className="fold unfolded narrow:folded" data-header-extra="">
+                  <div>
+                    <ThemeToggle />
+                  </div>
+                </div>
+                <div className="fold folded narrow:unfolded">
+                  <div>
+                    <OverflowMenu actions={overflowActions} />
+                  </div>
+                </div>
                 {profileButton}
                 <span
                   aria-hidden="true"
@@ -2655,14 +2731,23 @@ export default memo(function Explorer({
                     data-toggle-slot=""
                   />
                 )}
-                {inline(
-                  "maximize",
-                  <MaximizeButton
-                    maximized={sidebarMode === "maximized"}
-                    onToggle={sidebarMode === "maximized" ? minimize : maximize}
-                    labels={["Vis som helside", "Vis kart"]}
-                  />,
-                )}
+                {/* With the gap before it, so it folds to nothing. */}
+                <div
+                  className="fold unfolded -ml-0.5 narrow:folded"
+                  data-header-extra=""
+                >
+                  <div>
+                    <div className="pl-0.5">
+                      <MaximizeButton
+                        maximized={sidebarMode === "maximized"}
+                        onToggle={
+                          sidebarMode === "maximized" ? minimize : maximize
+                        }
+                        labels={["Vis som helside", "Vis kart"]}
+                      />
+                    </div>
+                  </div>
+                </div>
               </nav>
             </header>
             <div className="relative min-h-0 flex-1">
@@ -2707,9 +2792,6 @@ export default memo(function Explorer({
               onResizeStart={() => mapApi.current?.beginResize()}
               onResize={() => mapApi.current?.syncSize()}
               onResizeEnd={() => mapApi.current?.endResize()}
-              contentWidth={() => headerWidth(false)}
-              naturalWidth={() => headerWidth(true)}
-              contentRef={headerNavRef}
             />
           )}
         </aside>

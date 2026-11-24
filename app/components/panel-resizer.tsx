@@ -3,7 +3,9 @@ import { type RefObject, useEffect, useRef, useState } from "react";
 import { cn } from "../lib/cn";
 
 const storageKey = "planfri-panel-width";
-const minWidth = 280;
+// The narrow sidebar's layout, whole: its list count, order and views on
+// one line.
+const minWidth = 360;
 const maxWidth = 760;
 // The map keeps at least this much of the window.
 const minMap = 360;
@@ -14,14 +16,13 @@ const largeKeyStep = 64;
 function defaultWidth() {
   return Math.round(Math.min(Math.max(window.innerWidth * 0.36, 380), 540));
 }
-/** `fits`: the narrowest the panel's content allows, which raises the floor. */
-function bounds(fits = 0) {
-  const min = Math.max(minWidth, Math.ceil(fits));
+function bounds() {
+  const min = minWidth;
   const max = Math.max(min, Math.min(maxWidth, window.innerWidth - minMap));
   return { min, max };
 }
-function clamp(width: number, fits?: number) {
-  const { min, max } = bounds(fits);
+function clamp(width: number) {
+  const { min, max } = bounds();
   return Math.round(Math.min(Math.max(width, min), max));
 }
 function storedWidth() {
@@ -54,9 +55,6 @@ export default function PanelResizer({
   onResizeStart,
   onResize,
   onResizeEnd,
-  contentWidth,
-  naturalWidth,
-  contentRef,
 }: {
   panel: RefObject<HTMLElement | null>;
   /** Marked with `data-resizing` while dragging, for cursor and selection. */
@@ -67,12 +65,6 @@ export default function PanelResizer({
   /** Once per frame while the width changes. */
   onResize?: () => void;
   onResizeEnd?: () => void;
-  /** The narrowest the panel's content fits in; it is never made narrower. */
-  contentWidth?: () => number;
-  /** The width the content fits in whole; the default width is at least it. */
-  naturalWidth?: () => number;
-  /** Changes to the elements whose size sets `contentWidth`. */
-  contentRef?: RefObject<HTMLElement | null>;
 }) {
   const handle = useRef<HTMLDivElement>(null);
   // Only for the ARIA values; the width itself lives in the CSS variable.
@@ -83,15 +75,13 @@ export default function PanelResizer({
     null,
   );
 
-  const initialWidth = () =>
-    Math.max(defaultWidth(), Math.ceil(naturalWidth?.() ?? 0));
   function apply(next: number) {
     panel.current?.style.setProperty("--panel-width", `${next}px`);
     handle.current?.setAttribute("aria-valuenow", String(next));
   }
   /** Applies a width outside a drag: clamped, remembered, map in sync. */
   function commit(next: number | null) {
-    const value = clamp(next ?? initialWidth(), contentWidth?.());
+    const value = clamp(next ?? defaultWidth());
     onResizeStart?.();
     apply(value);
     onResizeEnd?.();
@@ -99,13 +89,12 @@ export default function PanelResizer({
     storeWidth(next === null ? null : value);
   }
 
-  // The stored width, then again whenever the window or content changes size.
+  // The stored width, then again whenever the window changes size.
   useEffect(() => {
     let last: number | null = null;
     const fit = () => {
-      const fits = contentWidth?.();
-      setRange(bounds(fits));
-      const value = clamp(storedWidth() ?? initialWidth(), fits);
+      setRange(bounds());
+      const value = clamp(storedWidth() ?? defaultWidth());
       if (value === last) return;
       last = value;
       onResizeStart?.();
@@ -115,12 +104,8 @@ export default function PanelResizer({
     };
     fit();
     window.addEventListener("resize", fit);
-    const content = contentRef?.current;
-    const observer = content ? new ResizeObserver(() => fit()) : null;
-    if (content) observer?.observe(content);
     return () => {
       window.removeEventListener("resize", fit);
-      observer?.disconnect();
       cancelAnimationFrame(frame.current);
     };
     // Mount only; `apply` reads refs.
@@ -172,10 +157,7 @@ export default function PanelResizer({
       onPointerMove={(event) => {
         const current = drag.current;
         if (!current) return;
-        current.to = clamp(
-          current.from + event.clientX - current.start,
-          contentWidth?.(),
-        );
+        current.to = clamp(current.from + event.clientX - current.start);
         // Many pointer events per frame; one style write and map sync.
         frame.current ||= requestAnimationFrame(() => {
           frame.current = 0;

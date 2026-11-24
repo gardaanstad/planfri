@@ -1,5 +1,12 @@
 "use client";
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { flushSync } from "react-dom";
 import { ChevronDown } from "lucide-react";
 import { cn } from "../lib/cn";
@@ -20,6 +27,192 @@ export type FilterSection = {
 // Rows and options move in the sheets' own easing.
 const fold = { duration: 300, easing: "cubic-bezier(0.22, 1, 0.36, 1)" };
 
+/**
+ * Which section is open, and the motion between them: each row moves from
+ * where it was to where it is, the options fading in or out. `panel` holds
+ * the rows, and its own move is undone first (a sheet resting on the bottom
+ * edge grows upwards); `body` is the box inside it that clips them.
+ */
+function useFold() {
+  const panel = useRef<HTMLDivElement>(null);
+  const body = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState<string | null>(null);
+  // The options folding away, kept in view (out of the flow, at the height
+  // they had) while the rows after them cover them.
+  const [leaving, setLeaving] = useState<{ id: string; height: number } | null>(
+    null,
+  );
+
+  function toggle(id: string) {
+    const next = active === id ? null : id;
+    const box = panel.current;
+    const inner = body.current;
+    if (!box || !inner || reducedMotion()) {
+      setLeaving(null);
+      setActive(next);
+      return;
+    }
+    // Where everything is now, mid-move or not.
+    const groups = [
+      ...box.querySelectorAll<HTMLElement>("[data-filter-group]"),
+    ];
+    const boxBefore = box.getBoundingClientRect().top;
+    const before = groups.map((group) => group.getBoundingClientRect().top);
+    const options = active
+      ? box.querySelector<HTMLElement>(
+          `[data-filter-options="${CSS.escape(active)}"]`,
+        )
+      : null;
+    const gone =
+      active && active !== next && options
+        ? { id: active, height: options.offsetHeight }
+        : null;
+    for (const animation of box.getAnimations({ subtree: true }))
+      if (animation.id === "fold") animation.cancel();
+    flushSync(() => {
+      setActive(next);
+      setLeaving(gone);
+    });
+    // Then each moves from where it was to where it is.
+    const dy = boxBefore - box.getBoundingClientRect().top;
+    const after = groups.map((group) => group.getBoundingClientRect().top);
+    inner.style.overflow = "visible";
+    const move = box.animate(
+      [{ transform: `translateY(${dy}px)` }, { transform: "none" }],
+      { ...fold, id: "fold" },
+    );
+    groups.forEach((group, index) => {
+      const offset = before[index] - after[index] - dy;
+      if (Math.abs(offset) < 0.5) return;
+      group.animate(
+        [{ transform: `translateY(${offset}px)` }, { transform: "none" }],
+        { ...fold, id: "fold" },
+      );
+    });
+    const opened = next
+      ? box.querySelector<HTMLElement>(
+          `[data-filter-options="${CSS.escape(next)}"]`,
+        )
+      : null;
+    opened?.animate([{ opacity: 0 }, { opacity: 1 }], { ...fold, id: "fold" });
+    if (gone && options)
+      options.animate([{ opacity: 1 }, { opacity: 0 }], {
+        ...fold,
+        duration: 200,
+        fill: "forwards",
+        id: "fold",
+      });
+    move.finished.then(
+      () => {
+        inner.style.overflow = "";
+        for (const animation of box.getAnimations({ subtree: true }))
+          if (animation.id === "fold") animation.cancel();
+        setLeaving(null);
+      },
+      // Cut short by the next move, which carries on from here.
+      () => {},
+    );
+  }
+
+  return { panel, body, active, leaving, toggle };
+}
+
+/** The sections' rows, each opening onto its options under it. */
+function FilterRows({
+  sections,
+  active,
+  leaving,
+  onToggle,
+  scroller,
+  compact = false,
+}: {
+  sections: FilterSection[];
+  active: string | null;
+  leaving: { id: string; height: number } | null;
+  onToggle: (id: string) => void;
+  /** Set to the open section's scrolling options. */
+  scroller?: RefObject<HTMLDivElement | null>;
+  /** Desktop: rows for a pointer, in the interface's text size. */
+  compact?: boolean;
+}) {
+  return sections.map((section, index) => {
+    const open = active === section.id;
+    const going = leaving?.id === section.id;
+    return (
+      <div
+        key={section.id}
+        // Later rows cover the options folding away above them.
+        className={cn(
+          "relative flex min-h-0 flex-col bg-surface",
+          open ? "shrink" : "shrink-0",
+          index > 0 &&
+            sections[index - 1].id === active &&
+            "border-t border-border",
+        )}
+        data-filter-group={section.id}
+        data-open={open || undefined}
+      >
+        <div className={cn("shrink-0", compact ? "px-1.5" : "px-2")}>
+          <button
+            type="button"
+            data-filter-section={section.id}
+            aria-expanded={open}
+            className={cn(
+              "flex w-full items-center rounded-lg text-left -outline-offset-2",
+              "transition-colors duration-150 active:bg-surface-muted motion-reduce:transition-none",
+              compact
+                ? "min-h-10 gap-2.5 px-2.5 hover:bg-surface-muted"
+                : "min-h-13 gap-3 px-3",
+            )}
+            onClick={() => onToggle(section.id)}
+          >
+            <span
+              className={
+                compact ? "text-ui font-semibold" : "text-body font-semibold"
+              }
+            >
+              {section.label}
+            </span>
+            <span className="ml-auto flex min-w-0 items-center gap-2 truncate text-ui text-muted">
+              {section.summary}
+            </span>
+            <ChevronDown
+              size={compact ? 16 : 18}
+              aria-hidden="true"
+              className={cn(
+                "shrink-0 text-muted transition-transform duration-300 ease-out-soft motion-reduce:transition-none",
+                open && "rotate-180",
+              )}
+            />
+          </button>
+        </div>
+        <div
+          data-filter-options={section.id}
+          hidden={!open && !going}
+          inert={!open}
+          className={cn(
+            "flex min-h-0 flex-col border-t border-border",
+            going && "absolute inset-x-0 top-full",
+          )}
+          style={going ? { height: leaving.height } : undefined}
+        >
+          <div
+            ref={(element) => {
+              if (open && scroller) scroller.current = element;
+            }}
+            className={cn(
+              "min-h-0 overflow-y-auto overscroll-contain",
+              compact ? "py-1.5" : "pt-1.5",
+            )}
+          >
+            {section.content}
+          </div>
+        </div>
+      </div>
+    );
+  });
+}
+
 export default function FilterSheet({
   label,
   sections,
@@ -30,19 +223,18 @@ export default function FilterSheet({
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
-  const sheet = useRef<HTMLDivElement>(null);
+  const {
+    panel: sheet,
+    body,
+    active,
+    leaving,
+    toggle,
+  } = useFold();
   // The open section's options, which scroll; a drag waits for their top.
   const scroller = useRef<HTMLDivElement | null>(null);
   const trigger = useRef<Element | null>(null);
   const closing = useRef(false);
   const releasePush = useBackgroundPush(true);
-  const body = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState<string | null>(null);
-  // The options folding away, kept in view (out of the flow, at the height
-  // they had) while the rows after them cover them.
-  const [leaving, setLeaving] = useState<{ id: string; height: number } | null>(
-    null,
-  );
 
   useLayoutEffect(() => {
     const dialog = ref.current;
@@ -60,77 +252,6 @@ export default function FilterSheet({
     scroller,
     onDismiss: () => close(false),
   });
-
-  function toggle(id: string) {
-    const next = active === id ? null : id;
-    const panel = sheet.current;
-    const inner = body.current;
-    if (!panel || !inner || reducedMotion()) {
-      setLeaving(null);
-      setActive(next);
-      return;
-    }
-    // Where everything is now, mid-move or not.
-    const groups = [
-      ...panel.querySelectorAll<HTMLElement>("[data-filter-group]"),
-    ];
-    const sheetBefore = panel.getBoundingClientRect().top;
-    const before = groups.map((group) => group.getBoundingClientRect().top);
-    const options = active
-      ? panel.querySelector<HTMLElement>(
-          `[data-filter-options="${CSS.escape(active)}"]`,
-        )
-      : null;
-    const gone =
-      active && active !== next && options
-        ? { id: active, height: options.offsetHeight }
-        : null;
-    for (const animation of panel.getAnimations({ subtree: true }))
-      if (animation.id === "fold") animation.cancel();
-    flushSync(() => {
-      setActive(next);
-      setLeaving(gone);
-    });
-    // Then each moves from where it was to where it is.
-    const dy = sheetBefore - panel.getBoundingClientRect().top;
-    const after = groups.map((group) => group.getBoundingClientRect().top);
-    inner.style.overflow = "visible";
-    const move = panel.animate(
-      [{ transform: `translateY(${dy}px)` }, { transform: "none" }],
-      { ...fold, id: "fold" },
-    );
-    groups.forEach((group, index) => {
-      const offset = before[index] - after[index] - dy;
-      if (Math.abs(offset) < 0.5) return;
-      group.animate(
-        [{ transform: `translateY(${offset}px)` }, { transform: "none" }],
-        { ...fold, id: "fold" },
-      );
-    });
-    const opened = next
-      ? panel.querySelector<HTMLElement>(
-          `[data-filter-options="${CSS.escape(next)}"]`,
-        )
-      : null;
-    opened?.animate([{ opacity: 0 }, { opacity: 1 }], { ...fold, id: "fold" });
-    if (gone && options)
-      options.animate([{ opacity: 1 }, { opacity: 0 }], {
-        ...fold,
-        duration: 200,
-        fill: "forwards",
-        id: "fold",
-      });
-    move.finished.then(
-      () => {
-        inner.style.overflow = "";
-        for (const animation of panel.getAnimations({ subtree: true }))
-          if (animation.id === "fold") animation.cancel();
-        setLeaving(null);
-      },
-      // Cut short by the next move, which carries on from here.
-      () => {},
-    );
-  }
 
   function close(animate = true) {
     const dialog = ref.current;
@@ -198,74 +319,107 @@ export default function FilterSheet({
           >
             <span className="h-1 w-9 rounded-full bg-ink/15" />
           </div>
-          {sections.map((section, index) => {
-            const open = active === section.id;
-            const going = leaving?.id === section.id;
-            return (
-              <div
-                key={section.id}
-                // Later rows cover the options folding away above them.
-                className={cn(
-                  "relative flex min-h-0 flex-col bg-surface",
-                  open ? "shrink" : "shrink-0",
-                  index > 0 &&
-                    sections[index - 1].id === active &&
-                    "border-t border-border",
-                )}
-                data-filter-group={section.id}
-                data-open={open || undefined}
-              >
-                <div className="shrink-0 px-2">
-                  <button
-                    type="button"
-                    data-filter-section={section.id}
-                    aria-expanded={open}
-                    className={cn(
-                      "flex min-h-13 w-full items-center gap-3 rounded-lg px-3 text-left -outline-offset-2",
-                      "transition-colors duration-150 active:bg-surface-muted motion-reduce:transition-none",
-                    )}
-                    onClick={() => toggle(section.id)}
-                  >
-                    <span className="text-body font-semibold">
-                      {section.label}
-                    </span>
-                    <span className="ml-auto flex min-w-0 items-center gap-2 truncate text-ui text-muted">
-                      {section.summary}
-                    </span>
-                    <ChevronDown
-                      size={18}
-                      aria-hidden="true"
-                      className={cn(
-                        "shrink-0 text-muted transition-transform duration-300 ease-out-soft motion-reduce:transition-none",
-                        open && "rotate-180",
-                      )}
-                    />
-                  </button>
-                </div>
-                <div
-                  data-filter-options={section.id}
-                  hidden={!open && !going}
-                  inert={!open}
-                  className={cn(
-                    "flex min-h-0 flex-col border-t border-border",
-                    going && "absolute inset-x-0 top-full",
-                  )}
-                  style={going ? { height: leaving.height } : undefined}
-                >
-                  <div
-                    ref={(element) => {
-                      if (open) scroller.current = element;
-                    }}
-                    className="min-h-0 overflow-y-auto overscroll-contain pt-1.5"
-                  >
-                    {section.content}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          <FilterRows
+            sections={sections}
+            active={active}
+            leaving={leaving}
+            onToggle={toggle}
+            scroller={scroller}
+          />
         </div>
       </div>
     </dialog>
+  );
+}
+
+// Between the popover and the window's edges.
+const edge = 8;
+
+/**
+ * Desktop: the same sections in a popover under `anchor`, the button with
+ * `popoverTarget={id}` that opens and closes it. A press outside it, or
+ * Escape, closes it too.
+ */
+export function FilterPopover({
+  id,
+  label,
+  sections,
+  anchor,
+  onOpenChange,
+}: {
+  id: string;
+  label: string;
+  sections: FilterSection[];
+  anchor: RefObject<HTMLElement | null>;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  const { panel: ref, body, active, leaving, toggle } = useFold();
+  const changed = useRef(onOpenChange);
+  useLayoutEffect(() => {
+    changed.current = onOpenChange;
+  });
+
+  useEffect(() => {
+    const popover = ref.current;
+    if (!popover) return;
+    // Under its button, their right edges lined up, inside the window.
+    const place = () => {
+      const button = anchor.current?.getBoundingClientRect();
+      if (!button) return;
+      // Read before it shows, so from its style, not its box.
+      const width = parseFloat(getComputedStyle(popover).width);
+      const left = Math.min(
+        Math.max(button.right - width, edge),
+        window.innerWidth - width - edge,
+      );
+      const top = button.bottom + 4;
+      popover.style.translate = `${Math.round(left)}px ${Math.round(top)}px`;
+      popover.style.maxHeight = `${Math.round(window.innerHeight - top - edge)}px`;
+    };
+    const onBeforeToggle = (event: Event) => {
+      if ((event as ToggleEvent).newState === "open") place();
+    };
+    const onToggle = (event: Event) => {
+      const open = (event as ToggleEvent).newState === "open";
+      changed.current?.(open);
+      if (open && openedByKeyboard(anchor.current))
+        popover.querySelector<HTMLElement>("[data-filter-section]")?.focus();
+    };
+    popover.addEventListener("beforetoggle", onBeforeToggle);
+    popover.addEventListener("toggle", onToggle);
+    window.addEventListener("resize", place);
+    return () => {
+      popover.removeEventListener("beforetoggle", onBeforeToggle);
+      popover.removeEventListener("toggle", onToggle);
+      window.removeEventListener("resize", place);
+    };
+  }, [anchor, ref]);
+
+  return (
+    <div
+      ref={ref}
+      id={id}
+      popover="auto"
+      role="dialog"
+      aria-label={label}
+      data-filter-popover=""
+      className={cn(
+        "fixed inset-auto top-0 left-0 m-0 w-75 flex-col overflow-visible border-0 bg-transparent p-0 text-ink open:flex",
+        "motion-safe:open:animate-menu-enter",
+      )}
+    >
+      <div
+        ref={body}
+        className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-surface py-1.5 shadow-[0_12px_40px_rgb(20_28_24/0.14),0_2px_6px_rgb(20_28_24/0.04)]"
+      >
+        <FilterRows
+          sections={sections}
+          active={active}
+          leaving={leaving}
+          onToggle={toggle}
+          compact
+        />
+      </div>
+    </div>
   );
 }

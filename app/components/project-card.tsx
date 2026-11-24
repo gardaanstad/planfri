@@ -162,10 +162,20 @@ export default memo(function ProjectCard({
         )}
         aria-label={`${project.title} · ${project.city}${fresh ? ` · ${unreadSummary(fresh)}` : ""}`}
         data-press=""
+        // Whole, when the title is cut short.
+        data-tooltip={project.title}
+        data-tooltip-delay="long"
         onClick={() => onOpen(project.id)}
       >
-        {/* Compact: beside the photo, up to three lines, then an ellipsis. */}
-        <span className={expanded ? undefined : "line-clamp-3"}>
+        {/* Compact: beside the photo, up to three lines, then an ellipsis;
+            in a narrow sidebar, two in either view. */}
+        <span
+          className={cn(
+            expanded ? undefined : "line-clamp-3",
+            "narrow:line-clamp-2",
+          )}
+          data-tooltip-clip=""
+        >
           {project.title}
         </span>
       </button>
@@ -292,12 +302,17 @@ export default memo(function ProjectCard({
             className={action}
             aria-label={commentLabel}
             data-press=""
+            // Named here, or in its tooltip where the word gives way.
+            data-tooltip={commentLabel}
             onClick={() => onOpen(project.id, "discussion")}
           >
             <MessageCircle size={15} aria-hidden="true" />
             <span>
               {commentCount}
-              <span className="max-[359px]:hidden">{` ${commentWord}`}</span>
+              <span
+                className="max-[359px]:hidden narrow:hidden"
+                data-tooltip-label=""
+              >{` ${commentWord}`}</span>
             </span>
           </button>
           {updates.length > 0 && (
@@ -312,7 +327,7 @@ export default memo(function ProjectCard({
               <Megaphone size={15} aria-hidden="true" />
               <span>
                 {updates.length}
-                <span className="max-[359px]:hidden">
+                <span className="max-[359px]:hidden narrow:hidden">
                   {updates.length === 1 ? " oppdatering" : " oppdateringer"}
                 </span>
               </span>
@@ -346,8 +361,7 @@ export default memo(function ProjectCard({
           key="thumb"
           className={cn(
             "relative h-16.5 w-22 shrink-0 overflow-hidden rounded-lg bg-surface-muted",
-            // A narrow sidebar gives the text the room.
-            expanded ? "hidden" : "md:@max-[340px]/list:hidden",
+            expanded && "hidden",
           )}
         >
           <Image

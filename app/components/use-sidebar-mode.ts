@@ -148,10 +148,13 @@ export function useSidebarMode({
         1,
         Math.max(0, (slotLeft - rest.offsetLeft) / sidebar),
       );
-      const frames =
+      // The slot is measured where it stands, so the toggle's own shift
+      // beside the maximize button (`sidebar-toggle`) is held at none.
+      const frames = (
         sidebarMode === "collapsed"
           ? [{ left: end }, { left, offset: meet }, { left }]
-          : [{ left }, { left, offset: 1 - meet }, { left: end }];
+          : [{ left }, { left, offset: 1 - meet }, { left: end }]
+      ).map((frame) => ({ ...frame, translate: "0px" }));
       animations.push(
         toggle.animate(frames, { ...sidebarTiming, fill: "forwards" }),
       );

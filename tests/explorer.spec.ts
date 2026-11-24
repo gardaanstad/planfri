@@ -1433,6 +1433,16 @@ test.describe("desktop explorer", () => {
     const inOslo = page.getByRole("button", {
       name: /^\d+ i Oslo, vis Oslo på kartet$/,
     });
+    // The count keeps to one line: too narrow for all three, the place
+    // gives way first, and returns once the list has the room.
+    await expect(inOslo).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /^\d+ totalt, vis alle på kartet$/ }),
+    ).toBeVisible();
+    await page
+      .getByRole("separator", { name: "Bredde på prosjektlisten" })
+      .focus();
+    await page.keyboard.press("End");
     await expect(inOslo).toBeVisible();
     await expect(
       page.getByRole("button", { name: /^\d+ totalt, vis alle på kartet$/ }),
@@ -1705,15 +1715,15 @@ test.describe("desktop explorer", () => {
       name: "Filtrer prosjekter",
       exact: true,
     });
-    // A dot per status shown, a ring for finished ones, hidden by default.
+    // Named, with no dots; finished ones are hidden by default.
     const trigger = filters.getByRole("button", {
       name: "Prosjektstatus: Foreslått, Planlagt, Under bygging",
       exact: true,
     });
-    await expect(trigger.locator("[data-status-dots]")).toHaveAttribute(
-      "data-status-dots",
-      "proposed,planned,construction",
+    expect(await trigger.evaluate((element) => (element as HTMLElement).innerText)).toBe(
+      "Status",
     );
+    await expect(trigger.locator("svg")).toHaveCount(1);
     await trigger.click();
     const menu = page.getByRole("listbox", { name: "Prosjektstatus", exact: true });
     // Several can be chosen, and each chosen one is checked.
@@ -1736,9 +1746,6 @@ test.describe("desktop explorer", () => {
     await expect(menu.getByRole("option", { selected: true })).toHaveCount(4);
     await expect(page).toHaveURL(/status=alle/);
     await page.keyboard.press("Escape");
-    await expect(
-      filters.locator("[data-status-dots]"),
-    ).toHaveAttribute("data-status-dots", "all");
     // Every status differs from the default: a filter to reset.
     await expect(
       page.getByRole("button", { name: "Nullstill filtre", exact: true }),
@@ -1769,14 +1776,14 @@ test.describe("desktop explorer", () => {
     await status.getByRole("option", { name: /^Foreslått/ }).click();
     await status.getByRole("option", { name: /^Planlagt/ }).click();
     await page.keyboard.press("Escape");
-    // One filter set is enough to offer the reset. The status pill never
-    // reads as set: its dots say what's shown.
+    // One filter set is enough to offer the reset, and the status pill reads
+    // as set, like the others.
     await expect(reset).toBeVisible();
     const statusTrigger = filters.getByRole("button", {
       name: "Prosjektstatus: Under bygging",
       exact: true,
     });
-    await expect(statusTrigger).toHaveCSS("font-weight", "500");
+    await expect(statusTrigger).toHaveCSS("font-weight", "600");
     // Main categories first; a chosen one opens its subcategories.
     const [main, sub] = project.categories;
     await filters.getByRole("button", { name: "Kategori", exact: true }).click();
@@ -2339,43 +2346,72 @@ test.describe("desktop explorer", () => {
     await expect(tooltip).toBeHidden();
   });
 
-  test("as the list narrows, the header's actions move into a menu", async ({
+  test("a narrow sidebar folds its controls away together, at one width", async ({
     page,
-    context,
   }) => {
-    const moderator = await member({
-      username: uniqueName("header"),
-      email: "header-moderator@example.test",
-    });
-    await signIn(context, moderator);
     await page.goto(oslo);
     const header = page.locator("[data-explorer-header]");
-    const menu = header.getByRole("button", { name: "Flere valg" });
+    const filters = page.getByRole("region", {
+      name: "Filtrer prosjekter",
+      exact: true,
+    });
     const handle = page.getByRole("separator", {
       name: "Bredde på prosjektlisten",
     });
-    // At its default width, every action fits.
-    await expect(header.getByRole("switch", { name: "Mørk modus" })).toBeVisible();
-    await expect(header.locator("[data-sidebar-maximize]")).toBeVisible();
-    await expect(menu).toHaveCount(0);
-    await shot(page, "header-overflow-full");
+    const menu = header.getByRole("button", { name: "Flere valg" });
+    const theme = header.getByRole("switch", { name: "Mørk modus" });
+    const maximize = header.locator("[data-sidebar-maximize]");
+    const login = header.getByRole("button", { name: "Logg inn", exact: true });
+    const loginLabel = login.locator("[data-tooltip-label]");
+    const categoryPill = filters.getByRole("button", { name: /^Kategori/ });
+    const statusPill = filters.getByRole("button", { name: /^Prosjektstatus/ });
+    const filterButton = filters.getByRole("button", {
+      name: "Filtre",
+      exact: true,
+    });
+    const place = filters.getByRole("button", { name: /^Sted: / });
+    const total = page.getByRole("button", {
+      name: /^\d+ totalt, vis alle på kartet$/,
+    });
+    const count = page.getByRole("status", {
+      name: /^\d+ synlige? prosjekte?r?$/,
+    });
+    const viewLabel = page
+      .getByRole("group", { name: "Visning" })
+      .getByRole("button", { name: "Kompakt" })
+      .locator("[data-view-label]");
+    const full = [theme, maximize, loginLabel, categoryPill, statusPill, total];
+    const narrow = [menu, filterButton];
+    // At its default width, everything shows.
+    await expect(count).toBeVisible();
+    for (const control of full) await expect(control).toBeVisible();
+    for (const control of narrow) await expect(control).toBeHidden();
+    await shot(page, "sidebar-full");
+    // A step at a time, until the menu unfolds: everything changes with it.
+    await handle.focus();
+    for (let step = 0; step < 20 && !(await menu.isVisible()); step++)
+      await page.keyboard.press("ArrowLeft");
+    for (const control of narrow) await expect(control).toBeVisible();
+    for (const control of full) await expect(control).toBeHidden();
+    await expect(viewLabel).toBeHidden();
+    await expect(login).toBeVisible();
+    await expect(place).toBeVisible();
+    await expect(count).toHaveText(/^\d+ synlige? prosjekte?r?$/);
+    // One step back, everything is back.
+    await page.keyboard.press("ArrowRight");
+    for (const control of full) await expect(control).toBeVisible();
+    for (const control of narrow) await expect(control).toBeHidden();
+    await page.keyboard.press("ArrowLeft");
+    await expect(menu).toBeVisible();
+    // At its narrowest, nothing wraps, the place keeps its name, and the
+    // toggle stands in its place.
+    await page.keyboard.press("Home");
+    const min = Number(await handle.getAttribute("aria-valuemin"));
     const right = (selector: string) =>
       page
         .locator(selector)
         .first()
         .evaluate((element) => element.getBoundingClientRect().right);
-    // Narrowing a step at a time, actions leave one by one, dark mode first.
-    await handle.focus();
-    // A step at a time, until it narrows past the first action.
-    for (let step = 0; step < 40 && !(await menu.count()); step++)
-      await page.keyboard.press("ArrowLeft");
-    await expect(menu).toBeVisible();
-    await expect(header.getByRole("switch", { name: "Mørk modus" })).toHaveCount(0);
-    // At its narrowest, only the profile and the sidebar toggle stay.
-    await page.keyboard.press("Home");
-    const min = Number(await handle.getAttribute("aria-valuemin"));
-    expect(min).toBeLessThan(340);
-    await expect(header.locator("[data-overflow-item]")).toHaveCount(0);
     expect(await right("[data-explorer-nav]")).toBeLessThanOrEqual(min);
     await expect
       .poll(async () =>
@@ -2385,19 +2421,99 @@ test.describe("desktop explorer", () => {
         ),
       )
       .toBeLessThanOrEqual(1);
-    await shot(page, "header-overflow-narrow");
-    await page.locator("[data-card-id]").first().getByRole("heading").click();
-    await expect(page.locator("[data-project-layer]")).toBeVisible();
-    await shot(page, "header-overflow-project");
+    const middle = async (locator: typeof count) => {
+      const box = (await locator.boundingBox())!;
+      return box.y + box.height / 2;
+    };
+    const countMiddle = await middle(count);
+    for (const control of [
+      page.getByRole("button", { name: /^Sorter prosjekter:/ }),
+      page.getByRole("group", { name: "Visning" }),
+    ])
+      expect(Math.abs((await middle(control)) - countMiddle)).toBeLessThan(2);
+    const countRight = await count.evaluate(
+      (element) => element.getBoundingClientRect().right,
+    );
+    expect(countRight).toBeLessThan(
+      (await page.getByRole("button", { name: /^Sorter prosjekter:/ }).boundingBox())!.x,
+    );
+    await expect(place).not.toHaveText("");
+    await shot(page, "sidebar-narrow");
+    // The filter button holds category and status.
+    await filterButton.click();
+    const popover = page.getByRole("dialog", { name: "Filtre", exact: true });
+    await expect(popover).toBeVisible();
+    await popover.getByRole("button", { name: /^Status/ }).click();
+    await popover
+      .getByRole("listbox", { name: "Prosjektstatus" })
+      .getByRole("option", { name: /^Ferdigstilt/ })
+      .click();
+    await expect(page).toHaveURL(/status=alle/);
+    await shot(page, "sidebar-narrow-filters");
     await page.keyboard.press("Escape");
-    await expect(page.locator("[data-project-layer]")).toHaveCount(0);
+    await expect(popover).toBeHidden();
+    await expect(filterButton).toHaveAttribute("data-active", "true");
+    // The header's extras wait in its menu, and work from there.
     await menu.click();
     const items = page.getByRole("menu").locator("[data-overflow-action]");
     await expect(items).toHaveText(["Mørk modus", "Vis som helside"]);
-    await shot(page, "header-overflow-menu");
-    // The menu's actions do what the buttons did.
     await page.getByRole("menuitemcheckbox", { name: "Mørk modus" }).click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    // Logging in is still a press away.
+    await login.click();
+    await expect(page.getByRole("dialog", { name: "Logg inn" })).toBeVisible();
+  });
+
+  test("a narrow sidebar keeps titles to two lines, whole in a tooltip", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const handle = page.getByRole("separator", {
+      name: "Bredde på prosjektlisten",
+    });
+    await handle.focus();
+    await page.keyboard.press("Home");
+    const titles = page.locator("[data-card-id] h2 button");
+    await expect(titles.first()).toBeVisible();
+    // Every title, in either view, stops at two lines.
+    for (const density of ["Kompakt", "Utvidet"]) {
+      await page
+        .getByRole("group", { name: "Visning" })
+        .getByRole("button", { name: density })
+        .click();
+      const clamps = await titles.evaluateAll((buttons) =>
+        buttons.map(
+          (button) =>
+            getComputedStyle(button.querySelector("[data-tooltip-clip]")!)
+              .webkitLineClamp,
+        ),
+      );
+      expect(new Set(clamps)).toEqual(new Set(["2"]));
+    }
+    // A title shown whole needs no tooltip.
+    const tooltip = page.locator("[role=tooltip][popover]");
+    const [first, second] = [titles.nth(0), titles.nth(1)];
+    await first.hover();
+    await expect(tooltip).toBeHidden();
+    // One too long for two lines ends in an ellipsis, and shows whole in its
+    // tooltip.
+    const long =
+      "Et svært langt prosjektnavn som trenger mange flere linjer enn to for å bli lest helt ferdig";
+    await second.evaluate((button, title) => {
+      button.dataset.tooltip = title;
+      button.querySelector("[data-tooltip-clip]")!.textContent = title;
+    }, long);
+    const lines = await second.evaluate((button) => {
+      const text = button.querySelector<HTMLElement>("[data-tooltip-clip]")!;
+      return text.clientHeight / parseFloat(getComputedStyle(text).lineHeight);
+    });
+    expect(Math.round(lines)).toBe(2);
+    await second.hover();
+    await expect(tooltip).toHaveText(long);
+    await shot(page, "sidebar-narrow-title");
+    // Back on a whole one, it goes.
+    await first.hover();
+    await expect(tooltip).toBeHidden();
   });
 
   test("projects open in a panel beside the map and return to the list", async ({

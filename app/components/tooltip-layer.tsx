@@ -49,7 +49,15 @@ export default function TooltipLayer() {
       // A name shown inside the control makes its tooltip redundant; once a
       // narrow layout hides that name, the tooltip stands in for it.
       const label = element.querySelector("[data-tooltip-label]");
-      if (label?.checkVisibility()) return hide();
+      if (label?.checkVisibility({ visibilityProperty: true })) return hide();
+      // Text that may be cut short shows whole in its tooltip, and only then.
+      const clip = element.querySelector("[data-tooltip-clip]");
+      if (
+        clip &&
+        clip.scrollHeight <= clip.clientHeight &&
+        clip.scrollWidth <= clip.clientWidth
+      )
+        return hide();
       target = element;
       window.clearTimeout(timer);
       const warm = isOpen() || performance.now() - hiddenAt < warmWindow;

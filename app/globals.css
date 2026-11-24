@@ -207,6 +207,66 @@
 }
 
 /*
+ * The desktop sidebar has two widths: full, where everything shows, and
+ * narrow, where its controls give way all at once, just before the full
+ * layout would wrap: Kategori and Status into one filter button, the header's
+ * extras into its menu, labels to their icons. The explorer's list layer is
+ * the `sidebar` container; `narrow:` styles for its narrow width. Phones
+ * have no such container, so `narrow:` never applies there.
+ * Keep the width in step with `sidebar-toggle` below.
+ */
+@custom-variant narrow {
+  @container sidebar (width < 450px) {
+    @slot;
+  }
+}
+
+/*
+ * What changes between the two widths folds rather than jumps: its width
+ * closes as it fades, so its neighbours slide into the room, all on one
+ * timing. A `fold` holds one child, and says how it starts: `unfolded
+ * narrow:folded`, or `folded narrow:unfolded`. Folded, it is hidden from
+ * focus and assistive tech too.
+ */
+@utility fold {
+  display: grid;
+  transition-property: grid-template-columns, opacity, visibility;
+  transition-duration: 220ms;
+  transition-timing-function: var(--ease-out-soft);
+  & > * {
+    display: flex;
+    min-width: 0;
+    /* Clipped while it folds, but not its focus ring or hover wash. */
+    overflow: clip;
+    overflow-clip-margin: 6px;
+  }
+}
+@utility folded {
+  grid-template-columns: 0fr;
+  opacity: 0;
+  visibility: hidden;
+}
+@utility unfolded {
+  grid-template-columns: 1fr;
+  opacity: 1;
+  visibility: visible;
+}
+
+/*
+ * The sidebar toggle stands over the header, outside the `sidebar`
+ * container. Left of the maximize button it shifts left by that button and
+ * the gap before it; narrow, the button is in the menu and the toggle ends
+ * the header. Computed from the sidebar's width, at the same point as
+ * `narrow:` (its border makes the container a pixel narrower).
+ */
+@utility sidebar-toggle {
+  translate: calc(
+      -1 * clamp(0px, (var(--sidebar-width) - 450.5px) * 1000, 2.875rem)
+    )
+    0;
+}
+
+/*
  * Focus styles are for the keyboard, as the indicator in the base layer:
  * none after a pointer press, whatever the browser's own heuristics say.
  */
