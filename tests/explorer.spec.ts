@@ -216,15 +216,13 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       .click();
     await expect(page).toHaveURL(atList);
     await expect(projectDrawer).toBeHidden();
-    // Closed, it leaves the list at the middle height, focus on its card.
-    await expectDrawerHeight(page, 0.58);
-    await expect(result).toBeFocused();
-    await expand.click();
+    // Closed, it takes the list back to full height, focus on its card.
     await expectDrawerHeight(page, 1);
+    await expect(result).toBeFocused();
     await result.click();
     await page.goBack();
     await expect(projectDrawer).toBeHidden();
-    await expectDrawerHeight(page, 0.58);
+    await expectDrawerHeight(page, 1);
     await page.goForward();
     await expectDrawerHeight(page, 0.58, "project");
     await page.reload();
@@ -670,6 +668,57 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expectDrawerHeight(page, compact);
     await page.waitForTimeout(500);
     expect(await at()).toEqual(moved);
+  });
+
+  test("a project opened from the full list closes back to it, scrolled and ordered as it was", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page
+      .getByRole("button", { name: "Utvid prosjektlisten", exact: true })
+      .click();
+    await expectDrawerHeight(page, 1);
+    const scroller = page.locator(
+      "[data-explorer-drawer] [data-drawer-scroll]",
+    );
+    const cards = scroller.locator("[data-card-id]");
+    const order = () =>
+      cards.evaluateAll((items) =>
+        items.map((item) => item.getAttribute("data-card-id")),
+      );
+    await scroller.evaluate((element) => {
+      element.scrollTop = 600;
+    });
+    const before = { order: await order(), scroll: 600 };
+    // The card nearest the top of what shows.
+    const id = await scroller.evaluate((element) => {
+      const top = element.getBoundingClientRect().top + 40;
+      return [...element.querySelectorAll("[data-card-id]")]
+        .find((card) => card.getBoundingClientRect().top >= top)!
+        .getAttribute("data-card-id")!;
+    });
+    await scroller
+      .locator(`[data-card-id="${id}"]`)
+      .getByRole("button")
+      .first()
+      .click();
+    await expect(page).toHaveURL(new RegExp(`/prosjekt/${id}(\\?|$)`));
+    await expectDrawerHeight(page, 0.58, "project");
+    await page
+      .getByRole("button", { name: "Lukk prosjekt", exact: true })
+      .click();
+    await expect(page).toHaveURL(atList);
+    await expectDrawerHeight(page, 1);
+    await page.waitForTimeout(600);
+    expect(await order()).toEqual(before.order);
+    expect(await scroller.evaluate((element) => element.scrollTop)).toBe(
+      before.scroll,
+    );
+    // Brought down over the map, the list follows the map again.
+    await page
+      .getByRole("button", { name: "Vis mer av kartet", exact: true })
+      .click();
+    await expectDrawerHeight(page, compact);
   });
 
   test("the list rests at the middle height, the map above it", async ({

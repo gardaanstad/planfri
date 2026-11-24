@@ -479,8 +479,9 @@ export default memo(function Explorer({
   const snapRef = useRef(snapPoint);
   // A project opened over the map rests at the middle height with the list
   // at the same height behind it, so closing it leaves the list there. From
-  // the full list, the list comes down to meet it, in step; from under a
-  // folded project, the list rises behind it, unseen, once it is up.
+  // the full list, the list comes down to meet it, in step, and goes back up
+  // as it closes (see `backToFullList`); from under a folded project, the
+  // list rises behind it, unseen, once it is up.
   const meetPost = useRef(false);
   const meetPending = useRef(false);
   const raiseBehindPost = useRef(false);
@@ -490,6 +491,10 @@ export default memo(function Explorer({
   // Opened over the folded list, a project leaves it folded: closing the
   // project goes back to it.
   const listStaysFolded = useRef(false);
+  // Opened from the full list, a project leaves it as it was: closing the
+  // project takes the list back to full height, scrolled where it was, its
+  // projects kept in place until it comes down over the map again.
+  const backToFullList = useRef(false);
   const [snapInstantly, setSnapInstantly] = useState(false);
   // Coming down to meet a project, the list moves a little quicker than the
   // project rises, so it is out from under it first.
@@ -938,7 +943,7 @@ export default memo(function Explorer({
     // rendering it inside a frame stalled the pan, worst in Safari.
     if (view.moving) return startTransition(follow);
     follow();
-    if (!postView.current) setFrozenBounds(null);
+    if (!postView.current && !backToFullList.current) setFrozenBounds(null);
     syncSoon();
   }
   /** Beside the map, "Velg sted" names the place the view shows. */
@@ -977,6 +982,7 @@ export default memo(function Explorer({
   const placeUnderDrawer = useEffectEvent(() => {
     if (snapRef.current === snapPoint) return;
     snapRef.current = snapPoint;
+    if (!postId && snapPoint !== 1) backToFullList.current = false;
     const view = mapViewRef.current;
     if (!view || !mapApi.current || snapPoint === 1) return;
     onMapView({ ...view, bounds: mapApi.current.boundsAbove(mapInset.current) });
@@ -1046,6 +1052,7 @@ export default memo(function Explorer({
     if (isFolded(point)) {
       // Folded before the list was up behind it: it stays down, under the
       // project, and comes up as the project closes.
+      backToFullList.current = false;
       meetPost.current = false;
       meetPending.current = false;
       raiseBehindPost.current = false;
@@ -1061,7 +1068,9 @@ export default memo(function Explorer({
    * closing the project no longer returns it to where it was opened from.
    */
   function onMapMove() {
-    if (postView.current) postView.current.before = null;
+    if (!postView.current) return;
+    postView.current.before = null;
+    backToFullList.current = false;
   }
   /**
    * On phones, panning or zooming the map folds the list down out of its way.
@@ -1195,16 +1204,17 @@ export default memo(function Explorer({
   }
   /** Where the list comes to rest once the open project closes. */
   function listPointAfterPost() {
+    if (backToFullList.current) return 1;
     return listRisesAfterPost() ? middleSnapPoint : snapPoint;
   }
   useLayoutEffect(() => {
     if (!postId) listStaysFolded.current = false;
-    if (postId || !listRisesAfterPost()) return;
+    if (postId || !(backToFullList.current || listRisesAfterPost())) return;
     meetPost.current = false;
     meetPending.current = false;
     raiseBehindPost.current = false;
     listUnderFolded.current = false;
-    setSnapPoint(middleSnapPoint);
+    setSnapPoint(backToFullList.current ? 1 : middleSnapPoint);
   }, [postId]);
 
   function openPost(id: string, target: PostTarget = {}, overMap = false) {
@@ -1224,6 +1234,11 @@ export default memo(function Explorer({
       // down, and the map centers the project above it.
       const folded = snapPoint === compactSnapPoint;
       meetPost.current = snapPoint === 1;
+      if (snapPoint === 1 && !postId) {
+        backToFullList.current = true;
+        // The list behind the project keeps what it holds as the map moves.
+        setFrozenBounds(frozenBounds ?? viewBounds);
+      }
       raiseBehindPost.current = folded && listUnderFolded.current;
       listStaysFolded.current =
         folded && (!postId || listStaysFolded.current);
