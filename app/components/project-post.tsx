@@ -453,6 +453,17 @@ function ProjectIntro({ project }: { project: Project }) {
   const expandPanel = usePanelExpand();
   // The running change: its animations and the step that ends it.
   const running = useRef<{ animations: Animation[]; done: () => void }>(null);
+  // Dragged down from the full height, the text folds back as "Vis mindre" would.
+  const full = expandPanel === null;
+  const wasFull = useRef(full);
+  const fold = useEffectEvent(() => {
+    if (open) toggle();
+  });
+  useEffect(() => {
+    // Out of React's commit, since the fold flushes its own renders.
+    if (wasFull.current && !full) queueMicrotask(fold);
+    wasFull.current = full;
+  }, [full]);
 
   useLayoutEffect(() => {
     const copy = text.current;

@@ -424,11 +424,15 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await shape.dispatchEvent("click");
     await expect(page).toHaveURL(atProject);
     await expectDrawerHeight(page, 0.58, "project");
-    await page
-      .locator("[data-project-drawer]")
-      .getByRole("button", { name: "Les mer", exact: true })
-      .click();
+    const drawer = page.locator("[data-project-drawer]");
+    await drawer.getByRole("button", { name: "Les mer", exact: true }).click();
     await expectDrawerHeight(page, 1, "project");
+    // Dragged back to the middle height, the text folds as "Vis mindre" would.
+    await drag(page, drawer.locator(":scope > [aria-hidden]"), 220);
+    await expectDrawerHeight(page, 0.58, "project");
+    await expect(
+      drawer.getByRole("button", { name: "Les mer", exact: true }),
+    ).toHaveAttribute("aria-expanded", "false");
   });
 
   test("a project tapped on the map opens at the middle height, centered above it", async ({
