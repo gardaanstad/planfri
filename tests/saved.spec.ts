@@ -242,7 +242,8 @@ test("opening a project page starts its read state; saving can be undone", async
   context,
   request,
 }) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
+  // Wide enough that saving stays in the bar beside a two-word title.
+  await page.setViewportSize({ width: 1440, height: 800 });
   const project = seedProjects[11];
   const reader = await member({ username: uniqueName() });
   await signIn(context, reader);

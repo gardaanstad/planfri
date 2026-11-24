@@ -41,8 +41,11 @@ const headerIconButton = cn(
 
 const titleType = panelTitle;
 
-/** Desktop: the width the title keeps before the actions give way to a menu. */
-const titleReserve = 160;
+/**
+ * Desktop: the room the title keeps before the actions give way to a menu.
+ * A short title keeps its line and some air; a long one up to `max`.
+ */
+const titleReserve = { air: 32, max: 240 };
 
 // The full page's column: 880px wide with 24px inside, like the maximized
 // list, centred beside the scrollbar (see `--scrollbar-width` in
@@ -249,12 +252,24 @@ export default function ProjectPostHeader({
   const edit = useProjectEdit();
   const editing = Boolean(edit);
   const controlsRef = useRef<HTMLDivElement>(null);
+  // The title's width on one line, measured off-screen.
+  const sizerRef = useRef<HTMLSpanElement>(null);
+  const [titleWidth, setTitleWidth] = useState<number | null>(null);
+  useEffect(() => {
+    const sizer = sizerRef.current;
+    if (!sizer) return;
+    const observer = new ResizeObserver(() => setTitleWidth(sizer.offsetWidth));
+    observer.observe(sizer);
+    return () => observer.disconnect();
+  }, [mobile]);
   const overflow = useHeaderOverflow(
     controlsRef,
     mobile || edit
       ? []
       : ["share", ...(actions.onEdit ? ["edit"] : []), "save"],
-    titleReserve,
+    titleWidth === null
+      ? titleReserve.max
+      : Math.min(titleWidth + titleReserve.air, titleReserve.max),
   );
 
   useEffect(() => {
@@ -377,10 +392,19 @@ export default function ProjectPostHeader({
         }
       >
         {title}
+        <span aria-hidden="true" className="invisible absolute size-0 overflow-hidden">
+          <span
+            ref={sizerRef}
+            className={cn("block w-max whitespace-nowrap", titleType)}
+          >
+            {project.title}
+          </span>
+        </span>
         <div
           ref={controlsRef}
           className="flex shrink-0 items-center gap-0.5"
           data-project-actions=""
+          data-fitted={(titleWidth !== null && overflow.ready) || undefined}
         >
           {!edit && <DesktopActions {...actions} hidden={overflow.hidden} />}
           {onToggleFull && (

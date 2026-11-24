@@ -452,6 +452,7 @@ test.describe("desktop headers", () => {
     const post = page.locator("[data-project-post]");
     await expect(post).toBeVisible();
     const actions = post.locator("[data-project-actions]");
+    await expect(actions).toHaveAttribute("data-fitted", "true");
     const menu = actions.getByRole("button", { name: "Flere valg" });
     for (const name of ["Lagre", "Foreslå endring", "Kopier lenke"])
       await expect(actions.getByRole("button", { name, exact: true })).toBeVisible();

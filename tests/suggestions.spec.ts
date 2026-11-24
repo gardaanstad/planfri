@@ -5,7 +5,7 @@ import { seedProjects } from "../scripts/seed-data";
 import type { SuggestionLists } from "../app/lib/suggestions";
 import { eq } from "drizzle-orm";
 import { project as projectTable } from "../app/lib/db/schema";
-import { cookieHeaders, db, member, mutation, origin, png, signIn, uniqueName } from "./support";
+import { cookieHeaders, db, member, mutation, origin, png, projectAction, signIn, uniqueName } from "./support";
 
 type Account = Awaited<ReturnType<typeof member>>;
 
@@ -329,7 +329,7 @@ test("members suggest corrections and tips; moderators review a diff, approve, a
   await expect(
     page.getByRole("button", { name: "Rediger prosjekt", exact: true }),
   ).toHaveCount(0);
-  await page.getByRole("button", { name: "Foreslå endring", exact: true }).click();
+  await projectAction(page, "Foreslå endring");
   await page
     .getByRole("radiogroup", { name: "Status", exact: true })
     .getByRole("radio", { name: "Under bygging" })

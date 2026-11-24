@@ -135,6 +135,18 @@ export function accountMenuItem(page: Page, name: string | RegExp) {
     .or(page.getByRole("menuitemcheckbox", { name }))
     .or(page.getByRole("dialog", { name: "Konto" }).getByRole("switch", { name }));
 }
+/**
+ * Desktop: one of a project's actions, from its bar or, where the title
+ * needs the room, from its "Flere valg" menu.
+ */
+export async function projectAction(page: Page, name: string) {
+  const actions = page.locator("[data-project-actions][data-fitted]");
+  await expect(actions).toBeVisible();
+  const inline = actions.getByRole("button", { name, exact: true });
+  if (await inline.count()) return inline.click();
+  await actions.getByRole("button", { name: "Flere valg" }).click();
+  await page.getByRole("menuitem", { name, exact: true }).click();
+}
 /** Opens the saved projects from the avatar's menu. */
 export async function openSaved(page: Page) {
   await page.getByRole("button", { name: "Konto", exact: true }).click();

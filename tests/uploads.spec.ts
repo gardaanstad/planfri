@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { seedProjects } from "../scripts/seed-data";
-import { cookieHeaders, member, mutation, origin, png, shot, signIn, uniqueName } from "./support";
+import { cookieHeaders, member, mutation, origin, png, projectAction, shot, signIn, uniqueName } from "./support";
 
 
 test("only real images are stored; members' photos stay private", async ({
@@ -162,7 +162,7 @@ test("moderators add photos while editing a project and choose the cover", async
   await signIn(context, moderator);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`/prosjekt/${project.id}`);
-  await page.getByRole("button", { name: "Rediger prosjekt", exact: true }).click();
+  await projectAction(page, "Rediger prosjekt");
 
   const photos = page.locator('[data-field="images"]');
   await expect(photos.getByRole("img")).toHaveCount(1);

@@ -42,6 +42,8 @@ export function useHeaderOverflow(
   reserve?: number,
 ) {
   const [hidden, setHidden] = useState(0);
+  // The reserve the items were last fitted to; `ready` once it's the current one.
+  const [fitted, setFitted] = useState<number | null | undefined>(null);
   const widths = useRef(new Map<string, number>());
   const trigger = useRef(fallbackItem);
   const shown = useRef(0);
@@ -92,9 +94,15 @@ export function useHeaderOverflow(
     const room = measured.header - measured.around - measured.fixed;
     let count = 0;
     while (count < order.length && width(count) > room + 0.5) count++;
-    if (count === shown.current) return;
+    if (count === shown.current) {
+      setFitted(reserve);
+      return;
+    }
     shown.current = count;
-    flushSync(() => setHidden(count));
+    flushSync(() => {
+      setHidden(count);
+      setFitted(reserve);
+    });
   });
 
   // The header resizing, and items coming or going, change what fits. An
@@ -108,7 +116,7 @@ export function useHeaderOverflow(
     observer.observe(header);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [nav, key]);
+  }, [nav, key, reserve]);
 
   /** The header's width with every item in the nav, or in the menu. */
   const needed = (all: boolean) => {
@@ -119,6 +127,8 @@ export function useHeaderOverflow(
 
   return {
     hidden: new Set(order.slice(0, Math.min(hidden, order.length))),
+    /** Fitted since it last changed: what's shown in the bar stays. */
+    ready: fitted === reserve,
     needed,
   };
 }

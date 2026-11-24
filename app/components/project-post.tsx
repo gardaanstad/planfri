@@ -14,7 +14,6 @@ import {
   ImagePlus,
   Megaphone,
   ChevronDown,
-  MapPin,
   MessageCircle,
   LoaderCircle,
   MessagesSquare,
@@ -397,32 +396,33 @@ function ProjectMeta({ project }: { project: Project }) {
     project.developer !== unknownDeveloper ? project.developer : "";
   return (
     <div className="mb-3" data-project-meta="">
-      <p className="flex flex-wrap items-center gap-y-1 text-ui leading-normal text-muted max-md:text-xs [&>*]:inline-flex [&>*]:min-w-0 [&>*]:items-center [&>*]:gap-1.5 [&_svg]:shrink-0 [&>*+*]:before:ml-2 [&>*+*]:before:mr-0.5 [&>*+*]:before:content-['·']">
-        <span>
-          <MapPin size={14} aria-hidden="true" />
-          {projectPlace(project)}
-        </span>
-        {developer && (
-          <span data-tooltip="Byggherre">
-            <span className="sr-only">Byggherre: </span>
-            {developer}
-          </span>
-        )}
-        {project.website && (
-          <span>
-            <a
-              href={project.website}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 text-ink underline decoration-border-strong decoration-1 underline-offset-3 transition-[text-decoration-color] duration-120 hover:decoration-current"
-            >
-              Nettside
-              <ArrowUpRight size={14} aria-hidden="true" />
-            </a>
-          </span>
-        )}
-      </p>
-      <PhaseTimeline project={project} />
+      {/* Each separator hangs in the space before its item, and the row is
+          clipped at its start, so a line that wraps never begins with one. */}
+      <div className="-mt-1 -ml-1 overflow-x-clip pl-1">
+        <p className="-ml-4 flex flex-wrap items-center gap-y-1 text-ui leading-normal text-muted max-md:text-xs [&>*]:inline-flex [&>*]:min-w-0 [&>*]:items-center [&>*]:before:w-4 [&>*]:before:shrink-0 [&>*]:before:text-center [&>*]:before:content-['·']">
+          <span>{projectPlace(project)}</span>
+          {developer && (
+            <span data-tooltip="Byggherre">
+              <span className="sr-only">Byggherre: </span>
+              {developer}
+            </span>
+          )}
+          {project.website && (
+            <span>
+              <a
+                href={project.website}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-ink underline decoration-border-strong decoration-1 underline-offset-3 transition-[text-decoration-color] duration-120 hover:decoration-current"
+              >
+                Nettside
+                <ArrowUpRight size={14} aria-hidden="true" className="shrink-0" />
+              </a>
+            </span>
+          )}
+        </p>
+      </div>
+      <PhaseTimeline project={project} className="mt-5 max-md:mt-4" />
     </div>
   );
 }

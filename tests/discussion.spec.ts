@@ -7,6 +7,7 @@ import {
   member,
   mutation,
   openDiscussion,
+  projectAction,
   shot,
   signIn,
   uniqueName,
@@ -239,9 +240,7 @@ test("moderators set a project's phase and dates on one timeline, with or withou
   ).toBe(true);
   await signIn(context, moderator);
   await page.goto(`/prosjekt/${id}`);
-  await page
-    .getByRole("button", { name: "Rediger prosjekt", exact: true })
-    .click();
+  await projectAction(page, "Rediger prosjekt");
   const timeline = page.locator('[data-field="timeline"]');
   const preview = timeline.getByRole("list", { name: "Forhåndsvisning av fase" });
   await expect(preview.getByRole("listitem")).toHaveText([
@@ -289,9 +288,7 @@ test("moderators set a project's phase and dates on one timeline, with or withou
     "Ferdig, 2029",
   ]);
   // Back on the line, it's the first step again.
-  await page
-    .getByRole("button", { name: "Rediger prosjekt", exact: true })
-    .click();
+  await projectAction(page, "Rediger prosjekt");
   await timeline.getByRole("button", { name: "Legg til Foreslått" }).click();
   await expect(preview.getByRole("listitem").first()).toHaveText("Foreslått");
 });
@@ -306,9 +303,7 @@ test("the drawing map opens over the whole screen and comes back with its points
   });
   await signIn(context, moderator);
   await page.goto(path);
-  await page
-    .getByRole("button", { name: "Rediger prosjekt", exact: true })
-    .click();
+  await projectAction(page, "Rediger prosjekt");
   const field = page.locator('[data-field="geometry"]');
   const points = project.geometry.length;
   await expect(field.locator(".draw-vertex")).toHaveCount(points);
@@ -363,9 +358,7 @@ test("moderators edit the reference page and publish sourced updates without new
   ).toBeVisible();
   // Edit mode: everything is editable in place, changes are marked and
   // reviewed before anything is saved.
-  await page
-    .getByRole("button", { name: "Rediger prosjekt", exact: true })
-    .click();
+  await projectAction(page, "Rediger prosjekt");
   const bar = page.getByRole("region", { name: "Redigering", exact: true });
   await expect(bar).toContainText("Ingen endringer");
   await page
@@ -453,9 +446,7 @@ test("moderators edit the reference page and publish sourced updates without new
     page.getByRole("region", { name: "Om prosjektet" }),
   ).toContainText("En varig beskrivelse");
   // Leaving with unsaved changes asks first; Esc doesn't close the project.
-  await page
-    .getByRole("button", { name: "Rediger prosjekt", exact: true })
-    .click();
+  await projectAction(page, "Rediger prosjekt");
   await page
     .getByRole("textbox", { name: "Byggherre", exact: true })
     .fill("Statsbygg");
