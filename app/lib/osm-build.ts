@@ -10,7 +10,8 @@
  * sizeable named lines splits between them; parallel tracks and pieces of
  * one named line across small gaps join again; and each candidate gets one
  * end-to-end alignment to start a project from, and lines to draw with
- * parallel tracks once.
+ * parallel tracks once. The alignment runs midway between parallel tracks
+ * and carriageways, and keeps to one where they drift far apart.
  *
  * Pure and dependency-free, so tests can run it on fixtures. The server
  * runs it on Overpass responses; see server/osm-candidates.ts.
@@ -21,6 +22,7 @@ import {
   distance,
   distanceToLine,
   pathLength,
+  segmentDistance,
   type OsmCandidate,
   type OsmKind,
   type OsmMode,
@@ -307,12 +309,14 @@ function dijkstra(edges: Map<number, [number, number][]>, start: number) {
 }
 
 /**
- * One end-to-end alignment through a group: per connected part, the route
- * between its two farthest-apart ends (so double track and loops are
- * travelled once), then the parts chained end to end. Branches and
- * parallel tracks beside the main route are left out.
+ * The route through a group: per connected part, the route between its
+ * ends (so double track and loops are travelled once), then
+ * the parts chained end to end where they carry the line on. A part running
+ * beside the route, the other track or carriageway mapped apart, adds only
+ * what reaches past it, if that goes on from one of its ends; branches are
+ * left out.
  */
-function mainPath(ways: Way[]): Point[] {
+function spine(ways: Way[]): Point[] {
   const edges = new Map<number, [number, number][]>();
   const at = new Map<number, Point>();
   const link = (a: number, b: number, length: number) => {
@@ -333,43 +337,362 @@ function mainPath(ways: Way[]): Point[] {
   const seen = new Set<number>();
   for (const start of at.keys()) {
     if (seen.has(start)) continue;
-    const { dist: fromStart } = dijkstra(edges, start);
-    for (const node of fromStart.keys()) seen.add(node);
-    const far = (dist: Map<number, number>) =>
-      [...dist].reduce((best, entry) => (entry[1] > best[1] ? entry : best))[0];
-    const a = far(fromStart);
-    const { dist, previous } = dijkstra(edges, a);
-    const b = far(dist);
-    const route: Point[] = [];
-    for (let node: number | undefined = b; node !== undefined; node = previous.get(node))
-      route.push(at.get(node)!);
-    if (route.length > 1) parts.push(route.reverse());
+    const nodes = [...dijkstra(edges, start).dist.keys()];
+    for (const node of nodes) seen.add(node);
+    const route = throughRoute(nodes, edges, at);
+    if (route.length > 1) parts.push(route);
   }
   parts.sort((x, y) => pathLength(y) - pathLength(x));
   let path = parts[0] ?? [];
   for (const part of parts.slice(1)) {
-    // Another track of what's already there.
-    if (coveredShare(part, [path], parallelDistance * 1.5) >= 0.5) continue;
-    const ends: [number, Point[]][] = [
-      [distance(path.at(-1)!, part[0]), [...path, ...part]],
-      [distance(path.at(-1)!, part.at(-1)!), [...path, ...part.toReversed()]],
-      [distance(path[0], part.at(-1)!), [...part, ...path]],
-      [distance(path[0], part[0]), [...part.toReversed(), ...path]],
+    const run = beyond(part, path);
+    if (!run) continue;
+    // [gap, path ending where it joins, run starting there, joined]
+    const reversed = path.toReversed();
+    const ends: [number, Point[], Point[], () => Point[]][] = [
+      [distance(path.at(-1)!, run[0]), path, run, () => [...path, ...run]],
+      [distance(path.at(-1)!, run.at(-1)!), path, run.toReversed(), () => [...path, ...run.toReversed()]],
+      [distance(path[0], run.at(-1)!), reversed, run.toReversed(), () => [...run, ...path]],
+      [distance(path[0], run[0]), reversed, run, () => [...run.toReversed(), ...path]],
     ];
-    const [gap, joined] = ends.sort((x, y) => x[0] - y[0])[0];
-    // Only pieces that carry the line on from one of its ends.
-    if (gap <= gapJoin * 1.5) path = joined;
+    const [gap, line, on, joined] = ends.sort((x, y) => x[0] - y[0])[0];
+    // Only pieces that carry the line on from one of its ends, onwards
+    // rather than back alongside it.
+    if (gap <= gapJoin * 1.5 && onwards(line, on)) path = joined();
   }
-  return path;
+  return trimHooks(path);
+}
+
+/** A vector in metres, for directions. */
+function towards(a: Point, b: Point): [number, number] {
+  const scale = Math.cos(((a[0] + b[0]) / 2) * (Math.PI / 180));
+  return [(b[1] - a[1]) * scale * 111_195, (b[0] - a[0]) * 111_195];
+}
+/** The point this far back from a line's end. */
+function back(line: Point[], metres: number): Point {
+  let left = metres;
+  for (let i = line.length - 1; i > 0; i--) {
+    const length = distance(line[i - 1], line[i]);
+    if (length >= left) {
+      const t = left / length;
+      return [
+        line[i][0] + (line[i - 1][0] - line[i][0]) * t,
+        line[i][1] + (line[i - 1][1] - line[i][1]) * t,
+      ];
+    }
+    left -= length;
+  }
+  return line[0];
+}
+/** Whether `run` heads on from where `line` ends, within 75° of its way. */
+function onwards(line: Point[], run: Point[]) {
+  const end = line.at(-1)!;
+  const [hx, hy] = towards(back(line, 300), end);
+  const [rx, ry] = towards(end, back(run.toReversed(), 300));
+  const lengths = Math.hypot(hx, hy) * Math.hypot(rx, ry);
+  return !lengths || hx * rx + hy * ry >= lengths * Math.cos((75 * Math.PI) / 180);
+}
+/** The line without hooks at either end. */
+function trimHooks(line: Point[]) {
+  return trimHook(trimHook(line).toReversed()).toReversed();
+}
+/**
+ * The line without a hook at its end: an end running back alongside the
+ * line, as a route out around a terminal loop and back along a station
+ * track can.
+ */
+function trimHook(line: Point[]): Point[] {
+  const points = samples(line, centreStep);
+  const along = [0];
+  for (let i = 1; i < points.length; i++)
+    along.push(along[i - 1] + distance(points[i - 1], points[i]));
+  let end = points.length;
+  while (end > 1) {
+    const p = points[end - 1];
+    let near = false;
+    for (let j = 1; j < end && along[j] < along[end - 1] - centreFull * 2; j++)
+      if (segmentDistance(p, points[j - 1], points[j]) <= centreFull) {
+        near = true;
+        break;
+      }
+    if (!near) break;
+    end--;
+  }
+  if (end === points.length) return line;
+  // Cut where the hook began, keeping the line's own points before it.
+  const cut = along[end - 1];
+  const out: Point[] = [line[0]];
+  let walked = 0;
+  for (let i = 1; i < line.length; i++) {
+    walked += distance(line[i - 1], line[i]);
+    if (walked >= cut) break;
+    out.push(line[i]);
+  }
+  out.push(points[end - 1]);
+  return out;
 }
 
 /**
- * The lines to draw: ways stitched end to end where nothing branches, so a
- * dotted line keeps its rhythm instead of restarting at every way, and
- * tracks running right beside a longer one left out, so double track
- * doesn't draw as two dot patterns drifting over each other.
+ * The route through one connected part: the longest between two of its
+ * ends (dead ends, junctions and its outermost points) that lie nearly as
+ * far apart on the map as any, once any end running back alongside the
+ * rest is cut off. The longest alone can lie on two tracks joined at one or
+ * both ends: out along one and back along the other.
  */
-function drawnLines(ways: Way[]): Point[][] {
+function throughRoute(
+  nodes: number[],
+  edges: Map<number, [number, number][]>,
+  at: Map<number, Point>,
+): Point[] {
+  const degree = (node: number) =>
+    new Set((edges.get(node) ?? []).map(([next]) => next)).size;
+  // Its two points farthest apart on the map are ends too: where a loop
+  // closes, or where two tracks join with both other ends side by side.
+  const farFrom = (node: number) =>
+    nodes.reduce((best, other) =>
+      distance(at.get(other)!, at.get(node)!) > distance(at.get(best)!, at.get(node)!)
+        ? other
+        : best,
+    );
+  const extreme = farFrom(nodes[0]);
+  let ends = [
+    ...new Set([
+      extreme,
+      farFrom(extreme),
+      ...nodes.filter((node) => degree(node) !== 2),
+    ]),
+  ];
+  // Big junctions of sidings: the ends farthest out from the middle.
+  if (ends.length > 60) {
+    const middle: Point = [0, 0];
+    for (const node of ends) {
+      middle[0] += at.get(node)![0] / ends.length;
+      middle[1] += at.get(node)![1] / ends.length;
+    }
+    ends = ends
+      .map((node) => [node, distance(at.get(node)!, middle)] as const)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 60)
+      .map(([node]) => node);
+  }
+  let widest = 0;
+  for (let i = 0; i < ends.length; i++)
+    for (let j = i + 1; j < ends.length; j++)
+      widest = Math.max(widest, distance(at.get(ends[i])!, at.get(ends[j])!));
+  const pairs: { length: number; to: number; previous: Map<number, number> }[] = [];
+  for (let i = 0; i < ends.length; i++) {
+    const { dist, previous } = dijkstra(edges, ends[i]);
+    for (let j = i + 1; j < ends.length; j++)
+      if (distance(at.get(ends[i])!, at.get(ends[j])!) >= widest * 0.5)
+        pairs.push({ length: dist.get(ends[j]) ?? 0, to: ends[j], previous });
+  }
+  pairs.sort((x, y) => y.length - x.length);
+  // Longest first, without any end running back alongside the rest, until
+  // no longer route is left to find.
+  let best: Point[] = [];
+  let bestLength = 0;
+  for (const { length, to, previous } of pairs.slice(0, 50)) {
+    if (length <= bestLength) break;
+    const route: Point[] = [];
+    for (let node: number | undefined = to; node !== undefined; node = previous.get(node))
+      route.push(at.get(node)!);
+    const trimmed = trimHooks(route.reverse());
+    const trimmedLength = pathLength(trimmed);
+    if (trimmedLength > bestLength) {
+      best = trimmed;
+      bestLength = trimmedLength;
+    }
+  }
+  return best;
+}
+
+/**
+ * The longest stretch of `part` lying farther than tracks are ever averaged
+ * from `path`, or nothing worth adding.
+ */
+function beyond(part: Point[], path: Point[]): Point[] | null {
+  const points = samples(part, centreStep);
+  let best: Point[] = [];
+  let run: Point[] = [];
+  for (const p of points) {
+    if (distanceToLine(p, path) > centreSpread) run.push(p);
+    else run = [];
+    if (run.length > best.length) best = run;
+  }
+  return best.length > 1 && pathLength(best) >= minimumLength ? best : null;
+}
+
+// The alignment runs midway between parallel tracks or carriageways:
+// measured every `centreStep` metres along the route, against tracks beside
+// it running the same way (within 30°) for at least `centreRun` metres.
+// Tracks up to `centreFull` apart are averaged in full; farther apart, less
+// and less, until at `centreSpread` the route follows its own track, so
+// tracks or tunnel tubes drifting apart don't pull it off both of them.
+const centreStep = 25;
+const centreFull = 80;
+const centreSpread = 200;
+const centreAngle = Math.cos(Math.PI / 6);
+const centreRun = 300;
+// Shifts are smoothed over this far each way, so the alignment eases in and
+// out where a second track begins and ends.
+const centreSmooth = 150;
+
+type Segment = { ax: number; ay: number; bx: number; by: number; track: number };
+
+/**
+ * The route moved to the middle of the tracks it runs beside: the average
+ * of parallel lines, not one of them, nor both.
+ */
+function centreline(route: Point[], tracks: Point[][]): Point[] {
+  if (route.length < 2) return route;
+  // A local flat projection in metres.
+  const lat0 = route[0][0];
+  const kx = Math.cos(lat0 * (Math.PI / 180)) * 111_195;
+  const ky = 111_195;
+  const spine = samples(route, centreStep).map(([lat, lng]) => [lng * kx, lat * ky]);
+  const n = spine.length;
+  if (n < 3) return route;
+
+  // Track segments in a grid of cells as wide as the farthest reach.
+  const grid = new Map<string, Segment[]>();
+  const cellOf = (v: number) => Math.floor(v / centreSpread);
+  tracks.forEach((track, index) => {
+    for (let i = 1; i < track.length; i++) {
+      const seg: Segment = {
+        ax: track[i - 1][1] * kx,
+        ay: track[i - 1][0] * ky,
+        bx: track[i][1] * kx,
+        by: track[i][0] * ky,
+        track: index,
+      };
+      for (let cx = cellOf(Math.min(seg.ax, seg.bx)); cx <= cellOf(Math.max(seg.ax, seg.bx)); cx++)
+        for (let cy = cellOf(Math.min(seg.ay, seg.by)); cy <= cellOf(Math.max(seg.ay, seg.by)); cy++) {
+          const key = `${cx}:${cy}`;
+          const list = grid.get(key);
+          if (list) list.push(seg);
+          else grid.set(key, [seg]);
+        }
+    }
+  });
+  // The route's own segments, by index, to tell which stretch of it a
+  // track lies beside.
+  const routeGrid = new Map<string, number[]>();
+  for (let i = 1; i < n; i++) {
+    const key = `${cellOf((spine[i - 1][0] + spine[i][0]) / 2)}:${cellOf((spine[i - 1][1] + spine[i][1]) / 2)}`;
+    const list = routeGrid.get(key);
+    if (list) list.push(i);
+    else routeGrid.set(key, [i]);
+  }
+  const nearest = (px: number, py: number, seg: Segment) => {
+    const dx = seg.bx - seg.ax;
+    const dy = seg.by - seg.ay;
+    const t =
+      dx || dy
+        ? Math.max(0, Math.min(1, ((px - seg.ax) * dx + (py - seg.ay) * dy) / (dx * dx + dy * dy)))
+        : 0;
+    const qx = seg.ax + t * dx;
+    const qy = seg.ay + t * dy;
+    return { qx, qy, d: Math.hypot(px - qx, py - qy) };
+  };
+  // Whether a track's point lies beside the route at sample `i`: off the
+  // route, and nearest to this stretch of it rather than another, where the
+  // line comes back past itself.
+  const besideHere = (x: number, y: number, i: number) => {
+    const cx = cellOf(x);
+    const cy = cellOf(y);
+    let best = Infinity;
+    let at = i;
+    for (let a = cx - 1; a <= cx + 1; a++)
+      for (let b = cy - 1; b <= cy + 1; b++)
+        for (const j of routeGrid.get(`${a}:${b}`) ?? []) {
+          const [ax, ay] = spine[j - 1];
+          const [bx, by] = spine[j];
+          const { d } = nearest(x, y, { ax, ay, bx, by, track: -1 });
+          if (d < best) {
+            best = d;
+            at = j;
+          }
+        }
+    return best >= 2 && Math.abs(at - i) * centreStep <= best * 1.5 + centreStep * 2;
+  };
+
+  // Per point along the route, the sideways offset of each track beside it.
+  const normals: [number, number][] = [];
+  const offsets: Map<number, number>[] = [];
+  for (let i = 0; i < n; i++) {
+    const [px, py] = spine[i];
+    const [ax, ay] = spine[Math.max(0, i - 1)];
+    const [bx, by] = spine[Math.min(n - 1, i + 1)];
+    const length = Math.hypot(bx - ax, by - ay) || 1;
+    const dx = (bx - ax) / length;
+    const dy = (by - ay) / length;
+    normals.push([-dy, dx]);
+    // Per track and side, the nearest point beside the route. A track can
+    // lie on both sides: two tubes joined at a portal are one chain.
+    const here = new Map<number, number>();
+    const nearestAt = new Map<number, number>();
+    const cx = cellOf(px);
+    const cy = cellOf(py);
+    for (let a = cx - 1; a <= cx + 1; a++)
+      for (let b = cy - 1; b <= cy + 1; b++)
+        for (const seg of grid.get(`${a}:${b}`) ?? []) {
+          const { d, qx, qy } = nearest(px, py, seg);
+          if (d < 2 || d > centreSpread) continue;
+          const sl = Math.hypot(seg.bx - seg.ax, seg.by - seg.ay) || 1;
+          const cos = Math.abs(((seg.bx - seg.ax) * dx + (seg.by - seg.ay) * dy) / sl);
+          if (cos < centreAngle) continue;
+          // Straight beside the route, not ahead of it where a track ends.
+          const along = (qx - px) * dx + (qy - py) * dy;
+          if (Math.abs(along) > d * 0.5 + 5) continue;
+          const offset = (qx - px) * -dy + (qy - py) * dx;
+          const key = seg.track * 2 + (offset > 0 ? 1 : 0);
+          if (d >= (nearestAt.get(key) ?? Infinity) || !besideHere(qx, qy, i)) continue;
+          nearestAt.set(key, d);
+          here.set(key, offset);
+        }
+    offsets.push(here);
+  }
+
+  // Only tracks keeping beside it for long enough: not lines crossing it.
+  const minimumRun = Math.ceil(centreRun / centreStep);
+  for (let key = 0; key < tracks.length * 2; key++) {
+    let start = 0;
+    for (let i = 0; i <= n; i++) {
+      if (i < n && offsets[i].has(key)) continue;
+      if (i - start < minimumRun)
+        for (let j = start; j < i; j++) offsets[j].delete(key);
+      start = i + 1;
+    }
+  }
+
+  const weight = (d: number) =>
+    Math.max(0, Math.min(1, (centreSpread - d) / (centreSpread - centreFull)));
+  const shifts = offsets.map((here) => {
+    let lo = 0;
+    let hi = 0;
+    for (const o of here.values()) {
+      const effective = o * weight(Math.abs(o));
+      lo = Math.min(lo, effective);
+      hi = Math.max(hi, effective);
+    }
+    return (lo + hi) / 2;
+  });
+  const radius = Math.round(centreSmooth / centreStep);
+  const prefix = [0];
+  for (const shift of shifts) prefix.push(prefix.at(-1)! + shift);
+  return spine.map(([x, y], i): Point => {
+    const from = Math.max(0, i - radius);
+    const to = Math.min(n, i + radius + 1);
+    const shift = (prefix[to] - prefix[from]) / (to - from);
+    return [(y + normals[i][1] * shift) / ky, (x + normals[i][0] * shift) / kx];
+  });
+}
+
+/**
+ * Ways stitched end to end where nothing branches, longest first: each
+ * track or carriageway as one line.
+ */
+function chains(ways: Way[]): Point[][] {
   // Per node, how many way ends meet there (an inner node counts twice).
   const degree = new Map<number, number>();
   for (const way of ways)
@@ -398,7 +721,7 @@ function drawnLines(ways: Way[]): Point[][] {
       node = forward ? next.nodes.at(-1)! : next.nodes[0];
     }
   };
-  const chains: Point[][] = [];
+  const out: Point[][] = [];
   for (const way of ways) {
     if (used.has(way)) continue;
     used.add(way);
@@ -406,11 +729,20 @@ function drawnLines(ways: Way[]): Point[][] {
     extend(way.nodes.at(-1)!, after);
     const before: Point[] = [];
     extend(way.nodes[0], before);
-    chains.push([...before.toReversed(), ...way.points, ...after]);
+    out.push([...before.toReversed(), ...way.points, ...after]);
   }
-  chains.sort((a, b) => pathLength(b) - pathLength(a));
+  return out.sort((a, b) => pathLength(b) - pathLength(a));
+}
+
+/**
+ * The lines to draw: chains, so a dotted line keeps its rhythm instead of
+ * restarting at every way, with tracks running right beside a longer one
+ * left out, so double track doesn't draw as two dot patterns drifting over
+ * each other.
+ */
+function drawnLines(tracks: Point[][]): Point[][] {
   const kept: Point[][] = [];
-  for (const chain of chains)
+  for (const chain of tracks)
     if (!kept.length || coveredShare(chain, kept, drawnTrackDistance) < 0.75)
       kept.push(chain);
   return kept;
@@ -499,7 +831,8 @@ export function buildOsmCandidates(elements: OverpassWay[]): OsmCandidate[] {
   const candidates: OsmCandidate[] = [];
   for (const group of joined.groups(pieces)) {
     const members = group.flat();
-    const path = mainPath(members);
+    const tracks = chains(members);
+    const path = centreline(spine(members), tracks);
     const length = pathLength(path);
     if (length < minimumLength) continue;
     let tolerance = 4;
@@ -527,7 +860,7 @@ export function buildOsmCandidates(elements: OverpassWay[]): OsmCandidate[] {
         : wikipediaUrl(tag("wikipedia")) && { website: wikipediaUrl(tag("wikipedia")) }),
       length: Math.round(length),
       path: simplified.map(round),
-      lines: drawnLines(members).map((line) => simplify(line, 1.5).map(round)),
+      lines: drawnLines(tracks).map((line) => simplify(line, 1.5).map(round)),
       ways: members.map((way) => way.id).sort((a, b) => a - b),
     });
   }

@@ -7,7 +7,7 @@ import type { OsmCandidate, OsmFeed } from "../osm-candidates";
 import { HttpError } from "./http";
 
 // Bump when osm-build.ts changes what it makes, so old candidates go.
-const cacheKey = "osm-candidates:v1";
+const cacheKey = "osm-candidates:v2";
 
 // Public Overpass servers, tried in turn: the main one is often at capacity.
 // OSM_OVERPASS_URL puts another first, such as a self-hosted one.

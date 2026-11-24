@@ -4,6 +4,7 @@ import type { Point, Project } from "../app/lib/data";
 import { buildOsmCandidates, type OverpassWay } from "../app/lib/osm-build";
 import {
   covered,
+  distanceToLine,
   formatRef,
   matchProject,
   pathLength,
@@ -11,6 +12,7 @@ import {
   type OsmCandidate,
   type OsmFeed,
   osmTitles,
+  samples,
 } from "../app/lib/osm-candidates";
 import { cookieHeaders, db, member, mutation, shot, signIn, uniqueName } from "./support";
 
@@ -100,6 +102,80 @@ test.describe("candidates from OpenStreetMap ways", () => {
     expect(apart).toHaveLength(1);
     expect(apart[0].ways).toEqual([20, 21]);
     expect(km(apart[0].length)).toBeCloseTo(km(pathLength([west, east])), 0);
+  });
+
+  test("the alignment runs midway between parallel tracks", () => {
+    const west: Point = [68.0, 15.0];
+    const east: Point = [68.0, 15.4];
+    const length = pathLength([west, east]);
+    const shifted = (p: Point, by: number): Point => [p[0] + by, p[1]];
+    const midway = (path: Point[], by: number) =>
+      Math.max(...path.map((p) => distanceToLine(p, [shifted(west, by), shifted(east, by)])));
+
+    // Unconnected tracks 33 m apart.
+    const [apart] = buildOsmCandidates([
+      way(20, straight(west, east, 30), proposed({ name: "Parallell" })),
+      way(21, straight(shifted(west, 0.0003), shifted(east, 0.0003), 30), proposed()),
+    ]);
+    expect(midway(apart.path, 0.00015)).toBeLessThan(3);
+
+    // Tunnel tubes 55 m apart, meeting at one portal only: not out along
+    // one and back along the other.
+    const [tubes] = buildOsmCandidates([
+      way(22, straight(west, east, 30), proposed({ name: "Tuben" }), [undefined, 220]),
+      way(
+        23,
+        [east, ...straight([68.0005, 15.39], shifted(west, 0.0005), 30)],
+        proposed({ name: "Tuben" }),
+        [220],
+      ),
+    ]);
+    expect(km(tubes.length)).toBeCloseTo(km(length), 0);
+    const between = samples(tubes.path, 100).filter(([, lng]) => lng < 15.37);
+    expect(midway(between, 0.00025)).toBeLessThan(5);
+  });
+
+  test("tracks drifting far apart: the alignment keeps to one of them", () => {
+    const a = straight([63.0, 10.0], [63.0, 10.3], 61);
+    // 22 m beside it, but 670 m off for a stretch in the middle.
+    const b = a.map(([lat, lng]): Point => [
+      lat + (lng > 10.12 && lng < 10.18 ? 0.006 : 0.0002),
+      lng,
+    ]);
+    const [line] = buildOsmCandidates([
+      way(24, a, construction({ name: "Sporet" })),
+      way(25, b, construction({ name: "Sporet" })),
+    ]);
+    const at = (lng: number) =>
+      line.path.reduce((best, p) =>
+        Math.abs(p[1] - lng) < Math.abs(best[1] - lng) ? p : best,
+      );
+    // Midway where they run together …
+    expect(distanceToLine(at(10.05), [[63.0001, 10.0], [63.0001, 10.3]])).toBeLessThan(3);
+    // … and on one track, not out in between, where they're far apart.
+    const off = at(10.15);
+    expect(Math.min(distanceToLine(off, a), distanceToLine(off, b))).toBeLessThan(5);
+    expect(line.length).toBeLessThan(pathLength(b) * 1.02);
+  });
+
+  test("a road coming back past itself isn't pulled towards its other leg", () => {
+    // East on a dual carriageway, round, back west 165 m away, and north.
+    const out = straight([63.0, 10.0], [63.0, 10.04], 20);
+    const back = straight([63.0015, 10.04], [63.0015, 10.0], 20);
+    const north = straight([63.002, 9.997], [63.04, 9.997], 20);
+    const [line] = buildOsmCandidates([
+      way(26, [...out, [63.00075, 10.043], ...back, ...north], road("proposed", "trunk", { ref: "706" })),
+      way(27, straight([63.0002, 10.0], [63.0002, 10.04], 20), road("proposed", "trunk", { ref: "706" })),
+    ]);
+    const along = samples(line.path, 50);
+    const returning = along.filter(
+      ([lat, lng]) => lat > 63.001 && lat < 63.0017 && lng > 10.003 && lng < 10.035,
+    );
+    expect(returning.length).toBeGreaterThan(0);
+    for (const p of returning) expect(distanceToLine(p, back)).toBeLessThan(3);
+    // The way out runs between its carriageways.
+    const going = along.filter(([lat, lng]) => lat < 63.001 && lng > 10.005 && lng < 10.035);
+    for (const p of going) expect(distanceToLine(p, [[63.0001, 10.0], [63.0001, 10.04]])).toBeLessThan(3);
   });
 
   test("named lines meeting in one network split; gaps within a line close", () => {
@@ -313,7 +389,7 @@ const fetchedAt = new Date("2026-01-02T10:00:00Z");
 async function seedFeed() {
   await db
     .insert(externalCache)
-    .values({ key: "osm-candidates:v1", data: fixture, fetchedAt })
+    .values({ key: "osm-candidates:v2", data: fixture, fetchedAt })
     .onConflictDoUpdate({
       target: externalCache.key,
       set: { data: fixture, fetchedAt },
