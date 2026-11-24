@@ -12,6 +12,7 @@
     "db:migrate": "bun scripts/migrate.ts",
     "db:seed": "bun scripts/seed.ts",
     "db:sample": "bun scripts/sample.ts",
+    "hub": "bun scripts/preview.ts hub",
     "test": "playwright test",
     "typecheck": "next typegen && tsc --noEmit"
   },

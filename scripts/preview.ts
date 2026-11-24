@@ -1,11 +1,11 @@
 /**
  * One browser tab on http://localhost:3000 for every worktree.
  *
+ *   bun run hub                   run the hub, in a terminal of your own
  *   bun scripts/preview.ts        preview this worktree (T3's Preview button)
  *   bun scripts/preview.ts stop   stop this worktree's dev server
- *   bun scripts/preview.ts hub    run the hub (started for you)
  *
- * The hub owns port 3000 and proxies it, websockets included, to the dev server
+ * Preview fails unless the hub is running. The hub owns port 3000 and proxies it, websockets included, to the dev server
  * of the worktree previewed last. Each worktree keeps its own `next dev` on a
  * port of its own, so switching back is instant, until Ctrl-C in its Preview
  * terminal stops it. Open tabs reload when the hub switches, keep their path,
@@ -23,12 +23,11 @@ import { Database } from "bun:sqlite";
 const hubPort = Number(process.env.PREVIEW_HUB_PORT) || 3000;
 const hubUrl = `http://127.0.0.1:${hubPort}`;
 const version = createHash("sha1").update(readFileSync(import.meta.path)).digest("hex");
-const stateDir = join(homedir(), ".cache", "planfri-preview", String(hubPort));
 
 type Site = { dir: string; name: string; port: number; pgid?: number };
 
 const mode = process.argv[2] ?? "preview";
-if (mode === "hub") hub();
+if (mode === "hub") await hub();
 else if (mode === "stop") await stop();
 else if (mode === "preview") await preview();
 else {
@@ -134,25 +133,20 @@ function runningDevServer(dir: string) {
   }
 }
 
-async function ensureHub() {
-  const health = await fetch(`${hubUrl}/__preview/health`, { signal: AbortSignal.timeout(1000) })
+function hubHealth() {
+  return fetch(`${hubUrl}/__preview/health`, { signal: AbortSignal.timeout(1000) })
     .then((r) => (r.ok ? (r.json() as Promise<{ version: string }>) : null))
     .catch(() => null);
-  if (health?.version === version) return;
-  if (health) {
-    console.log("Restarting the preview hub with the new script.");
-    await post("/__preview/quit", {}).catch(() => {});
-  }
-  killListener(hubPort, () => true); // anything else on 3000, e.g. the old Preview's server
-  await waitFor(() => !listening(hubPort), 10_000);
+}
 
-  mkdirSync(stateDir, { recursive: true });
-  const out = openSync(join(stateDir, "hub.log"), "a");
-  spawn(process.execPath, [import.meta.path, "hub"], { cwd: homedir(), detached: true, stdio: ["ignore", out, out] }).unref();
-  if (!(await waitFor(() => listening(hubPort), 10_000))) {
-    console.error(`The preview hub didn't start. See ${join(stateDir, "hub.log")}.`);
+async function ensureHub() {
+  const health = await hubHealth();
+  if (!health) {
+    console.error(`The preview hub isn't running on localhost:${hubPort}.`);
+    console.error("Start it in a terminal of your own with `bun run hub`, then click Preview again.");
     process.exit(1);
   }
+  if (health.version !== version) console.log("The hub runs an older scripts/preview.ts. Restart `bun run hub` to pick up changes.\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -160,7 +154,16 @@ async function ensureHub() {
 
 type Socket = ServerWebSocket<{ target: string; headers: Record<string, string>; protocols: string[]; upstream?: WebSocket; queue: (string | Buffer)[] }>;
 
-function hub() {
+async function hub() {
+  if (await hubHealth()) {
+    console.error(`A preview hub is already running on localhost:${hubPort}.`);
+    process.exit(1);
+  }
+  if (listening(hubPort)) {
+    console.error(`Something else is listening on port ${hubPort}. Stop it, then start the hub again.`);
+    process.exit(1);
+  }
+
   const sites = new Map<string, Site>();
   let active: Site | null = null;
   let ready = false;
@@ -202,7 +205,7 @@ function hub() {
       if (existsSync(site.dir)) continue;
       if (site.pgid) killGroup(site.pgid);
       sites.delete(site.dir);
-      console.log(`Stopped ${site.name}: its worktree is gone.`);
+      console.log(`Stopped ${site.name}'s server: its worktree is gone.`);
       if (active?.dir === site.dir) {
         active = null;
         broadcast();
@@ -248,21 +251,19 @@ function hub() {
         active = site;
         ready = false;
         broadcast();
-        console.log(`Previewing ${site.name} (${site.dir}) on port ${site.port}.`);
+        console.log(`Switched to ${site.name}'s server.`);
         return Response.json(state());
       }
       if (request.method === "POST" && url.pathname === "/__preview/forget") {
         const { dir } = (await request.json()) as { dir: string };
+        const site = sites.get(dir);
+        if (site) console.log(`${site.name}'s server stopped.`);
         sites.delete(dir);
         if (active?.dir === dir) {
           active = null;
           broadcast();
         }
         return Response.json(state());
-      }
-      if (request.method === "POST" && url.pathname === "/__preview/quit") {
-        setTimeout(() => process.exit(0), 50);
-        return new Response("Bye");
       }
 
       if (!active) return page(null, "Nothing to preview yet. Click Preview in a thread.");
@@ -329,7 +330,7 @@ function hub() {
       },
     },
   });
-  console.log(`Preview hub listening on http://localhost:${hubPort}`);
+  console.log(`Preview hub on http://localhost:${hubPort}. Click Preview in a thread to switch to its server.`);
 }
 
 // lib.dom's WebSocket type hides Bun's options, which carry the cookies upstream.
@@ -427,26 +428,8 @@ function killGroup(pgid: number) {
   }
 }
 
-function listenerPids(port: number) {
-  const out = spawnSync("ss", ["-ltnpH", `sport = :${port}`], { encoding: "utf8" }).stdout;
-  return [...new Set([...out.matchAll(/pid=(\d+)/g)].map((m) => Number(m[1])))];
-}
-
 function listening(port: number) {
   return spawnSync("ss", ["-ltnH", `sport = :${port}`], { encoding: "utf8" }).stdout.trim() !== "";
-}
-
-/** Kills what listens on `port`, and the `next dev` that spawned it. */
-function killListener(port: number, which: (pid: number) => boolean) {
-  for (const pid of listenerPids(port).filter(which)) {
-    const parent = Number(spawnSync("ps", ["-o", "ppid=", "-p", String(pid)], { encoding: "utf8" }).stdout.trim());
-    const parentArgs = parent ? spawnSync("ps", ["-o", "args=", "-p", String(parent)], { encoding: "utf8" }).stdout : "";
-    try {
-      process.kill(parentArgs.includes("next dev") ? parent : pid, "SIGTERM");
-    } catch {
-      // Already gone.
-    }
-  }
 }
 
 function freePort(start: number) {
@@ -454,11 +437,4 @@ function freePort(start: number) {
     if (port !== hubPort && !listening(port)) return port;
   }
   throw new Error(`No free port from ${start}.`);
-}
-
-async function waitFor(check: () => boolean, ms: number) {
-  for (const end = Date.now() + ms; Date.now() < end; await Bun.sleep(150)) {
-    if (check()) return true;
-  }
-  return check();
 }
