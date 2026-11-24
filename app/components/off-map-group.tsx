@@ -16,12 +16,42 @@ import {
   subscribeOffMapCollapsed,
 } from "../lib/explore-state";
 
+const duration = 250;
+// The app's --ease-out-soft.
+const easing = "cubic-bezier(0.22, 1, 0.36, 1)";
+
+/** Those of `elements` in the list's flow, not pinned over it. */
+function inFlow(elements: Iterable<Element>) {
+  return [...elements].filter(
+    (el): el is HTMLElement =>
+      el instanceof HTMLElement &&
+      !/sticky|fixed|absolute/.test(getComputedStyle(el).position),
+  );
+}
+
+/** Below `from` in the list: what moves as the group opens and closes. */
+function following(from: HTMLElement, scroller: HTMLElement) {
+  const found: HTMLElement[] = [];
+  for (let at = from; at.parentElement && at !== scroller; ) {
+    for (let next = at.nextElementSibling; next; next = next.nextElementSibling)
+      found.push(...inFlow([next]));
+    at = at.parentElement;
+  }
+  return found;
+}
+
 /**
  * The list's projects out of the map's view, below a row that folds them
  * away. Open by default; folded, it stays so in this browser.
  *
  * Its own component, so a toggle renders only this, not the explorer, and
- * the rows stay mounted, only folded: rendering them anew held up the frame.
+ * the rows stay mounted, only hidden: rendering them anew held up the frame.
+ *
+ * The fold changes no layout while it plays, and runs no script, which on
+ * phones made it stutter: the list takes its new height and scroll at once,
+ * and transforms ease it there from where it was. The rows slide out from
+ * under the toggle, or back under it, with what follows them, and for the
+ * scroll, so does the whole list.
  */
 export default function OffMapGroup({
   label,
@@ -36,49 +66,112 @@ export default function OffMapGroup({
     storedOffMapCollapsed,
     () => false,
   );
-  // Clipped only folded or folding: open, the cards' focus ring bleeds past
-  // the list.
-  const [folding, setFolding] = useState(false);
+  // Closing: the toggle shows it closed while the rows wipe away.
+  const [shutting, setShutting] = useState(false);
+  const open = !collapsed && !shutting;
   const toggle = useRef<HTMLButtonElement>(null);
-  const group = useRef<HTMLDivElement>(null);
-  function unfold() {
-    const still = reducedMotion();
-    const button = toggle.current!;
-    let scroller = button.parentElement;
+  const list = useRef<HTMLOListElement>(null);
+  const frame = useRef<HTMLDivElement>(null);
+  // Ends the fold playing, if any, at its end.
+  const settle = useRef<(() => void) | null>(null);
+
+  function fold(close: boolean) {
+    settle.current?.();
+    const rows = list.current!;
+    let scroller = rows.parentElement;
     while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY))
       scroller = scroller.parentElement;
-    // Scrolled to the list's end, it stays there as they grow.
+    // Scrolled to the list's end, opening keeps it there.
     const atEnd =
       !!scroller &&
       scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 2;
-    // Reduced, there is no transition to end it.
-    flushSync(() => {
-      setFolding(!still);
-      storeOffMapCollapsed(false);
-    });
-    if (!scroller) return;
-    // Brings the rows into view as they grow, as far as taking the toggle
-    // to the list's top.
-    const follow = () => {
-      const top = scroller.getBoundingClientRect();
-      const below = atEnd
-        ? scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
-        : group.current!.getBoundingClientRect().bottom -
-          Math.min(top.bottom, window.innerHeight);
-      const above = button.getBoundingClientRect().top - top.top;
-      const by = Math.min(below, above);
-      if (by > 0) scroller.scrollTop += by;
+    if (!scroller || reducedMotion()) {
+      flushSync(() => storeOffMapCollapsed(close));
+      if (!close && scroller) scroller.scrollTop += reveal(scroller, atEnd);
+      return;
+    }
+    const box = frame.current!;
+    const moving = following(box, scroller);
+    const tops = () => moving.map((el) => el.getBoundingClientRect().top);
+    const start = scroller.scrollTop;
+    let shifts: number[];
+    let by: number;
+    if (close) {
+      // Where they'll end, folded, while the rows still show.
+      const shown = tops();
+      rows.hidden = true;
+      // Folded, the browser may pull the scroll back to the shorter end,
+      // moving everything by as much.
+      const pulled = start - scroller.scrollTop;
+      const folded = tops().map((top) => top - pulled);
+      const end = scroller.scrollHeight - scroller.clientHeight;
+      rows.hidden = false;
+      scroller.scrollTop = start;
+      flushSync(() => setShutting(true));
+      shifts = folded.map((top, i) => top - shown[i]);
+      // Past the folded list's end, it eases back with it.
+      by = Math.min(0, end - start);
+    } else {
+      const folded = tops();
+      flushSync(() => storeOffMapCollapsed(false));
+      shifts = tops().map((top, i) => folded[i] - top);
+      by = reveal(scroller, atEnd);
+    }
+    const options = { duration, easing, fill: "both" } as const;
+    // Clipped at the toggle, but not at the sides, past which the hover
+    // wash and focus ring bleed.
+    box.style.clipPath = "inset(0 -16px -100vh -16px)";
+    const slide = (el: HTMLElement, by: number) =>
+      el.animate(
+        {
+          transform: close
+            ? ["none", `translateY(${by}px)`]
+            : [`translateY(${by}px)`, "none"],
+        },
+        options,
+      );
+    const animations = [
+      slide(rows, -rows.offsetHeight),
+      ...moving.flatMap((el, i) => (shifts[i] ? [slide(el, shifts[i])] : [])),
+    ];
+    // Scrolled now, opening, and the list eased there from where it was;
+    // closing, eased there, and scrolled at the end.
+    if (!close) scroller.scrollTop = start + by;
+    const scrolled = close ? by : scroller.scrollTop - start;
+    if (scrolled)
+      for (const el of inFlow(scroller.children))
+        animations.push(slide(el, close ? -scrolled : scrolled));
+    const done = () => {
+      if (settle.current !== done) return;
+      settle.current = null;
+      if (close) {
+        flushSync(() => {
+          storeOffMapCollapsed(true);
+          setShutting(false);
+        });
+        scroller.scrollTop = start + scrolled;
+      }
+      for (const animation of animations) animation.cancel();
+      box.style.clipPath = "";
     };
-    // Following on past the fold too, while the rows' real heights replace
-    // their estimates.
-    follow();
-    const start = performance.now();
-    const frame = () => {
-      follow();
-      if (performance.now() - start < 300) requestAnimationFrame(frame);
-    };
-    requestAnimationFrame(frame);
+    settle.current = done;
+    animations[0].finished.then(done, () => {});
   }
+
+  /**
+   * How far to scroll for the opened rows, as far as taking the toggle to
+   * the list's top; at the list's end, to its new end.
+   */
+  function reveal(scroller: HTMLElement, atEnd: boolean) {
+    const view = scroller.getBoundingClientRect();
+    const below = atEnd
+      ? scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
+      : list.current!.getBoundingClientRect().bottom -
+        Math.min(view.bottom, window.innerHeight);
+    const above = toggle.current!.getBoundingClientRect().top - view.top;
+    return Math.max(0, Math.min(below, above));
+  }
+
   return (
     <>
       {/* Between the rows in view and the rest, which keep their own
@@ -93,14 +186,10 @@ export default function OffMapGroup({
           "before:absolute before:inset-x-[-12px] before:inset-y-1 before:-z-1 before:rounded-lg hover:before:bg-surface-muted/65 max-md:before:inset-x-[-8px]",
           "focus-visible:before:outline-2 focus-visible:before:outline-focus",
         )}
-        aria-expanded={!collapsed}
+        aria-expanded={open}
         aria-controls={id}
         data-off-map-toggle=""
-        onClick={() => {
-          if (collapsed) return unfold();
-          setFolding(!reducedMotion());
-          storeOffMapCollapsed(true);
-        }}
+        onClick={() => fold(open)}
       >
         <EyeOff size={13} aria-hidden="true" className="shrink-0" />
         Ikke synlige på kartet
@@ -109,38 +198,14 @@ export default function OffMapGroup({
           aria-hidden="true"
           className={cn(
             "absolute right-0 shrink-0 transition-transform duration-200 ease-out-soft motion-reduce:transition-none",
-            !collapsed && "rotate-180",
+            open && "rotate-180",
           )}
         />
       </button>
       {/* A list of their own, so a project coming into view is one row
-          moving across rather than every row before it moving down. Its
-          height eases, as the app's other folds do. */}
-      <div
-        ref={group}
-        className={cn(
-          "grid transition-[grid-template-rows,opacity,visibility] duration-250 ease-out-soft motion-reduce:transition-none",
-          collapsed
-            ? "invisible grid-rows-[0fr] opacity-0"
-            : "visible grid-rows-[1fr] opacity-100",
-        )}
-        onTransitionEnd={(event) => {
-          if (
-            event.target === event.currentTarget &&
-            event.propertyName === "grid-template-rows"
-          )
-            setFolding(false);
-        }}
-      >
-        <ol
-          id={id}
-          aria-label={label}
-          className={cn(
-            // Room at the sides for the cards' hover wash, clipped or not.
-            "-mx-3 min-h-0 px-3 max-md:-mx-2 max-md:px-2",
-            (collapsed || folding) && "overflow-hidden",
-          )}
-        >
+          moving across rather than every row before it moving down. */}
+      <div ref={frame}>
+        <ol ref={list} id={id} aria-label={label} hidden={collapsed}>
           {children}
         </ol>
       </div>
