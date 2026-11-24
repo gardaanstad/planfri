@@ -587,7 +587,8 @@ export default memo(function Explorer({
   // re-render the explorer.
   const mapViewRef = useRef<MapViewChange | null>(null);
   const [viewBounds, setViewBounds] = useState<Bounds | null>(null);
-  const inViewKey = useRef("");
+  // None before the first view, which may have no projects in it.
+  const inViewKey = useRef<string | null>(null);
   // Desktop: framing an open project moves the map, but the list behind the
   // panel keeps the area it was opened from, so it returns unchanged.
   const [frozenBounds, setFrozenBounds] = useState<Bounds | null>(null);
@@ -849,6 +850,11 @@ export default memo(function Explorer({
   if (!postId && !panelClosing && panelPostId) setPanelPostId(null);
   if (!profileName && !leaving("profile") && panelProfileName)
     setPanelProfileName(null);
+  // The places any project is in, for a view with none in it.
+  const placesWithProjects = useMemo(
+    () => new Set([...placesOf.values()].flat()),
+    [placesOf],
+  );
   function projectsInView(view: MapViewChange) {
     return projects.filter((project) => projectInBounds(project, view.bounds));
   }
@@ -898,7 +904,12 @@ export default memo(function Explorer({
     const inView = shown.map((project) => placesOf.get(project.id) ?? []);
     const current = livePlace.get();
     const shownName = current && current.base === place ? current.name : place;
-    name(placeInView(inView, view.zoom, shownName, previousZoom));
+    name(
+      placeInView(inView, view.zoom, shownName, previousZoom, {
+        center: view.center,
+        withProjects: placesWithProjects,
+      }),
+    );
   }
   // The drawer's height changes what of the map is in sight, and so what the
   // list holds. Under the full drawer the map is out of sight: the list

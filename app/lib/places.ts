@@ -209,15 +209,32 @@ const placeZoom = 11;
  * gained, stays while most projects in view are still in it, so views don't
  * flicker; a wide view keeps it only until it zooms out, so a picked county
  * survives panning its framing but zooming out of it clears it.
+ *
+ * A view with no projects in it is in the place around its `center`: the
+ * current one while it lies there, or else the smallest of `withProjects`.
  */
 export function placeInView(
   inView: string[][],
   zoom: number,
   current = "",
   previousZoom = zoom,
+  around?: { center: Point; withProjects: ReadonlySet<string> },
 ): string {
-  if (!inView.length) return "";
   if (zoom < placeZoom && zoom < previousZoom) return "";
+  if (!inView.length) {
+    if (!around) return "";
+    if (current && placeContains(current, around.center)) return current;
+    if (zoom < placeZoom) return "";
+    let best: Place | null = null;
+    for (const place of places)
+      if (
+        around.withProjects.has(place.name) &&
+        contains(place.extent, around.center) &&
+        (!best || size.get(place)! < size.get(best)!)
+      )
+        best = place;
+    return best?.name ?? "";
+  }
   const counts = new Map<string, number>();
   for (const names of inView)
     for (const name of names) counts.set(name, (counts.get(name) ?? 0) + 1);

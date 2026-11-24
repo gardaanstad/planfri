@@ -1542,6 +1542,23 @@ test.describe("desktop explorer", () => {
     await expect(first).toHaveCSS("opacity", "1");
   });
 
+  test("zoomed in where no project is, the place around the view still lists its projects", async ({
+    page,
+  }) => {
+    // In Oslo, but with no project in view.
+    await page.goto("/?kart=59.9900,10.8600,16");
+    const list = page.getByRole("region", { name: "Prosjektliste" });
+    await expect(
+      page.getByRole("status", { name: "0 synlige prosjekter" }),
+    ).toBeVisible();
+    const offMap = list.getByRole("list", { name: "Utenfor kartet i Oslo" });
+    await expect(offMap).toBeVisible();
+    await expect(offMap.locator("[data-card-id]").first()).toBeVisible();
+    await expect(list.locator("[data-card-id]:not([data-off-map])")).toHaveCount(
+      0,
+    );
+  });
+
   test("the projects out of view fold away, and stay so in this browser", async ({
     page,
   }) => {
@@ -1993,10 +2010,18 @@ test.describe("desktop explorer", () => {
     await page.mouse.move(view.x + view.width - 40, y);
     await page.mouse.down();
     await page.mouse.move(view.x + view.width - 760, y - 300, { steps: 12 });
-    // Still held, and the list has already moved on.
-    await expect(card(page, project.title)).toHaveCount(0);
+    // Still held, and the list has already moved it out of view. The view
+    // is still in Oslo, so it follows the rows in view, muted.
+    const muted = listRegion(page)
+      .locator("[data-off-map]")
+      .filter({
+        has: page.getByRole("button", {
+          name: new RegExp(`^${project.title} · `),
+        }),
+      });
+    await expect(muted).toBeVisible();
     await page.mouse.up();
-    await expect(card(page, project.title)).toHaveCount(0);
+    await expect(muted).toBeVisible();
   });
 
   test("hovering a card highlights its shape, not the other way round", async ({
@@ -2987,6 +3012,15 @@ test("a view of two places names both; twin cities count as one", () => {
   expect(placeInView([oslo, baerum], 10, "Oslo og Bærum", 10)).toBe(
     "Oslo og Bærum",
   );
+  // A view with no projects in it is in the place around it that has some.
+  const withProjects = new Set(["Oslo", "Bergen", "Vestland"]);
+  const around = (center: [number, number]) => ({ center, withProjects });
+  expect(placeInView([], 16, "", 16, around([59.99, 10.86]))).toBe("Oslo");
+  expect(placeInView([], 16, "", 16, around([60.37, 5.33]))).toBe("Bergen");
+  expect(placeInView([], 16, "", 16, around([61.5, 6.5]))).toBe("Vestland");
+  expect(placeInView([], 16, "", 16, around([63.41, 10.4]))).toBe("");
+  expect(placeInView([], 10, "", 11, around([59.99, 10.86]))).toBe("");
+  expect(placeInView([], 10, "Oslo", 10, around([59.99, 10.86]))).toBe("Oslo");
   expect(projectPlaces("Sandnes", [58.85, 5.74])).toEqual([
     "Stavanger/Sandnes",
     "Rogaland",
@@ -3276,7 +3310,8 @@ test.describe("the place follows the map", () => {
     test("the compact drawer names the place while the map is still moving", async ({
       page,
     }) => {
-      await page.goto("/?kart=60.4400,5.3200,12");
+      // Near Bergen's edge, so the drag takes the view out of it.
+      await page.goto("/?kart=60.4400,5.3600,11");
       const filters = page
         .locator("[data-explorer-drawer]")
         .getByRole("region", { name: "Filtrer prosjekter", exact: true });
