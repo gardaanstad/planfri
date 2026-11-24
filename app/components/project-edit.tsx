@@ -71,7 +71,7 @@ export const fields: Record<
   },
   timeline: {
     label: "Tidslinje",
-    keys: ["status", "year", "phaseDates", "skippedPhases"],
+    keys: ["status", "year", "phaseDates", "skippedPhases", "milestones"],
     show: (p) =>
       [
         statuses[p.status].label,
@@ -85,11 +85,17 @@ export const fields: Record<
           `${p.status === "completed" ? "Ferdigstilt" : "Ferdig"} ${finishYear(p)}`,
         p.skippedPhases?.length &&
           `Uten ${p.skippedPhases.map((phase) => skippedNames[phase]).join(" og ")}`,
+        ...(p.milestones ?? []).map(
+          (milestone) =>
+            `${milestone.label} ${formatPhaseDate(milestone.date)}`,
+        ),
       ]
         .filter(Boolean)
         .join(" · "),
     error: (p) =>
-      !datedPhases.every((phase) => validDate(p.phaseDates?.[phase] ?? "0000"))
+      !datedPhases.every((phase) =>
+        validDate(p.phaseDates?.[phase] ?? "0000"),
+      ) || !(p.milestones ?? []).every((milestone) => validDate(milestone.date))
         ? "Bruk år, eller måned.år"
         : !/^(\d{4})?$/.test(p.year)
           ? "Bruk fire sifre for året den er ferdig"
@@ -148,10 +154,11 @@ export const phaseNames: Record<(typeof datedPhases)[number], string> = {
   construction: "Byggestart",
 };
 
-const validDate = (date: string) => /^\d{4}(-(0[1-9]|1[0-2]))?$/.test(date);
+export const validDate = (date: string) =>
+  /^\d{4}(-(0[1-9]|1[0-2]))?$/.test(date);
 
 /** `2024-03` as typed in a field: `03.2024`. */
-const typedDate = (date: string) => date.split("-").reverse().join(".");
+export const typedDate = (date: string) => date.split("-").reverse().join(".");
 
 /** What's typed (`2024`, `3.2024`) as stored (`2024-03`); unclear text stays. */
 export function storedDate(text: string) {
@@ -180,7 +187,29 @@ export function toDraft(project: Project): Project {
     district: project.district === project.city ? "" : project.district,
     developer: project.developer === unknownDeveloper ? "" : project.developer,
     phaseDates: mapDates(project.phaseDates, typedDate),
+    milestones: project.milestones?.map((milestone) => ({
+      ...milestone,
+      date: typedDate(milestone.date),
+    })),
   };
+}
+
+/** Named milestones, oldest first; none at all reads as none. */
+function finalMilestones(milestones: Project["milestones"]) {
+  const named = (milestones ?? [])
+    .map((milestone) => ({
+      ...milestone,
+      label: milestone.label.trim(),
+      date: storedDate(milestone.date),
+    }))
+    .filter((milestone) => milestone.label)
+    // Unclear dates sort last; the field says what's wrong with them.
+    .sort((a, b) =>
+      validDate(a.date) && validDate(b.date)
+        ? a.date.localeCompare(b.date)
+        : Number(!validDate(a.date)) - Number(!validDate(b.date)),
+    );
+  return named.length ? named : undefined;
 }
 
 /** What a draft saves as: trimmed, with the fallbacks new projects get. */
@@ -206,6 +235,7 @@ export function finalize(project: Project): Project {
         : project.year.trim(),
     phaseDates: mapDates(dates, storedDate),
     skippedPhases: skipped.length ? skipped : undefined,
+    milestones: finalMilestones(project.milestones),
     developer: project.developer.trim() || unknownDeveloper,
     website: project.website?.trim() || undefined,
   };
@@ -237,9 +267,7 @@ export function focusField(id: FieldId, root: ParentNode = document) {
   if (!field) return;
   field.scrollIntoView({
     block: "center",
-    behavior: reducedMotion()
-      ? "auto"
-      : "smooth",
+    behavior: reducedMotion() ? "auto" : "smooth",
   });
   // The part that's wrong, in a field of several.
   (
@@ -267,7 +295,9 @@ type ProjectEdit = {
   /** `changedFields(draft, original)`, computed once per render. */
   changed: FieldId[];
   /** A patch, or one worked out from the latest draft. */
-  change: (patch: Partial<Project> | ((draft: Project) => Partial<Project>)) => void;
+  change: (
+    patch: Partial<Project> | ((draft: Project) => Partial<Project>),
+  ) => void;
   revert: (id: FieldId) => void;
   /** Photos still uploading hold back saving. */
   uploading: boolean;
@@ -290,13 +320,7 @@ export const editInput = cn(
   "pointer-coarse:min-h-11 pointer-coarse:text-base max-sm:text-base",
 );
 
-function RevertButton({
-  id,
-  className,
-}: {
-  id: FieldId;
-  className?: string;
-}) {
+function RevertButton({ id, className }: { id: FieldId; className?: string }) {
   const edit = useProjectEdit();
   return (
     <button
@@ -398,7 +422,8 @@ export const dangerBarButton = cn(
 export const actionBar = cn(
   "sticky bottom-0 z-30 border-t border-border bg-surface px-6 pt-3 pb-[calc(12px+env(safe-area-inset-bottom))] shadow-bar max-md:px-4.5",
 );
-export const barRow = "flex min-h-9 items-center gap-1.5 pointer-coarse:min-h-11";
+export const barRow =
+  "flex min-h-9 items-center gap-1.5 pointer-coarse:min-h-11";
 const barStatus = "mr-auto min-w-0 truncate text-ui font-medium text-ink";
 /** A status that jumps to the first field needing attention. */
 export const barProblem = cn(
@@ -452,10 +477,7 @@ export function EditBar({
             aria-label="Endringer"
           >
             {changed.map((id) => (
-              <li
-                key={id}
-                className="flex items-center gap-2 py-2 pr-1.5 pl-3"
-              >
+              <li key={id} className="flex items-center gap-2 py-2 pr-1.5 pl-3">
                 <div className="min-w-0 flex-1">
                   {/* Opens the field to adjust it further. */}
                   <button
@@ -578,4 +600,3 @@ export function EditBar({
     </div>
   );
 }
-

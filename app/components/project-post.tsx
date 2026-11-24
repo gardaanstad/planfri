@@ -1207,6 +1207,11 @@ export default function ProjectPost({
               project.skippedPhases && {
                 skippedPhases: changes.skippedPhases ?? [],
               }),
+            // As do milestones all taken off.
+            ...("milestones" in changes &&
+              project.milestones && {
+                milestones: changes.milestones ?? [],
+              }),
           },
           note,
         });

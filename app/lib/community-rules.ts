@@ -19,7 +19,9 @@ const point = z.tuple([
 /** Bundled example photos, or images uploaded through /api/uploads. */
 export const image = z
   .string()
-  .regex(/^(\/images\/[a-z0-9-]+\.(jpg|png|webp)|\/api\/uploads\/[a-f0-9]{32})$/);
+  .regex(
+    /^(\/images\/[a-z0-9-]+\.(jpg|png|webp)|\/api\/uploads\/[a-f0-9]{32})$/,
+  );
 const photo = z.object({
   src: image,
   alt: z.string().max(300).optional(),
@@ -65,6 +67,18 @@ export const projectFields = z.object({
     .strict()
     .optional(),
   skippedPhases: z.array(z.enum(skippablePhases)).max(3).optional(),
+  milestones: z
+    .array(
+      z
+        .object({
+          id,
+          label: z.string().trim().min(1).max(80),
+          date: z.string().regex(/^\d{4}(-(0[1-9]|1[0-2]))?$/),
+        })
+        .strict(),
+    )
+    .max(30)
+    .optional(),
   updated: z.string().min(1).max(40),
   comments: z.number().int().nonnegative(),
   developer: z.string().max(200),

@@ -209,7 +209,7 @@ test("commenting under an update references it in the main discussion and preser
   );
 });
 
-test("moderators set a project's phase and dates on one timeline, with or without Foreslått", async ({
+test("moderators set a project's phase, dates and milestones on its timeline, with or without Foreslått", async ({
   page,
   context,
   request,
@@ -242,39 +242,52 @@ test("moderators set a project's phase and dates on one timeline, with or withou
   await page.goto(`/prosjekt/${id}`);
   await projectAction(page, "Rediger prosjekt");
   const timeline = page.locator('[data-field="timeline"]');
-  const preview = timeline.getByRole("list", { name: "Forhåndsvisning av fase" });
-  await expect(preview.getByRole("listitem")).toHaveText([
-    "Foreslått, 2018",
-    "Planstart, 2020",
-    "Byggestart",
-    "Ferdig",
-  ]);
-  // A phase ahead reads as expected; picking it makes it the current one.
-  await expect(timeline.locator("[data-phase-row=construction]")).toContainText(
-    "Ventet byggestart",
-  );
-  await timeline.getByRole("radio", { name: /^Under bygging/ }).check();
-  await expect(timeline.locator("[data-phase-row=construction]")).toContainText(
-    "Nå",
-  );
+  const editor = timeline.getByRole("list", { name: "Tidslinje" });
+  // The timeline is its own editor: each date is typed where it shows.
+  await expect(
+    timeline.getByRole("textbox", { name: "Foreslått dato" }),
+  ).toHaveValue("2018");
+  await expect(
+    timeline.getByRole("textbox", { name: "Planstart" }),
+  ).toHaveValue("2020");
+  await expect(timeline.getByRole("radio", { name: "Planlagt" })).toBeChecked();
+  // "Nå" over a step makes it the phase the project is in.
+  await timeline.getByRole("radio", { name: "Under bygging" }).check();
+  await expect(editor).toHaveAttribute("data-phase-strip", "construction");
   await timeline.getByRole("textbox", { name: "Byggestart" }).fill("4.2024");
   await timeline.getByRole("textbox", { name: "Ferdigår" }).fill("2029");
-  // Never a proposal: Foreslått comes off the line, its date with it.
+  // Never a proposal: its dot takes Foreslått off the line, its date with it.
   await timeline
     .getByRole("button", { name: "Fjern Foreslått fra tidslinjen" })
     .click();
-  await expect(preview.getByRole("listitem")).toHaveText([
-    "Planstart, 2020",
-    "Byggestart, apr. 2024",
-    "Ferdig, 2029",
-  ]);
+  await expect(
+    timeline.getByRole("textbox", { name: "Foreslått dato" }),
+  ).toHaveCount(0);
   await expect(
     timeline.getByRole("button", { name: "Legg til Foreslått" }),
   ).toBeVisible();
+  // A milestone goes on the line where its date falls, named as it's added.
+  await timeline.getByRole("button", { name: "Legg til hendelse" }).click();
+  await expect(
+    timeline.getByRole("textbox", { name: "Hendelse", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.type("Plan vedtatt");
+  await timeline
+    .getByRole("textbox", { name: "Dato for Plan vedtatt" })
+    .fill("6.2022");
+  // One too close to Byggestart to sit beside it hangs below, by a leader.
+  await timeline.getByRole("button", { name: "Legg til hendelse" }).click();
+  await page.keyboard.type("Anbud");
+  await timeline
+    .getByRole("textbox", { name: "Dato for Anbud" })
+    .fill("3.2024");
+  await expect(editor.locator("[data-milestone-leader]").first()).toBeVisible();
+  await shot(page, "timeline-editor");
   const bar = page.getByRole("region", { name: "Redigering", exact: true });
   await expect(bar).toContainText("1 endring");
   await bar.getByRole("button", { name: "Lagre", exact: true }).click();
   await expect(bar).toContainText("Uten Foreslått");
+  await expect(bar).toContainText("Plan vedtatt juni 2022");
   await bar
     .getByRole("button", { name: "Bekreft og lagre", exact: true })
     .click();
@@ -283,36 +296,62 @@ test("moderators set a project's phase and dates on one timeline, with or withou
     .locator("[data-project-meta]")
     .getByRole("list", { name: "Fase" });
   await expect(phases.getByRole("listitem")).toHaveText([
-    "Planstart, 2020",
-    "Byggestart, apr. 2024",
+    /^Planstart, 2020/,
+    /^Byggestart, apr. 2024/,
     "Ferdig, 2029",
   ]);
+  await expect(phases.locator("[data-milestone]")).toHaveText([
+    "Plan vedtatt, juni 2022",
+    "Anbud, mars 2024",
+  ]);
+  // Plan vedtatt sits by its dot; Anbud, crowded, hangs below it.
+  const top = (name: string) =>
+    phases
+      .locator("[data-milestone-label]", { hasText: name })
+      .evaluate((element) => element.getBoundingClientRect().top);
+  const stepTop = await phases
+    .locator("[data-step-label]")
+    .first()
+    .evaluate((element) => element.getBoundingClientRect().top);
+  expect(await top("Plan vedtatt")).toBeCloseTo(stepTop, 0);
+  expect(await top("Anbud")).toBeGreaterThan(stepTop + 20);
+  await expect(phases.locator("[data-milestone-leader]").first()).toBeVisible();
+  await phases.scrollIntoViewIfNeeded();
+  await shot(page, "timeline-milestones");
   // Back on the line, it's the first step again.
   await projectAction(page, "Rediger prosjekt");
   await timeline.getByRole("button", { name: "Legg til Foreslått" }).click();
-  await expect(preview.getByRole("listitem").first()).toHaveText("Foreslått");
-  // Planlagt can go too, and the line runs from Foreslått straight to building.
+  await expect(editor.getByRole("listitem").first()).toHaveAttribute(
+    "data-phase",
+    "proposed",
+  );
+  // Taking off the phase it's in moves it on to the next.
+  await timeline.getByRole("radio", { name: "Planlagt" }).check();
   await timeline
     .getByRole("button", { name: "Fjern Planlagt fra tidslinjen" })
     .click();
-  await expect(timeline.locator("[data-phase-row=planned]")).toHaveAttribute(
-    "data-skipped",
-    "",
-  );
-  // The phase it's in can't come off.
   await expect(
-    timeline.getByRole("button", { name: "Fjern Under bygging fra tidslinjen" }),
+    timeline.getByRole("radio", { name: "Under bygging" }),
+  ).toBeChecked();
+  await expect(
+    timeline.getByRole("button", { name: "Legg til Planlagt" }),
+  ).toBeVisible();
+  // Byggestart can't come off.
+  await expect(
+    timeline.getByRole("button", {
+      name: "Fjern Under bygging fra tidslinjen",
+    }),
   ).toHaveCount(0);
+  // A milestone comes off by its dot too.
+  await timeline
+    .getByRole("button", { name: "Fjern Anbud fra tidslinjen" })
+    .click();
   // Never done: no Ferdig, and the line runs off the end, fading.
   await timeline
     .getByRole("button", { name: "Fjern Ferdig fra tidslinjen" })
     .click();
-  await expect(preview.getByRole("listitem")).toHaveText([
-    "Foreslått",
-    "Byggestart, apr. 2024",
-  ]);
   await expect(
-    preview.locator("[data-phase=construction] [data-phase-tail]"),
+    editor.locator("[data-phase=construction] [data-phase-tail]"),
   ).toBeVisible();
   await bar.getByRole("button", { name: "Lagre", exact: true }).click();
   await expect(bar).toContainText("Uten Planlagt og Ferdig");
@@ -320,8 +359,11 @@ test("moderators set a project's phase and dates on one timeline, with or withou
     .getByRole("button", { name: "Bekreft og lagre", exact: true })
     .click();
   await expect(phases.getByRole("listitem")).toHaveText([
-    "Foreslått",
+    /^Foreslått/,
     "Byggestart, apr. 2024",
+  ]);
+  await expect(phases.locator("[data-milestone]")).toHaveText([
+    "Plan vedtatt, juni 2022",
   ]);
   await expect(phases).toHaveAttribute("data-phase-strip", "construction");
 });
@@ -343,13 +385,18 @@ test("the drawing map opens over the whole screen and comes back with its points
   await field.getByRole("button", { name: "Forstørr kartet" }).click();
   const big = page.getByRole("dialog", { name: "Tegn på kartet" });
   await expect(big).toBeVisible();
-  const box = (await big.locator("[data-base-ui-swipe-ignore]").first().boundingBox())!;
+  const box = (await big
+    .locator("[data-base-ui-swipe-ignore]")
+    .first()
+    .boundingBox())!;
   expect(box.height).toBeGreaterThan(600);
   await expect(big.locator(".draw-vertex")).toHaveCount(points);
   // Escape leaves the big map, not the project.
   await page.keyboard.press("Escape");
   await expect(big).toHaveCount(0);
-  await expect(field.getByRole("button", { name: "Forstørr kartet" })).toBeFocused();
+  await expect(
+    field.getByRole("button", { name: "Forstørr kartet" }),
+  ).toBeFocused();
   await expect(page.getByRole("region", { name: "Redigering" })).toBeVisible();
   await field.getByRole("button", { name: "Forstørr kartet" }).click();
   await big.getByRole("button", { name: "Ferdig", exact: true }).click();
@@ -651,7 +698,10 @@ test("a vote shows at once and goes back if the server refuses it", async ({
   await page.route("**/api/community", async (route) => {
     if (route.request().method() !== "POST") return route.continue();
     await held;
-    await route.fulfill({ status: 500, json: { error: "Serveren svarte ikke." } });
+    await route.fulfill({
+      status: 500,
+      json: { error: "Serveren svarte ikke." },
+    });
   });
   await page.goto(path);
   await openDiscussion(page);
@@ -749,7 +799,11 @@ test("the menu on your own comment deletes it, from a dropdown or a phone's shee
   const author = await member({ username: uniqueName() });
   const other = await member({ username: uniqueName() });
   await signIn(context, author);
-  const withReply = await postComment(request, author, `Med svar ${randomUUID()}`);
+  const withReply = await postComment(
+    request,
+    author,
+    `Med svar ${randomUUID()}`,
+  );
   const replyText = `Svar ${randomUUID()}`;
   await postComment(request, other, replyText, withReply);
   const alone = await postComment(request, author, `Alene ${randomUUID()}`);
@@ -799,8 +853,12 @@ test("the menu on your own comment deletes it, from a dropdown or a phone's shee
   const sheet = page.getByRole("dialog", { name: "Valg for kommentaren" });
   await shot(page, "comment-menu-sheet");
   await sheet.getByRole("button", { name: "Slett" }).click();
-  const phoneConfirm = page.getByRole("dialog", { name: "Slette kommentaren?" });
+  const phoneConfirm = page.getByRole("dialog", {
+    name: "Slette kommentaren?",
+  });
   await expect(phoneConfirm.getByText("Svarene blir stående.")).toHaveCount(0);
-  await phoneConfirm.getByRole("button", { name: "Slett", exact: true }).click();
+  await phoneConfirm
+    .getByRole("button", { name: "Slett", exact: true })
+    .click();
   await expect(single).toHaveCount(0);
 });

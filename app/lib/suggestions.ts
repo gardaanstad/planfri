@@ -20,6 +20,7 @@ export const correctionKeys = [
   "year",
   "phaseDates",
   "skippedPhases",
+  "milestones",
   "categories",
   "city",
   "district",
@@ -119,6 +120,8 @@ export function applyChanges(
     if (next.image !== current.image) next.imageSource = undefined;
   }
   if ("website" in changes) next.website = changes.website || undefined;
+  if ("milestones" in changes && !changes.milestones?.length)
+    next.milestones = undefined;
   if (changes.city !== undefined || changes.district !== undefined)
     next.district = next.district.trim() || next.city;
   if (changes.geometry) next.center = centroid(changes.geometry);
@@ -134,6 +137,7 @@ const correctionFields = projectFields
     year: true,
     phaseDates: true,
     skippedPhases: true,
+    milestones: true,
     categories: true,
     city: true,
     district: true,

@@ -128,6 +128,13 @@ export type ProjectUpdate = {
 export const datedPhases = ["proposed", "planned", "construction"] as const;
 export type DatedPhase = (typeof datedPhases)[number];
 export type PhaseDates = Partial<Record<DatedPhase, string>>;
+/** Something that happened, or will, on the way: a plan approved, say. */
+export type Milestone = {
+  id: string;
+  label: string;
+  /** A year or a month, like the phases' dates. */
+  date: string;
+};
 export type Project = {
   id: string;
   title: string;
@@ -157,6 +164,8 @@ export type Project = {
    * no planning of its own, or (as a joke, mostly) never done.
    */
   skippedPhases?: SkippablePhase[];
+  /** Further points on its timeline, oldest first. */
+  milestones?: Milestone[];
   updated: string;
   /** Set by the server when a moderator adds the project. */
   created?: string;
