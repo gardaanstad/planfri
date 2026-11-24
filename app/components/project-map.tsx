@@ -21,7 +21,7 @@ import {
   categoryLabels,
   finishYear,
   cities,
-  lineDotZoom,
+  dotZoomOf,
   lineMidpoint,
   norwayBounds,
   type Point,
@@ -155,8 +155,6 @@ function dotSvg(map: L.Map) {
   };
   return renderer;
 }
-// Below this zoom areas collapse to dots.
-const dotZoom = 12;
 // Below this zoom nearby projects group together.
 const clusterZoom = 11;
 // Screen distance within which projects join a group.
@@ -1371,7 +1369,7 @@ export default function ProjectMap({
       if (project.id === selectedRef.current) return false;
       return !(
         bounds &&
-        zoom >= lineDotZoom &&
+        zoom >= dotZoomOf(project) &&
         map
           .project(bounds.getNorthWest(), zoom)
           .distanceTo(map.project(bounds.getSouthEast(), zoom)) >
@@ -1466,7 +1464,6 @@ export default function ProjectMap({
           groupMarkers.delete(key);
         }
       for (const { project, shape, casing, stripes, hit, dot, length } of drawn.values()) {
-        const line = project.geometryType === "line";
         if (length !== undefined) {
           // A CSS dash pattern outlasts the attribute Leaflet restyles.
           const element = shape.getElement();
@@ -1475,7 +1472,7 @@ export default function ProjectMap({
             element.style.strokeDasharray = short ? "none" : "";
         }
         const ungrouped = !grouped.has(project.id);
-        const dotted = zoom < (line ? lineDotZoom : dotZoom);
+        const dotted = zoom < dotZoomOf(project);
         // A project shows as its shape or its dot, never both.
         const shown = ungrouped && !dotted;
         for (const layer of [shape, casing, stripes, hit]) {

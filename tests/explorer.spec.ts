@@ -2511,7 +2511,7 @@ test.describe("desktop explorer", () => {
   test("zoomed out, an area shows as its dot alone", async ({ page }) => {
     const area = page.locator('path[data-project-id="bispevika-sor"]');
     const dot = page.locator('path[data-project-dot="bispevika-sor"]');
-    await page.goto("/?kart=59.9035,10.7608,12");
+    await page.goto("/?kart=59.9035,10.7608,12.5");
     await expect(area).toBeVisible();
     await expect(dot).toHaveCount(0);
     await page.goto("/?kart=59.9035,10.7608,11.5");
@@ -2520,6 +2520,21 @@ test.describe("desktop explorer", () => {
     await dot.focus();
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/prosjekt\/bispevika-sor\?/);
+  });
+
+  test("zoomed out, a smaller project becomes its dot sooner", async ({
+    page,
+  }) => {
+    const small = page.locator('path[data-project-dot="oslo-horisont"]');
+    const large = page.locator('path[data-project-id="bispevika-sor"]');
+    await page.goto("/?kart=59.9100,10.7500,12.5");
+    await expect(small).toBeVisible();
+    await expect(large).toBeVisible();
+    const short = page.locator('path[data-project-dot="akerselva"]');
+    const long = page.locator('path[data-project-id="fornebubanen"]');
+    await page.goto("/?kart=59.9100,10.7500,11");
+    await expect(short).toBeVisible();
+    await expect(long).toBeVisible();
   });
 
   test("dots slide with the map while it zooms", async ({ page }) => {

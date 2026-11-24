@@ -324,7 +324,29 @@ export type Bounds = {
 export type ViewBounds = Bounds & { zoom?: number };
 // Below this zoom alignments collapse to a dot halfway along them: wider
 // than a county, even long lines are short scribbles.
-export const lineDotZoom = 8;
+const lineDotZoom = 8;
+// Below this zoom areas collapse to a dot on their centre.
+const areaDotZoom = 12;
+// Smaller projects collapse sooner, once they'd be shorter or narrower than
+// this on screen, in pixels: a line along its length, an area across.
+const lineDotLength = 40;
+const areaDotExtent = 24;
+// However small, a project shows as its shape zoomed in this far.
+const maxDotZoom = 16;
+/**
+ * Below this zoom the project shows as its dot: at the latest where every
+ * alignment or area does, sooner when it's small enough to be a scribble.
+ */
+export function dotZoomOf(project: Project) {
+  const line = project.geometryType === "line";
+  const { size } = projectedShape(project);
+  // Zoom 0 draws the world 256 pixels wide, each zoom step twice that.
+  const pixels = (size * 256) / (2 * Math.PI);
+  const fits = pixels > 0
+    ? Math.log2((line ? lineDotLength : areaDotExtent) / pixels)
+    : maxDotZoom;
+  return Math.min(Math.max(line ? lineDotZoom : areaDotZoom, fits), maxDotZoom);
+}
 /** The point halfway along a line, so its dot sits on the alignment. */
 export function lineMidpoint(points: Point[]): Point {
   if (points.length < 2) return points[0];
@@ -356,7 +378,15 @@ const mercator = ([lat, lng]: Point): Point => [
 // the map moves.
 const projected = new WeakMap<
   Project,
-  { points: Point[]; min: Point; max: Point; dot: Point; center: Point }
+  {
+    points: Point[];
+    min: Point;
+    max: Point;
+    dot: Point;
+    center: Point;
+    /** A line's length or an area's widest side, in Mercator radians. */
+    size: number;
+  }
 >();
 function projectedShape(project: Project) {
   let shape = projected.get(project);
@@ -370,6 +400,21 @@ function projectedShape(project: Project) {
     max[0] = Math.max(max[0], x);
     max[1] = Math.max(max[1], y);
   }
+  // Mercator x here is in degrees, y in radians.
+  const radians = Math.PI / 180;
+  const size =
+    project.geometryType === "line"
+      ? points
+          .slice(1)
+          .reduce(
+            (sum, [x, y], index) =>
+              sum +
+              Math.hypot((x - points[index][0]) * radians, y - points[index][1]),
+            0,
+          )
+      : points.length
+        ? Math.max((max[0] - min[0]) * radians, max[1] - min[1])
+        : 0;
   shape = {
     points,
     min,
@@ -378,6 +423,7 @@ function projectedShape(project: Project) {
       project.geometry.length ? lineMidpoint(project.geometry) : project.center,
     ),
     center: mercator(project.center),
+    size,
   };
   projected.set(project, shape);
   return shape;
@@ -394,7 +440,8 @@ export function projectInBounds(project: Project, bounds: ViewBounds) {
   const inside = ([x, y]: Point) =>
     x >= west && x <= east && y >= south && y <= north;
   const line = project.geometryType === "line";
-  const dotted = line && bounds.zoom !== undefined && bounds.zoom < lineDotZoom;
+  const dotted =
+    line && bounds.zoom !== undefined && bounds.zoom < dotZoomOf(project);
   const shape = projectedShape(project);
   if (!project.geometry.length || dotted) return inside(shape.dot);
   // Zoomed out, an area's dot sits on its centre.
