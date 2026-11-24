@@ -90,7 +90,7 @@ import { useListMotion } from "./use-list-motion";
 import PanelResizer from "./panel-resizer";
 import SavedProjects from "./saved-projects";
 import { useUnread } from "./unread-provider";
-import EmptyState from "./empty-state";
+import EmptyState, { EmptyAction } from "./empty-state";
 import { notify } from "./toast";
 import {
   Drawer,
@@ -138,7 +138,6 @@ import SuggestionList from "./suggestion-list";
 import { MaximizeButton, type SidebarMode } from "./sidebar-panel";
 import {
   iconButton,
-  pillButton,
   primaryButton,
   sortChoice,
   statusTone,
@@ -1814,34 +1813,21 @@ export default memo(function Explorer({
         {shown} {shown === 1 ? "prosjekt" : "prosjekter"}
       </span>
     );
-  const emptyActions = (
-    <div className="mt-1.5 flex flex-wrap justify-center gap-2">
-      {outsideHits > 0 && needle ? (
-        <button type="button" className={pillButton} onClick={showSearchHits}>
-          <ZoomOut size={15} className="text-muted" aria-hidden="true" />
-          Vis {outsideHits} treff
-        </button>
-      ) : (
-        matching.length > 0 &&
-        !needle &&
-        listBounds && (
-          <button
-            type="button"
-            className={pillButton}
-            onClick={() => mapApi.current?.showNorway()}
-          >
-            <ZoomOut size={15} className="text-muted" aria-hidden="true" />
-            Hele Norge
-          </button>
-        )
-      )}
-      {filtersChanged && (
-        <button type="button" className={pillButton} onClick={resetFilters}>
-          Nullstill filtre
-        </button>
-      )}
-    </div>
-  );
+  // Only filters can be undone; an empty stretch of map has no action.
+  const emptyActions = filtersChanged && [
+    outsideHits > 0 && needle && (
+      <EmptyAction
+        key="hits"
+        icon={<ZoomOut size={15} />}
+        onClick={showSearchHits}
+      >
+        Vis {outsideHits} treff
+      </EmptyAction>
+    ),
+    <EmptyAction key="reset" onClick={resetFilters}>
+      Nullstill filtre
+    </EmptyAction>,
+  ];
   const nothingMatches = matching.length === 0 && !savedOnly;
   // Stable, so memoized cards skip re-rendering when the list changes.
   const openLatest = useRef(openPost);

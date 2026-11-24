@@ -72,6 +72,10 @@ export const textButton = [
   "hover:text-accent-strong hover:underline hover:underline-offset-4",
 ].join(" ");
 
+/** Inline link text: a faint underline that darkens on hover. */
+export const textLink =
+  "underline decoration-ink/35 underline-offset-3 transition-[text-decoration-color] duration-150 hover:decoration-current motion-reduce:transition-none";
+
 export const accountAction = [
   controlBase,
   "min-h-14 w-full justify-start gap-3 border border-transparent px-3 text-left",

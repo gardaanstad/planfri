@@ -77,7 +77,7 @@ import {
   toDraft,
   useProjectEdit,
 } from "./project-edit";
-import EmptyState from "./empty-state";
+import EmptyState, { EmptyAction } from "./empty-state";
 import ImageGallery from "./image-gallery";
 import ImagePicker from "./image-picker";
 import styles from "./project-post.module.css";
@@ -927,12 +927,15 @@ function UpdateComposer({
   onTip,
   onNotify,
   onPublished,
+  empty: noUpdates = false,
 }: {
   project: Project;
   onUpdate: (project: Project) => Promise<void>;
   onTip?: (tip: Tip) => Promise<void>;
   onNotify: (message: string) => void;
   onPublished: (id: string) => void;
+  /** No updates yet: the pill becomes the empty state's action. */
+  empty?: boolean;
 }) {
   const { requireLogin, user } = useAuth();
   const tip = Boolean(onTip);
@@ -1042,6 +1045,30 @@ function UpdateComposer({
       <ArrowUp size={16} strokeWidth={2.25} />
     </button>
   );
+  function start(event: React.MouseEvent<HTMLButtonElement>) {
+    if (
+      tip &&
+      !requireLogin("Du må være logget inn for å sende tips.", {
+        type: "tip",
+        projectId: project.id,
+      })
+    )
+      return;
+    setPillWidth(event.currentTarget.offsetWidth);
+    setOpen(true);
+  }
+  const label = tip ? "Send tips" : "Skriv en oppdatering";
+  if (!open && noUpdates)
+    return (
+      <EmptyState
+        icon={<Megaphone size={24} />}
+        title="Ingen oppdateringer ennå"
+      >
+        <EmptyAction ref={pillRef} icon={<Plus size={15} />} onClick={start}>
+          {label}
+        </EmptyAction>
+      </EmptyState>
+    );
   if (!open)
     return (
       <button
@@ -1051,21 +1078,10 @@ function UpdateComposer({
           pillButton,
           "mb-6 gap-2 bg-surface pr-4 pl-3 [&>svg]:text-muted",
         )}
-        onClick={(event) => {
-          if (
-            tip &&
-            !requireLogin("Du må være logget inn for å sende tips.", {
-              type: "tip",
-              projectId: project.id,
-            })
-          )
-            return;
-          setPillWidth(event.currentTarget.offsetWidth);
-          setOpen(true);
-        }}
+        onClick={start}
       >
         <Plus size={16} aria-hidden="true" />
-        {tip ? "Send tips" : "Skriv en oppdatering"}
+        {label}
       </button>
     );
   return (
@@ -1075,8 +1091,11 @@ function UpdateComposer({
         composer,
         "mb-6 flex-col items-stretch gap-0 overflow-hidden rounded-2xl [interpolate-size:allow-keywords]",
         // Grows out of the pill: wider first, then taller.
-        "h-auto w-full transition-[width,height,border-radius,border-color,box-shadow] duration-320 ease-out-soft motion-reduce:transition-none",
-        "starting:h-10.5 starting:w-(--pill-width) starting:rounded-[22px]",
+        "h-auto w-full transition-[width,height,border-radius,border-color,box-shadow,opacity] duration-320 ease-out-soft motion-reduce:transition-none",
+        noUpdates
+          ? // Opened from the empty state's link: it fades in where that was.
+            "starting:opacity-0"
+          : "starting:h-10.5 starting:w-(--pill-width) starting:rounded-[22px]",
       )}
       style={{ "--pill-width": `${pillWidth}px` } as React.CSSProperties}
       onSubmit={publish}
@@ -1625,8 +1644,9 @@ export default function ProjectPost({
                     }
                     onNotify={onNotify}
                     onPublished={readUpdate}
+                    empty={!updates.length}
                   />
-                  {updates.length ? (
+                  {updates.length > 0 && (
                     <div className={styles.timeline}>
                       {updates.map((update) => (
                         <article
@@ -1741,11 +1761,6 @@ export default function ProjectPost({
                         </article>
                       ))}
                     </div>
-                  ) : (
-                    <EmptyState
-                      icon={<Megaphone size={24} />}
-                      title="Ingen oppdateringer ennå"
-                    />
                   )}
                 </section>
               </div>

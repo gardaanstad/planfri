@@ -11,7 +11,7 @@ import {
 } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import Link from "next/link";
+import EmptyState, { EmptyAction } from "./empty-state";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -1205,32 +1205,25 @@ export default function SuggestionList({
               ))}
             </ul>
           ) : (
-            <div className="flex flex-col items-center gap-3 px-4 py-14 text-center">
-              <span className="grid size-12 place-items-center rounded-full bg-accent-soft text-accent">
-                {tab === "queue" ? <Check size={22} /> : <Inbox size={22} />}
-              </span>
-              <h2 className="text-body font-semibold">
-                {tab === "queue" ? "Ingen forslag venter" : "Ingen forslag"}
-              </h2>
+            <EmptyState
+              level={2}
+              className="py-14"
+              icon={tab === "queue" ? <Check size={24} /> : <Inbox size={24} />}
+              title={tab === "queue" ? "Ingen forslag venter" : "Ingen forslag"}
+              description={
+                tab === "mine" && !moderator
+                  ? "Endringer og tips du foreslår, vises her."
+                  : undefined
+              }
+            >
               {tab === "mine" &&
                 !moderator &&
                 (onClose ? (
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className={cn(secondaryButton, "min-h-9 rounded-lg px-3.5 text-ui")}
-                  >
-                    Til prosjektene
-                  </button>
+                  <EmptyAction onClick={onClose}>Til prosjektene</EmptyAction>
                 ) : (
-                  <Link
-                    href="/"
-                    className={cn(secondaryButton, "min-h-9 rounded-lg px-3.5 text-ui")}
-                  >
-                    Til prosjektene
-                  </Link>
+                  <EmptyAction href="/">Til prosjektene</EmptyAction>
                 ))}
-            </div>
+            </EmptyState>
           )}
         </div>
       </div>

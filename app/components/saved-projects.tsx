@@ -88,6 +88,7 @@ export default function SavedProjects({
             level={2}
             icon={<Bookmark size={22} />}
             title="Ingen lagrede prosjekter"
+            description="Lagre et prosjekt med bokmerket for å finne det igjen her."
           />
         ) : (
           <ol aria-label="Lagrede prosjekter">

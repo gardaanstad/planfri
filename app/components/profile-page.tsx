@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useId, type Ref } from "react";
-import { CalendarDays, MapPin, Pencil } from "lucide-react";
+import { CalendarDays, MapPin, MessageCircle, Pencil } from "lucide-react";
 import { cn } from "../lib/cn";
 import RelativeTime from "./relative-time";
 import { type Profile } from "../lib/profiles";
@@ -14,6 +14,7 @@ import { iconButton } from "../lib/ui";
 import ProfileAvatar from "./profile-avatar";
 import ProfileEditor from "./profile-editor";
 import Dialog from "./dialog";
+import EmptyState from "./empty-state";
 
 export function ProfileEditDialog({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
@@ -179,9 +180,10 @@ export function ProfileContent({
             })}
           </ol>
         ) : (
-          <p className="py-6 text-center text-sm text-muted">
-            Ingen kommentarer ennå
-          </p>
+          <EmptyState
+            icon={<MessageCircle size={24} />}
+            title="Ingen kommentarer ennå"
+          />
         )}
       </section>
     </div>

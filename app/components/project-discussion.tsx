@@ -17,7 +17,13 @@ import { takeLoginIntent } from "../lib/login-intent";
 import { useCommunity } from "./community-provider";
 import { cn } from "../lib/cn";
 import { errorMessage } from "../lib/api-client";
-import { composer, composerField, composerSend, sortChoice } from "../lib/ui";
+import {
+  composer,
+  composerField,
+  composerSend,
+  sortChoice,
+  textLink,
+} from "../lib/ui";
 import UserIdentity from "./user-identity";
 import ChoiceSelect from "./choice-select";
 import CommentMenu from "./comment-menu";
@@ -609,7 +615,7 @@ export default function ProjectDiscussion({
     >
       <button
         type="button"
-        className="font-medium text-ink underline decoration-ink/35 underline-offset-3 transition-[text-decoration-color] duration-150 hover:decoration-current"
+        className={cn(textLink, "font-medium text-ink")}
         onClick={() =>
           requireLogin("Du må være logget inn for å kommentere.", {
             type: "comment",
@@ -697,9 +703,8 @@ export default function ProjectDiscussion({
             <EmptyState
               icon={<MessageCircle size={24} />}
               title="Ingen kommentarer ennå"
-            >
-              {loginLine}
-            </EmptyState>
+              description={loginLine}
+            />
           ))}
       </div>
       {scoped && loginLine}
