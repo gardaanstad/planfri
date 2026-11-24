@@ -65,14 +65,19 @@ const shapeStyle = (line: boolean, selected: boolean) => ({
 });
 const dotRadius = (selected: boolean) => (selected ? 8 : 6);
 // Rail and road read as on OpenStreetMap. A road is a band in its status
-// colour, white every other stretch inside a thin border; a railway is
-// square dashes with nothing between them.
+// colour, white every other stretch inside a thin border; a railway, metro
+// or tramway is square dashes with nothing between them, until it stands
+// out: then it widens over a casing, its dashes where they were.
 const roadWeight = (selected: boolean) => (selected ? 8.5 : 7);
 const roadStripes = (selected: boolean) => ({
   weight: roadWeight(selected) - 2.5,
   dashArray: "9, 9",
 });
-const railWeight = (selected: boolean) => (selected ? 6.5 : 5);
+const railWeight = (selected: boolean) => (selected ? 7.5 : 5);
+const railCasing = (selected: boolean) => ({
+  weight: railWeight(selected) + 4,
+  opacity: selected ? 0.95 : 0,
+});
 const lineMode = (project: Project) =>
   project.geometryType === "line" ? transportMode(project.categories) : null;
 const projectStyle = (project: Project, selected: boolean) => {
@@ -81,9 +86,9 @@ const projectStyle = (project: Project, selected: boolean) => {
   if (mode === "road")
     return { ...base, weight: roadWeight(selected), dashArray: undefined };
   if (mode === "rail") {
-    const weight = railWeight(selected);
-    // Dashes as long as the line is wide, whatever its weight.
-    return { ...base, weight, dashArray: `${weight}, ${weight}` };
+    // Dashes as long as the resting line is wide, so they stay put.
+    const dash = railWeight(false);
+    return { ...base, weight: railWeight(selected), dashArray: `${dash}, ${dash}` };
   }
   return base;
 };
@@ -1049,13 +1054,14 @@ export default function ProjectMap({
         ...projectStyle(project, selected),
       };
       // A casing in the base map's tone keeps thin alignments crisp. Rails
-      // go without, so the map shows between their dashes.
-      const casing =
-        line && mode !== "rail"
+      // show it only when they stand out, so the map shows between their
+      // dashes.
+      const casing = line
         ? L.polyline(project.geometry, {
             className: "project-casing",
             weight: options.weight + 4,
             opacity: 0.95,
+            ...(mode === "rail" && railCasing(selected)),
             lineCap: "round",
             lineJoin: "round",
             interactive: false,
@@ -1340,7 +1346,11 @@ export default function ProjectMap({
         layer?.getElement()?.classList.toggle("is-selected", isSelected);
       const shapeOptions = projectStyle(project, emphasized);
       shape.setStyle(shapeOptions);
-      casing?.setStyle({ weight: shapeOptions.weight + 4 });
+      casing?.setStyle(
+        lineMode(project) === "rail"
+          ? railCasing(emphasized)
+          : { weight: shapeOptions.weight + 4 },
+      );
       stripes?.setStyle(roadStripes(emphasized));
       dot.setRadius(dotRadius(emphasized));
       const group = groupOf.get(id);
@@ -1399,7 +1409,7 @@ export default function ProjectMap({
         : dots.hasLayer(dot)
           ? dotRadius(true) + 1
           : line
-            ? lineWeight(true) / 2
+            ? projectStyle(project, true).weight / 2
             : 2;
       hint.options.offset = [0, -(lift + 4)];
       if (hintId !== id) hint.setContent(projectTooltip(project));

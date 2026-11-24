@@ -9,6 +9,7 @@ import {
   lineMidpoint,
   type Point,
   type Project,
+  railCategories,
   type Status,
 } from "./data";
 import { projectPlaces } from "./places";
@@ -238,14 +239,26 @@ export function osmTitles(candidates: OsmCandidate[]) {
 }
 
 export type OsmMatch = { project: Project; share: number };
-const otherTransport = ["Vei", "Jernbane", "Kollektiv", "Sykkel og gange", "Havn", "Luftfart"];
+const otherTransport = [
+  "Vei",
+  ...railCategories,
+  "Kollektiv",
+  "Sykkel og gange",
+  "Havn",
+  "Luftfart",
+];
 /**
  * Projects that can be this kind of line: rail and transit for railways,
  * roads for roads, or transport not narrowed to anything.
  */
 function sameKind(project: Project, kind: OsmKind) {
   const { categories } = project;
-  if (kind === "rail" && (categories.includes("Jernbane") || categories.includes("Kollektiv")))
+  if (
+    kind === "rail" &&
+    [...railCategories, "Kollektiv" as const].some((category) =>
+      categories.includes(category),
+    )
+  )
     return true;
   if (kind === "road" && categories.includes("Vei")) return true;
   return (

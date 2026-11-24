@@ -179,7 +179,7 @@ export const seedProjects: Project[] = [
     title: "Fornebubanen",
     district: "Majorstuen – Fornebu",
     city: "Oslo",
-    categories: ["Samferdsel", "Kollektiv"],
+    categories: ["Samferdsel", "T-bane", "Kollektiv"],
     status: "construction",
     image: "/images/fornebubanen.jpg",
     imageCredit: "L2 Arkitekter og Gottlieb Paludan Architects (illustrasjon)",

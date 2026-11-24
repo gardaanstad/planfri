@@ -7,6 +7,8 @@ import {
   Megaphone,
   MessageCircle,
   TrainFront,
+  TrainFrontTunnel,
+  TramFront,
 } from "lucide-react";
 import {
   finishYear,
@@ -16,6 +18,7 @@ import {
   type Project,
   projectPhotos,
   projectPlace,
+  railCategories,
   statuses,
   transportMode,
 } from "../lib/data";
@@ -24,6 +27,13 @@ import { type ProjectNews, unreadCount, unreadSummary } from "../lib/unread";
 import { cn } from "../lib/cn";
 import { keyboardFocused, statusTone, wrapTitle } from "../lib/ui";
 import ImageGallery, { thumbSizes } from "./image-gallery";
+
+const modeIcons = {
+  Vei: CarFront,
+  Jernbane: TrainFront,
+  "T-bane": TrainFrontTunnel,
+  Sporvei: TramFront,
+};
 
 /** Where; for rail and road, led by the mode. */
 function Place({ project }: { project: Project }) {
@@ -35,12 +45,18 @@ function Place({ project }: { project: Project }) {
         <span className="min-w-0 truncate">{projectPlace(project)}</span>
       </>
     );
-  const Icon = mode === "rail" ? TrainFront : CarFront;
+  const label =
+    mode === "road"
+      ? "Vei"
+      : (railCategories.find((category) =>
+          project.categories.includes(category),
+        ) ?? "Jernbane");
+  const Icon = modeIcons[label];
   return (
     <>
       <span className="inline-flex shrink-0 items-center gap-1 font-medium text-ink-soft">
         <Icon size={13} className="shrink-0" aria-hidden="true" />
-        {mode === "rail" ? "Jernbane" : "Vei"}
+        {label}
       </span>
       <span aria-hidden="true">·</span>
       <span className="min-w-0 truncate">{projectPlace(project)}</span>

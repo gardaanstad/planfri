@@ -10,6 +10,8 @@ export const categoryTree = [
     subcategories: [
       "Vei",
       "Jernbane",
+      "T-bane",
+      "Sporvei",
       "Kollektiv",
       "Sykkel og gange",
       "Havn",
@@ -40,12 +42,15 @@ export type Category = MainCategory | Subcategory;
 export const mainCategories: MainCategory[] = categoryTree.map(
   (node) => node.name,
 );
-/** Rail and road lines are drawn and labelled by their mode. */
+/** Rail (railway, metro and tram) and road lines are drawn and labelled by their mode. */
 export type TransportMode = "rail" | "road";
+/** Railway, metro and tram, each drawn as a railway. */
+export const railCategories = ["Jernbane", "T-bane", "Sporvei"] as const;
 export function transportMode(
   categories: readonly string[],
 ): TransportMode | null {
-  if (categories.includes("Jernbane")) return "rail";
+  if (railCategories.some((category) => categories.includes(category)))
+    return "rail";
   if (categories.includes("Vei")) return "road";
   return null;
 }
