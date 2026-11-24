@@ -229,3 +229,87 @@ export function subscribeOffMapCollapsed(callback: () => void) {
     window.removeEventListener("storage", callback);
   };
 }
+
+/** The most places "Sted" keeps pinned at its top. */
+export const maxPinnedPlaces = 3;
+const pinnedKey = "planfri-pinned-places";
+const pinnedEvent = "planfri-pinned-places";
+export const noPinnedPlaces: readonly string[] = [];
+let pinnedFallback = noPinnedPlaces;
+// The last read, so an unchanged list keeps its identity between reads.
+let pinnedRead: { raw: string | null; places: readonly string[] } = {
+  raw: null,
+  places: noPinnedPlaces,
+};
+
+/** Places pinned to the top of "Sted", first pinned first, in this browser. */
+export function storedPinnedPlaces(): readonly string[] {
+  try {
+    const raw = localStorage.getItem(pinnedKey);
+    if (raw === pinnedRead.raw) return pinnedRead.places;
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    const places = Array.isArray(parsed)
+      ? parsed
+          .filter((name): name is string => typeof name === "string")
+          .slice(0, maxPinnedPlaces)
+      : noPinnedPlaces;
+    pinnedRead = { raw, places };
+    return places;
+  } catch {
+    return pinnedFallback;
+  }
+}
+
+export function storePinnedPlaces(places: readonly string[]) {
+  pinnedFallback = places.slice(0, maxPinnedPlaces);
+  try {
+    if (pinnedFallback.length)
+      localStorage.setItem(pinnedKey, JSON.stringify(pinnedFallback));
+    else localStorage.removeItem(pinnedKey);
+  } catch {
+    /* The fallback above holds it. */
+  }
+  window.dispatchEvent(new Event(pinnedEvent));
+}
+
+export function subscribePinnedPlaces(callback: () => void) {
+  window.addEventListener(pinnedEvent, callback);
+  window.addEventListener("storage", callback);
+  return () => {
+    window.removeEventListener(pinnedEvent, callback);
+    window.removeEventListener("storage", callback);
+  };
+}
+
+const phonePinsKey = "planfri-place-pins-shown";
+const phonePinsEvent = "planfri-place-pins-shown";
+let phonePinsFallback = false;
+
+/** Whether phones show the pins in "Sted"; hover shows them elsewhere. */
+export function storedPhonePins() {
+  try {
+    return localStorage.getItem(phonePinsKey) === "1";
+  } catch {
+    return phonePinsFallback;
+  }
+}
+
+export function storePhonePins(shown: boolean) {
+  phonePinsFallback = shown;
+  try {
+    if (shown) localStorage.setItem(phonePinsKey, "1");
+    else localStorage.removeItem(phonePinsKey);
+  } catch {
+    /* The fallback above holds it. */
+  }
+  window.dispatchEvent(new Event(phonePinsEvent));
+}
+
+export function subscribePhonePins(callback: () => void) {
+  window.addEventListener(phonePinsEvent, callback);
+  window.addEventListener("storage", callback);
+  return () => {
+    window.removeEventListener(phonePinsEvent, callback);
+    window.removeEventListener("storage", callback);
+  };
+}

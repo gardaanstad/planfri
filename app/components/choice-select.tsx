@@ -9,13 +9,16 @@ import {
   useState,
   type KeyboardEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { flushSync } from "react-dom";
-import { Check, ChevronDown } from "lucide-react";
+import { Menu } from "@base-ui/react/menu";
+import { Check, ChevronDown, Ellipsis } from "lucide-react";
 import { cn } from "../lib/cn";
 import { mobileQuery, reducedMotion, sheetLeave } from "../lib/media";
 import { useBackgroundPush } from "../lib/background-push";
 import { useSwipeDismiss } from "./use-swipe-dismiss";
+import { SwitchTrack } from "./action-sheet";
 
 type Option = {
   value: string;
@@ -33,6 +36,8 @@ type Option = {
   more?: boolean;
   /** A line above it, setting it and those after apart from those before. */
   divider?: boolean;
+  /** Offers a pin beside it, with `pins` set on the select. */
+  pinnable?: boolean;
 };
 
 const flatten = (options: Option[]): Option[] =>
@@ -63,6 +68,20 @@ type ChoiceSelectBase = {
    * chosen, and the menu opens on its first.
    */
   goTo?: boolean;
+  /**
+   * Options kept at hand: a pinnable option shows a pin on hover, and stays
+   * marked once pinned. Where pinned options sit is up to `options`.
+   */
+  pins?: {
+    values: readonly string[];
+    max: number;
+    onChange: (values: string[]) => void;
+    /**
+     * Phones have no hover: there the pins show only once this, in a menu
+     * beside the sheet's title, is on.
+     */
+    phoneToggle?: { label: string; on: boolean; onChange: (on: boolean) => void };
+  };
 };
 
 type ChoiceSelectProps =
@@ -105,6 +124,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
     smoothWidth = false,
     inline = false,
     goTo = false,
+    pins,
   } = props;
   const multiple = props.multiple === true;
   const selectedValues = new Set(
@@ -151,6 +171,19 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
   // the scrim) blurs to nothing first; let its click decide instead.
   const pressing = useRef(false);
   const id = useId();
+  // Pinning reorders the rows, which can take focus with them; it's put
+  // back where it was, and the menu doesn't take the loss for leaving.
+  const refocus = useRef<{ slot: string; value: string } | null>(null);
+  useLayoutEffect(() => {
+    const target = refocus.current;
+    if (!target) return;
+    refocus.current = null;
+    list.current
+      ?.querySelector<HTMLElement>(
+        `[data-slot="${target.slot}"][data-value="${CSS.escape(target.value)}"]`,
+      )
+      ?.focus({ preventScroll: true });
+  });
   const selectedSummary = selectedOptions
     .map((option) => option.label)
     .join(", ");
@@ -422,7 +455,88 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
     />
   );
 
+  const pinsShown = !sheet || !pins?.phoneToggle || pins.phoneToggle.on;
+
+  function togglePin(value: string, keyboard: boolean) {
+    if (!pins) return;
+    const pinned = pins.values.includes(value);
+    if (!pinned && pins.values.length >= pins.max) return;
+    const active = document.activeElement;
+    refocus.current = keyboard
+      ? { slot: "choice-pin", value }
+      : active instanceof HTMLElement &&
+          list.current?.contains(active) &&
+          active.dataset.slot &&
+          active.dataset.value !== undefined
+        ? { slot: active.dataset.slot, value: active.dataset.value }
+        : null;
+    pins.onChange(
+      pinned
+        ? pins.values.filter((item) => item !== value)
+        : [...pins.values, value],
+    );
+  }
+
+  /**
+   * The pin beside a pinnable option, shown on hover or focus, at once;
+   * filled once pinned. On phones it shows whenever pins are turned on.
+   */
+  function renderPin(option: Option) {
+    const pinned = pins!.values.includes(option.value);
+    const full = !pinned && pins!.values.length >= pins!.max;
+    return (
+      <button
+        type="button"
+        data-slot="choice-pin"
+        data-value={option.value}
+        tabIndex={-1}
+        aria-label={`Fest ${option.label}`}
+        aria-pressed={pinned}
+        aria-disabled={full || undefined}
+        className={cn(
+          // Above the rows' reach into the gaps around them.
+          "absolute inset-y-0 z-2 my-auto flex items-center justify-center rounded-md -outline-offset-2",
+          sheet ? "right-1 size-10" : "right-1 size-7",
+          pinned ? "text-ink" : "text-muted",
+          // At the most pinned, an unpinned one shows faint, as it can't be.
+          full ? "cursor-default" : !pinned && "hover:text-ink",
+          sheet
+            ? full && "opacity-40"
+            : [
+                "opacity-0",
+                full
+                  ? "group-hover/row:opacity-40 group-focus-within/row:opacity-40"
+                  : "group-hover/row:opacity-100 group-focus-within/row:opacity-100",
+              ],
+        )}
+        // Kept off the button, so focus stays in the list as rows move.
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={(event) => togglePin(option.value, event.detail === 0)}
+      >
+        <PinIcon size={sheet ? 18 : 16} filled={pinned} />
+      </button>
+    );
+  }
+
   function renderOption(option: Option) {
+    const pinnable = !!pins && !!option.pinnable && pinsShown;
+    const button = renderOptionButton(option, pinnable);
+    if (!pinnable) return button;
+    return (
+      <div
+        key={option.value}
+        role="none"
+        data-slot="choice-row"
+        data-label={option.label}
+        className="group/row relative flex shrink-0"
+      >
+        {button}
+        {renderPin(option)}
+      </div>
+    );
+  }
+
+  function renderOptionButton(option: Option, pinnable: boolean) {
     // A narrowed parent isn't chosen itself; its open group shows the picks.
     const open = marked.has(option.value);
     const chosen = open && !narrowed(option);
@@ -452,9 +566,13 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
                 option.children?.length
                   ? "before:-inset-y-1 [[data-slot=choice-group][data-open=true]+[data-slot=choice-group]>&]:before:-top-[7px]"
                   : reachPastGroup,
+                // Over its pin, the row still reads as hovered.
+                pinnable && "group-hover/row:bg-surface-muted",
                 // One choice: outlined like a chosen group, not checked.
                 !grouped && !multiple && "aria-selected:border-border-strong",
               ],
+          // Clear of the pin at its end.
+          pinnable && (sheet ? "pr-12" : "pr-9"),
           // Grouped: the group's outline marks what's chosen.
           grouped && [
             // Inside the group's outline, the row's corners follow it.
@@ -538,17 +656,23 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
 
   /** An option, or a group holding its children underneath it. */
   function renderEntry(option: Option) {
-    if (option.divider)
-      return (
-        <Fragment key={option.value}>
+    // Always a keyed fragment, a line or not first, so a row that moves
+    // past the line keeps its elements.
+    return (
+      <Fragment key={option.value}>
+        {option.divider && (
           <div
             role="separator"
             data-slot="choice-divider"
             className={cn("mx-2.5 shrink-0 border-t border-border", sheet ? "my-1.5" : "my-1")}
           />
-          {renderEntry({ ...option, divider: false })}
-        </Fragment>
-      );
+        )}
+        {renderEntryBody(option)}
+      </Fragment>
+    );
+  }
+
+  function renderEntryBody(option: Option) {
     const open = marked.has(option.value);
     if (!option.children?.length) return renderOption(option);
     return (
@@ -606,8 +730,25 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
         '[role="option"], [data-slot="choice-more"]',
       ),
     ].filter((item) => !item.closest("[inert]"));
+    const active = document.activeElement as HTMLElement | null;
+    // Across a row, to its pin and back.
+    const row = active?.closest('[data-slot="choice-row"]');
+    const pin = row?.querySelector<HTMLElement>('[data-slot="choice-pin"]');
+    const rowOption = row?.querySelector<HTMLElement>(
+      '[data-slot="choice-option"]',
+    );
+    if (event.key === "ArrowRight" && pin && active !== pin) {
+      event.preventDefault();
+      pin.focus();
+      return;
+    }
+    if (event.key === "ArrowLeft" && rowOption && active === pin) {
+      event.preventDefault();
+      rowOption.focus();
+      return;
+    }
     const current = items.indexOf(
-      document.activeElement as HTMLButtonElement,
+      (active === pin ? rowOption : active) as HTMLButtonElement,
     );
     let next = current;
     if (event.key === "ArrowDown")
@@ -726,11 +867,15 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
         window.addEventListener("pointercancel", release, { once: true });
       }}
       onBlur={(event) => {
-        if (pressing.current) return;
+        if (pressing.current || refocus.current) return;
         if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
       }}
       onKeyDown={(event) => {
-        if (event.key === "Escape" && open) {
+        // Escape in the sheet's own menu closes just that.
+        const inMenu = (event.target as Element).closest?.(
+          '[data-slot="choice-sheet-menu"]',
+        );
+        if (event.key === "Escape" && open && !inMenu) {
           event.preventDefault();
           event.stopPropagation();
           close();
@@ -846,7 +991,6 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
           >
             {sheet && (
               <div
-                aria-hidden="true"
                 data-swipe-handle
                 className="sticky top-0 z-1 -mx-2 flex shrink-0 touch-none flex-col items-center bg-surface px-4 pt-2 pb-2.5"
               >
@@ -857,14 +1001,23 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
                   data-edge="top"
                   className="pointer-events-none absolute inset-x-0 top-full h-(--fade-height) bg-[linear-gradient(to_top,transparent,var(--color-surface))] opacity-0 [--fade-height:40px]"
                 />
-                <span className="h-1 w-9 rounded-full bg-ink/15" />
-                {/* Above the options' 15px: larger, heavier and in full ink. */}
                 <span
-                  data-slot="choice-title"
-                  className="mt-3 self-start px-1 text-heading text-ink"
-                >
-                  {label}
-                </span>
+                  aria-hidden="true"
+                  className="h-1 w-9 rounded-full bg-ink/15"
+                />
+                <div className="mt-3 flex items-center self-stretch">
+                  {/* Above the options' 15px: larger, heavier and in full ink. */}
+                  <span
+                    aria-hidden="true"
+                    data-slot="choice-title"
+                    className="px-1 text-heading text-ink"
+                  >
+                    {label}
+                  </span>
+                  {pins?.phoneToggle && (
+                    <SheetMenu toggle={pins.phoneToggle} container={menu} />
+                  )}
+                </div>
               </div>
             )}
             {!sheet && menuTitle && (
@@ -1081,5 +1234,83 @@ function GroupOutline({ runs }: { runs: Run[] }) {
       data-slot="choice-outline"
       className="pointer-events-none absolute inset-0"
     />
+  );
+}
+
+/**
+ * A pushpin, tilted as if pressed in: a head, a collar flaring to its
+ * base and a needle. Filled, it marks what's pinned.
+ */
+function PinIcon({ size, filled }: { size: number; filled: boolean }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="shrink-0"
+    >
+      <g transform="rotate(45 12 12)">
+        <path
+          d="M9.5 3.5h5M10.25 3.5v5.25L7.5 12.5v1.5h9v-1.5l-2.75-3.75V3.5"
+          fill={filled ? "currentColor" : "none"}
+        />
+        <path d="M12 14v6.5" />
+      </g>
+    </svg>
+  );
+}
+
+const sheetMenuItem = cn(
+  "flex min-h-11 cursor-default items-center gap-3 rounded-lg px-2.5 py-1.5 text-ui text-ink outline-none select-none",
+  "focus-visible:bg-surface-muted active:bg-surface-muted",
+);
+
+/**
+ * The phone sheet's "more" menu, beside its title. Rendered inside the
+ * sheet's top-layer scrim, so it opens over the sheet rather than under it.
+ */
+function SheetMenu({
+  toggle,
+  container,
+}: {
+  toggle: { label: string; on: boolean; onChange: (on: boolean) => void };
+  container: RefObject<HTMLElement | null>;
+}) {
+  return (
+    <Menu.Root>
+      <Menu.Trigger
+        className="-my-2.5 -mr-2 ml-auto inline-flex size-11 shrink-0 items-center justify-center rounded-xl text-muted active:bg-ink/[0.06] data-popup-open:bg-ink/[0.06] data-popup-open:text-ink"
+        aria-label="Flere valg"
+      >
+        <Ellipsis size={20} aria-hidden="true" />
+      </Menu.Trigger>
+      <Menu.Portal container={container}>
+        <Menu.Positioner
+          side="bottom"
+          align="end"
+          sideOffset={4}
+          className="z-[1000]"
+          data-slot="choice-sheet-menu"
+        >
+          <Menu.Popup className="min-w-60 rounded-xl border border-border bg-surface p-1.5 text-ui shadow-popover outline-none motion-safe:animate-menu-enter">
+            <Menu.CheckboxItem
+              className={sheetMenuItem}
+              checked={toggle.on}
+              onCheckedChange={toggle.onChange}
+              closeOnClick
+            >
+              <span className="flex-1">{toggle.label}</span>
+              <SwitchTrack on={toggle.on} />
+            </Menu.CheckboxItem>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
   );
 }

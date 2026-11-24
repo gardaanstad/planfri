@@ -3055,6 +3055,69 @@ test.describe("the place menu", () => {
     // Oslo is where the map is, not a choice kept.
     await expect(menu.getByRole("option", { selected: true })).toHaveCount(0);
   });
+
+  test("pins up to three places to its top, apart from the rest", async ({
+    page,
+  }) => {
+    await page.goto("/?kart=59.9100,10.7500,12");
+    const trigger = page
+      .getByRole("region", { name: "Filtrer prosjekter", exact: true })
+      .getByRole("button", { name: "Sted: Oslo", exact: true });
+    await trigger.click();
+    const menu = page.getByRole("listbox", { name: "Sted", exact: true });
+    const labels = () =>
+      menu
+        .getByRole("option")
+        .evaluateAll((options) => options.map((o) => o.dataset.label));
+    const pin = (name: string) =>
+      menu.getByRole("button", { name: `Fest ${name}`, exact: true });
+    // No counts; the pin shows on hover.
+    await expect(
+      menu.locator('[data-slot="choice-option"] .tabular-nums'),
+    ).toHaveCount(0);
+    await expect(pin("Bergen")).toHaveCSS("opacity", "0");
+    await menu.getByRole("option", { name: "Bergen", exact: true }).hover();
+    await expect(pin("Bergen")).toHaveCSS("opacity", "1");
+    await pin("Bergen").click();
+    await expect(pin("Bergen")).toHaveAttribute("aria-pressed", "true");
+    expect((await labels()).slice(0, 2)).toEqual(["Bergen", "Hele Norge"]);
+    await expect(
+      menu.locator('[data-label="Bergen"] + [role="separator"]'),
+    ).toHaveCount(1);
+    // Pinned, it shows on hover too, filled.
+    await page.mouse.move(0, 0);
+    await expect(pin("Bergen")).toHaveCSS("opacity", "0");
+    await pin("Trondheim").click();
+    await pin("Ålesund").click();
+    expect((await labels()).slice(0, 4)).toEqual([
+      "Bergen",
+      "Trondheim",
+      "Ålesund",
+      "Hele Norge",
+    ]);
+    await menu.getByRole("option", { name: "Drammen", exact: true }).hover();
+    await shot(page, "place-menu-pins");
+    // Three is the most; a fourth can't be pinned.
+    await expect(pin("Oslo")).toHaveAttribute("aria-disabled", "true");
+    await pin("Oslo").click({ force: true });
+    await expect(pin("Oslo")).toHaveAttribute("aria-pressed", "false");
+    expect((await labels())[0]).toBe("Bergen");
+    // The menu stays open throughout, and the pins stay after a reload.
+    await expect(menu).toBeVisible();
+    await page.reload();
+    await trigger.click();
+    expect((await labels()).slice(0, 4)).toEqual([
+      "Bergen",
+      "Trondheim",
+      "Ålesund",
+      "Hele Norge",
+    ]);
+    // Unpinned, a place goes back among the rest.
+    await pin("Trondheim").click();
+    const after = await labels();
+    expect(after.slice(0, 3)).toEqual(["Bergen", "Ålesund", "Hele Norge"]);
+    expect(after.indexOf("Trondheim")).toBeGreaterThan(3);
+  });
 });
 
 test.describe("the place follows the map", () => {
@@ -3305,6 +3368,45 @@ test.describe("the place follows the map", () => {
         filters.getByRole("button", { name: `Sted: ${name}`, exact: true });
       await foldList(page);
       await expect(place("Bergen")).toBeVisible();
+    });
+
+    test("pins show in the sheet once turned on in its menu", async ({
+      page,
+    }) => {
+      await page.goto("/?kart=60.4400,5.3200,12");
+      await page
+        .locator("[data-explorer-drawer]")
+        .getByRole("region", { name: "Filtrer prosjekter", exact: true })
+        .getByRole("button", { name: /^Sted/ })
+        .click();
+      const sheet = page.getByRole("listbox", { name: "Sted", exact: true });
+      const pin = (name: string) =>
+        sheet.getByRole("button", { name: `Fest ${name}`, exact: true });
+      await expect(sheet).toBeVisible();
+      await expect(pin("Trondheim")).toHaveCount(0);
+      await sheet.getByRole("button", { name: "Flere valg" }).click();
+      await page
+        .getByRole("menuitemcheckbox", { name: "Fest steder til toppen" })
+        .click();
+      // The sheet stays, now with its pins.
+      await expect(pin("Trondheim")).toBeVisible();
+      await pin("Trondheim").click();
+      await expect(pin("Trondheim")).toHaveAttribute("aria-pressed", "true");
+      await expect(sheet.getByRole("option").first()).toHaveAttribute(
+        "data-label",
+        "Trondheim",
+      );
+      await shot(page, "place-sheet-pins");
+      // Turned off, the pins go; the pinned place stays on top.
+      await sheet.getByRole("button", { name: "Flere valg" }).click();
+      await page
+        .getByRole("menuitemcheckbox", { name: "Fest steder til toppen" })
+        .click();
+      await expect(pin("Trondheim")).toHaveCount(0);
+      await expect(sheet.getByRole("option").first()).toHaveAttribute(
+        "data-label",
+        "Trondheim",
+      );
     });
 
     test("the compact drawer names the place while the map is still moving", async ({

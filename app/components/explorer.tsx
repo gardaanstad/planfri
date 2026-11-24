@@ -51,6 +51,8 @@ import {
 import {
   defaultDensity,
   defaultStatus,
+  maxPinnedPlaces,
+  noPinnedPlaces,
   parseExploreState,
   sameValues,
   sortOptions,
@@ -58,8 +60,14 @@ import {
   storedCollapsed,
   storeDensity,
   storedDensity,
+  storedPhonePins,
+  storedPinnedPlaces,
+  storePhonePins,
+  storePinnedPlaces,
   subscribeCollapsed,
   subscribeDensity,
+  subscribePhonePins,
+  subscribePinnedPlaces,
   type ListDensity,
 } from "../lib/explore-state";
 import type { MapApi, MapViewChange } from "./project-map";
@@ -224,6 +232,61 @@ function createLivePlace() {
 type LivePlaceStore = ReturnType<typeof createLivePlace>;
 const noLivePlace = () => null;
 
+type PlaceSelectProps = Omit<
+  Extract<Parameters<typeof ChoiceSelect>[0], { multiple?: false }>,
+  "pins"
+>;
+
+/**
+ * "Sted", with the places pinned in this browser at its top, set apart by a
+ * line. It keeps its own store, so pinning redraws just the menu.
+ */
+function PlaceSelect({ options, ...props }: PlaceSelectProps) {
+  const pinned = useSyncExternalStore(
+    subscribePinnedPlaces,
+    storedPinnedPlaces,
+    () => noPinnedPlaces,
+  );
+  const phonePins = useSyncExternalStore(
+    subscribePhonePins,
+    storedPhonePins,
+    () => false,
+  );
+  const ordered = useMemo(() => {
+    const byValue = new Map(options.map((option) => [option.value, option]));
+    const first = pinned.flatMap((name) => {
+      const option = byValue.get(name);
+      return option?.pinnable ? [{ ...option, divider: false }] : [];
+    });
+    const firstValues = new Set(first.map((option) => option.value));
+    // A line above the first left, and any a pinned option took along.
+    const rest: typeof options = [];
+    let divider = first.length > 0;
+    for (const option of options) {
+      if (firstValues.has(option.value)) divider ||= !!option.divider;
+      else {
+        rest.push({ ...option, divider: divider || option.divider });
+        divider = false;
+      }
+    }
+    return [...first, ...rest];
+  }, [options, pinned]);
+  const pins = useMemo(
+    () => ({
+      values: pinned,
+      max: maxPinnedPlaces,
+      onChange: storePinnedPlaces,
+      phoneToggle: {
+        label: "Fest steder til toppen",
+        on: phonePins,
+        onChange: storePhonePins,
+      },
+    }),
+    [pinned, phonePins],
+  );
+  return <ChoiceSelect {...props} options={ordered} pins={pins} />;
+}
+
 /** The phone's "Sted" pill, naming the live place while the map pans. */
 function LivePlaceSelect({
   live,
@@ -231,10 +294,7 @@ function LivePlaceSelect({
   fallback,
   className,
   ...props
-}: Omit<
-  Extract<Parameters<typeof ChoiceSelect>[0], { multiple?: false }>,
-  "triggerLabel" | "value"
-> & {
+}: Omit<PlaceSelectProps, "triggerLabel" | "value"> & {
   live: LivePlaceStore;
   place: string;
   fallback: string;
@@ -242,7 +302,7 @@ function LivePlaceSelect({
   const shown = useSyncExternalStore(live.subscribe, live.get, noLivePlace);
   const name = shown && shown.base === place ? shown.name : place;
   return (
-    <ChoiceSelect
+    <PlaceSelect
       {...props}
       value={place}
       triggerLabel={name || fallback}
@@ -1590,12 +1650,8 @@ export default memo(function Explorer({
     children: node.subcategories.map((sub) => ({ value: sub, label: sub })),
   }));
   // The main cities, then other cities and counties with projects, A–Å;
-  // counted by the other filters.
+  // `PlaceSelect` puts those pinned above them.
   const placeOptions = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const project of matching)
-      for (const name of placesOf.get(project.id) ?? [])
-        counts.set(name, (counts.get(name) ?? 0) + 1);
     const listed = new Set(
       projects.flatMap((project) => placesOf.get(project.id) ?? []),
     );
@@ -1603,7 +1659,7 @@ export default memo(function Explorer({
     const option = (name: string) => ({
       value: name,
       label: name,
-      ...(!isMobile && { count: counts.get(name) ?? 0 }),
+      pinnable: true,
     });
     return [
       { value: "", label: "Hele Norge" },
@@ -1614,7 +1670,7 @@ export default memo(function Explorer({
         .sort((a, b) => a.localeCompare(b, "nb"))
         .map((name, index) => ({ ...option(name), divider: index === 0 })),
     ];
-  }, [isMobile, matching, place, placesOf, projects]);
+  }, [place, placesOf, projects]);
   // With every match in sight, the view is as good as all of Norway.
   const allInView = useMemo(
     () =>
@@ -1812,7 +1868,7 @@ export default memo(function Explorer({
     </div>
   );
   const placeFilter = (
-    <ChoiceSelect
+    <PlaceSelect
       label="Sted"
       smoothWidth
       goTo
