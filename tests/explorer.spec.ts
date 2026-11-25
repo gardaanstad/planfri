@@ -3921,17 +3921,44 @@ test.describe("the list holds what the uncovered map shows", () => {
       });
     });
 
-    test("under the drawer is out; just above it is in", async ({ page }) => {
+    test("under the folded drawer is out; just above it is in", async ({
+      page,
+    }) => {
       await page.goto("/");
-      const drawer = page.locator("[data-explorer-drawer]");
       await expectDrawerHeight(page, 0.58);
-      const top = await drawer.evaluate(
-        (element) => element.getBoundingClientRect().top,
-      );
+      // The list holds what the folded drawer leaves in sight, at every height.
+      const top = 844 - 136;
       const south = area.geometry.reduce((a, b) => (b[0] < a[0] ? b : a));
       await show(page, await viewWith(page, north, [195, top + 8]));
       await expect(listed(page, area.title)).toHaveCount(0);
       await show(page, await viewWith(page, south, [195, top - 8]));
+      await expect(listed(page, area.title)).toHaveCount(1);
+    });
+
+    test("the list keeps what the folded drawer leaves in sight as it rises", async ({
+      page,
+    }) => {
+      await page.goto("/");
+      const drawer = page.locator("[data-explorer-drawer]");
+      await expectDrawerHeight(page, 0.58);
+      const middle = await drawer.evaluate(
+        (element) => element.getBoundingClientRect().top,
+      );
+      const expand = page.getByRole("button", {
+        name: "Utvid prosjektlisten",
+        exact: true,
+      });
+      // Under the list at the middle height, but in sight once folded: listed
+      // from the start, and through the fold and back up to the top.
+      await show(page, await viewWith(page, north, [195, middle + 40]));
+      await expect(listed(page, area.title)).toHaveCount(1);
+      await foldList(page);
+      await expect(listed(page, area.title)).toHaveCount(1);
+      await swipeUp(page, expand);
+      await expectDrawerHeight(page, 0.58);
+      await expect(listed(page, area.title)).toBeVisible();
+      await swipeUp(page, expand);
+      await expectDrawerHeight(page, 1);
       await expect(listed(page, area.title)).toBeVisible();
     });
   });

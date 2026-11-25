@@ -1028,11 +1028,16 @@ export default memo(function Explorer({
     // The URL and the view to return to take only views the map rests on.
     if (!view.moving) mapViewRef.current = view;
     const shown = projectsInView(view);
-    const key = shown.map((project) => project.id).join();
+    const bounds = listBoundsOf(view);
+    const listed =
+      bounds === view.bounds
+        ? shown
+        : projects.filter((project) => projectInBounds(project, bounds));
+    const key = listed.map((project) => project.id).join();
     const follow = () => {
       if (key !== inViewKey.current) {
         inViewKey.current = key;
-        setViewBounds(view.bounds);
+        setViewBounds(bounds);
       }
       followPlace(view, shown);
     };
@@ -1042,6 +1047,15 @@ export default memo(function Explorer({
     follow();
     if (!postView.current && !backToFullList.current) setFrozenBounds(null);
     syncSoon();
+  }
+  /**
+   * What the list takes of a view. On phones it holds what the folded list
+   * leaves in sight, at every height, so raising the list over the map
+   * keeps the rows it had rather than swapping out those it comes up over.
+   */
+  function listBoundsOf(view: MapViewChange) {
+    if (!isMobile || !mapApi.current) return view.bounds;
+    return mapApi.current.boundsAbove(compactMapInset);
   }
   /** Beside the map, "Velg sted" names the place the view shows. */
   function followPlace(view: MapViewChange, shown?: Project[]) {
@@ -1073,11 +1087,12 @@ export default memo(function Explorer({
       }),
     );
   }
-  // The drawer's height changes what of the map is in sight, and so what the
-  // list holds. Under the full drawer the map is out of sight: the list
-  // keeps what it had.
+  // The drawer's height changes what of the map is in sight, and so the
+  // place "Velg sted" names; the list holds what the folded drawer leaves in
+  // sight at every height (see `listBoundsOf`). Under the full drawer the map
+  // is out of sight: the place stays as it was.
   // Folded by a pan, it waits for the pan to settle, which reports the view
-  // anyway: listed in the frames after the fold, the rows held up its start.
+  // anyway: named in the frames after the fold, it held up the fold's start.
   const placeUnderDrawer = useEffectEvent(() => {
     if (snapRef.current === snapPoint) return;
     snapRef.current = snapPoint;
@@ -1134,6 +1149,9 @@ export default memo(function Explorer({
   );
   function onMapReady(api: MapApi) {
     mapApi.current = api;
+    // Phones: the first view came before the map could say what of it the
+    // folded list leaves in sight (see `listBoundsOf`).
+    if (isMobile && mapViewRef.current) onMapView(mapViewRef.current);
     // A card hovered while the map loaded.
     api.highlight(hoveredId.current);
     // A place picked before the map was ready, or linked without a view.

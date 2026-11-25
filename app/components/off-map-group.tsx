@@ -82,10 +82,17 @@ export default function OffMapGroup({
   // Ends the fold playing, if any, at its end.
   const settle = useRef<(() => void) | null>(null);
 
-  /** Scrolls the list, if need be, for the rows to show. */
+  /**
+   * What scrolls the list. A drawer below full height holds its scroller
+   * still (`data-drawer-scroll`) until it is scrolled, which a script can.
+   */
   function scrollerOf() {
     let scroller = list.current!.parentElement;
-    while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY))
+    while (
+      scroller &&
+      !scroller.hasAttribute("data-drawer-scroll") &&
+      !/auto|scroll/.test(getComputedStyle(scroller).overflowY)
+    )
       scroller = scroller.parentElement;
     return scroller;
   }
