@@ -71,6 +71,20 @@
 }
 
 /*
+ * Nothing on the map is text to select: Leaflet already cancels selection
+ * as a drag starts. Unselectable, Chrome also skips hit testing for a
+ * selection on every move of a drag, which held up each frame of a pan.
+ */
+[data-project-map] .leaflet-map-pane {
+  user-select: none;
+}
+
+/* Shapes take no pointer while the map is dragged; see ProjectMap. */
+[data-project-map] .leaflet-container[data-dragging] path.leaflet-interactive {
+  pointer-events: none;
+}
+
+/*
  * No filters or opacity on the tile pane or layer containers: a moving
  * container with an effect is recomposited on every frame of a pan or zoom,
  * which was the main source of map lag.

@@ -854,6 +854,48 @@ export default function ProjectMap({
       handlers.current.onUserMove?.();
       handlers.current.onGestureStart?.();
     });
+    // While the map is dragged its shapes take no pointer (see
+    // project-map.css): hit testing every path on each move held up the
+    // frames of a pan. The pointer rides the same spot of the map, so the
+    // shape it was over stays lit with its tooltip, as if still under it,
+    // until the pointer moves after the drag.
+    const draggedOver = container.current;
+    const targets = (map as unknown as { _targets: Record<number, L.Layer> })
+      ._targets;
+    let held: { element: Element; layer?: L.Layer } | null = null;
+    const quiet = (event: MouseEvent) => {
+      if (draggedOver.hasAttribute("data-dragging")) event.stopPropagation();
+    };
+    const release = () => {
+      document.removeEventListener("mousemove", release, true);
+      const shape = held;
+      held = null;
+      if (!shape) return;
+      shape.element.classList.remove("is-hovered");
+      // Moved off it while the shapes took no pointer.
+      if (!shape.element.matches(":hover")) shape.layer?.fire("mouseout");
+    };
+    // Touch has no hover, and a touch keeps the target it started on.
+    const pointer = window.matchMedia("(hover: hover) and (pointer: fine)");
+    map.on("dragstart", () => {
+      release();
+      if (!pointer.matches) return;
+      const element = draggedOver.querySelector(
+        ".leaflet-overlay-pane path.leaflet-interactive:hover",
+      );
+      if (element) {
+        held = { element, layer: targets[L.Util.stamp(element)] };
+        element.classList.add("is-hovered");
+      }
+      draggedOver.setAttribute("data-dragging", "");
+    });
+    map.on("dragend", () => {
+      if (!draggedOver.hasAttribute("data-dragging")) return;
+      draggedOver.removeAttribute("data-dragging");
+      if (held) document.addEventListener("mousemove", release, true);
+    });
+    draggedOver.addEventListener("mouseover", quiet, true);
+    draggedOver.addEventListener("mouseout", quiet, true);
     // The container grows and shrinks as panels beside it open, close and
     // resize. The geography on screen stays where it is: the edge that moves
     // uncovers or covers map, it doesn't drag it along. Run before paint, so
@@ -949,6 +991,9 @@ export default function ProjectMap({
       element.removeEventListener("touchstart", pinch);
       element.removeEventListener("dblclick", gesture);
       element.removeEventListener("keydown", keyMove);
+      draggedOver.removeEventListener("mouseover", quiet, true);
+      draggedOver.removeEventListener("mouseout", quiet, true);
+      document.removeEventListener("mousemove", release, true);
       syncRef.current = () => {};
       mapRef.current = null;
       map.stop();
