@@ -24,6 +24,7 @@ import {
   fieldControl,
   iconButton,
   panelTitle,
+  panelTitleBottom,
   panelTitleTop,
   wrapTitle,
 } from "../lib/ui";
@@ -358,7 +359,10 @@ export default function ProjectPostHeader({
         // bar stays small over the text.
         compact && "line-clamp-2",
         // The first line level with the buttons beside it; see panelTitleTop.
-        mobile ? panelTitleTop.mobile : panelTitleTop.desktop,
+        // A margin, not padding, so a clamped third line stays hidden.
+        mobile
+          ? [panelTitleTop.mobile, panelTitleBottom.mobile]
+          : [panelTitleTop.desktop, panelTitleBottom.desktop],
         titleType,
       )}
     >

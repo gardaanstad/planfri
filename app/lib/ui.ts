@@ -172,6 +172,12 @@ export const wrapTitle =
 export const panelTitleTop = { desktop: "pt-2.5", mobile: "pt-1.5" };
 
 /**
+ * The room below a panel title's line that the buttons beside it leave on
+ * one line, kept when the title wraps past them.
+ */
+export const panelTitleBottom = { desktop: "mb-1", mobile: "mb-1.5" };
+
+/**
  * Whether an element's focus came from the keyboard: visible to the browser,
  * and not just after a press (`data-pointer`, see layout.tsx).
  */

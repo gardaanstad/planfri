@@ -53,6 +53,44 @@ const top = (page: Page, selector: string) =>
     Math.round(element.getBoundingClientRect().top),
   );
 
+/**
+ * The room between the project's title and its meta row, with the title as
+ * it is and run long enough to wrap past the buttons beside it. Measured in
+ * one pass from the top of its scroll, so nothing moves in between.
+ */
+const titleGaps = async (post: Locator) => {
+  await expect(post.locator("[data-project-meta]")).toBeVisible();
+  return post.evaluate((element) => {
+    const title = element.querySelector<HTMLElement>("#project-card-title")!;
+    const meta = element.querySelector("[data-project-meta] p")!;
+    element.querySelector("[data-project-scroll]")!.scrollTop = 0;
+    const measure = () => {
+      const range = document.createRange();
+      range.selectNodeContents(title);
+      const lines = new Set(
+        [...range.getClientRects()].map((rect) => Math.round(rect.top)),
+      ).size;
+      const gap =
+        meta.getBoundingClientRect().top - title.getBoundingClientRect().bottom;
+      return { lines, gap: Math.round(gap) };
+    };
+    const short = measure();
+    title.textContent =
+      "Et prosjekt med et navn langt nok til å gå over flere linjer";
+    return { short, long: measure() };
+  });
+};
+
+test("a wrapped project title keeps its room above the meta row", async ({
+  page,
+}) => {
+  await page.goto(projectPath);
+  const { short, long } = await titleGaps(page.locator("[data-project-post]"));
+  expect(short.lines).toBe(1);
+  expect(long.lines).toBeGreaterThan(1);
+  expect(long.gap).toBe(short.gap);
+});
+
 test("a project shows its phase and its facts, and opens on its updates", async ({
   page,
 }) => {
@@ -315,6 +353,16 @@ test.describe("mobile panels", () => {
     userAgent: devices["iPhone 13"].userAgent,
     hasTouch: true,
     isMobile: true,
+  });
+
+  test("a wrapped project title keeps its room above the meta row", async ({ page }) => {
+    await page.goto(projectPath);
+    const { short, long } = await titleGaps(
+      page.locator('[data-panel-drawer="project"] [data-project-post]'),
+    );
+    expect(short.lines).toBe(1);
+    expect(long.lines).toBeGreaterThan(1);
+    expect(long.gap).toBe(short.gap);
   });
 
   test("project actions are a sheet; locked ones ask to log in, with the reason", async ({ page }) => {
