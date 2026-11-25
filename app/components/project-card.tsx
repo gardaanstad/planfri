@@ -155,7 +155,10 @@ export default memo(function ProjectCard({
       <button
         type="button"
         className={cn(
-          "text-left outline-none",
+          // Top-aligned: as an inline-block that clips its lines, it would
+          // sit on the heading's baseline and add the descent below it,
+          // pushing the stats 6px down.
+          "text-left align-top outline-none",
           "after:absolute after:inset-x-[-12px] after:rounded-xl max-md:after:inset-x-[-8px]",
           reach,
           "focus-visible:after:outline-2 focus-visible:after:outline-focus",
@@ -221,7 +224,7 @@ export default memo(function ProjectCard({
           "[content-visibility:auto] [overflow-clip-margin:12px]",
           expanded
             ? "[contain-intrinsic-size:auto_440px]"
-            : "[contain-intrinsic-size:auto_105px]",
+            : "[contain-intrinsic-size:auto_99px]",
         ],
       )}
       data-card-id={project.id}

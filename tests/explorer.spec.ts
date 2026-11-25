@@ -1553,7 +1553,17 @@ test.describe("desktop explorer", () => {
         toggle.boundingBox(),
       ]);
       expect(button!.y - region!.y).toBeGreaterThan(80);
-      expect(button!.y - region!.y).toBeLessThan(110);
+      // Unless the list runs out first: then it ends at the bottom.
+      const atEnd = await toggle.evaluate((el) => {
+        let scroller = el.parentElement!;
+        while (!/auto|scroll/.test(getComputedStyle(scroller).overflowY))
+          scroller = scroller.parentElement!;
+        return (
+          scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <
+          2
+        );
+      });
+      if (!atEnd) expect(button!.y - region!.y).toBeLessThan(110);
     }).toPass();
     expect(page.url()).toBe(url);
   });
