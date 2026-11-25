@@ -73,8 +73,14 @@ import {
   subscribePhonePins,
   subscribePinnedPlaces,
   type ListDensity,
+  type MapView,
 } from "../lib/explore-state";
-import type { MapApi, MapViewChange } from "./project-map";
+import type {
+  MapApi,
+  MapContextMenuAt,
+  MapViewChange,
+} from "./project-map";
+import MapContextMenu from "./map-context-menu";
 import OffMapGroup, { showOffMapEvent } from "./off-map-group";
 import {
   extentPoints,
@@ -86,6 +92,7 @@ import {
   placeInView,
   placeParts,
   places,
+  projectPlaces,
 } from "../lib/places";
 import { errorMessage } from "../lib/api-client";
 import { profileHref } from "../lib/profiles";
@@ -721,7 +728,11 @@ export default memo(function Explorer({
   const [editorSeed, setEditorSeed] = useState<{
     key: number;
     draft?: Partial<Project>;
+    /** Where its drawing map opens, such as a right-clicked spot. */
+    view?: MapView;
   }>({ key: 0 });
+  // The desktop map's right-click menu, while open.
+  const [mapMenu, setMapMenu] = useState<MapContextMenuAt | null>(null);
   // The editor's own close, which asks before dropping a draft.
   const editorClose = useRef<(() => void) | null>(null);
   const editorDirty = useRef<(() => boolean) | null>(null);
@@ -2394,13 +2405,15 @@ export default memo(function Explorer({
    * Members suggest projects; moderators add them directly, optionally from
    * a head start. A draft in progress isn't replaced: closing it asks first.
    */
-  function openEditor(draft?: Partial<Project>) {
-    if (draft && editorOpen) {
+  function openEditor(draft?: Partial<Project>, view?: MapView) {
+    if (editorOpen) {
+      // Without a head start, the open draft just stays.
+      if (!draft && !view) return;
       if (editorDirty.current?.()) editorClose.current?.();
-      else setEditorSeed(({ key }) => ({ key: key + 1, draft }));
+      else setEditorSeed(({ key }) => ({ key: key + 1, draft, view }));
       return;
     }
-    setEditorSeed(({ key }) => ({ key: key + 1, draft }));
+    setEditorSeed(({ key }) => ({ key: key + 1, draft, view }));
     if (
       canModerate ||
       requireLogin("Du må være logget inn for å foreslå prosjekter.", {
@@ -2658,6 +2671,7 @@ export default memo(function Explorer({
               <ProjectEditor
                 key={editorSeed.key}
                 initial={editorSeed.draft}
+                view={editorSeed.view}
                 closeRef={editorClose}
                 dirtyRef={editorDirty}
                 onClose={() => setEditorOpen(false)}
@@ -2677,7 +2691,11 @@ export default memo(function Explorer({
             ) : (
               <ProjectEditor
                 suggest
+                key={editorSeed.key}
+                initial={editorSeed.draft}
+                view={editorSeed.view}
                 closeRef={editorClose}
+                dirtyRef={editorDirty}
                 onClose={() => setEditorOpen(false)}
                 onSave={async (project) => {
                   await suggest({ kind: "project", project });
@@ -3094,6 +3112,7 @@ export default memo(function Explorer({
             selectedId={selectedId}
             onSelect={(id) => (id ? openPost(id, {}, true) : onMapTap())}
             osm={osm.layer}
+            onContextMenu={isMobile ? undefined : setMapMenu}
             overlays={
               osm.allowed
                 ? [
@@ -3106,6 +3125,21 @@ export default memo(function Explorer({
                   ]
                 : undefined
             }
+          />
+          <MapContextMenu
+            at={mapMenu}
+            canModerate={canModerate}
+            onClose={() => setMapMenu(null)}
+            onCreate={() => {
+              if (!mapMenu) return;
+              const { point, zoom } = mapMenu;
+              const [place] = projectPlaces("", point);
+              openEditor(place ? { city: place } : undefined, {
+                center: point,
+                // Close enough to draw at, or as close as it already was.
+                zoom: Math.min(Math.max(Math.round(zoom), 16), 18),
+              });
+            }}
           />
           <OsmPanel
             review={osm}

@@ -374,6 +374,9 @@ export type MapApi = {
    */
   highlight: (id: string | null) => void;
 };
+/** A right click on the map: the point under it at the map's zoom, and where on screen. */
+export type MapContextMenuAt = { point: Point; zoom: number; x: number; y: number };
+
 export type MapViewChange = MapView & {
   bounds: ViewBounds;
   /** Mid-pan or mid-zoom: the map hasn't settled on this view. */
@@ -615,7 +618,10 @@ type Props = {
   projects?: Project[];
   /** Drawing maps open on this place's preset view. */
   city?: string;
-  /** Explorer: where to open; otherwise the last view here, or all of Norway. */
+  /**
+   * Explorer: where to open; otherwise the last view here, or all of Norway.
+   * Drawing maps: where to open in place of the place's preset view.
+   */
   initialView?: MapView | null;
   onViewChange?: (view: MapViewChange) => void;
   onReady?: (api: MapApi) => void;
@@ -656,6 +662,8 @@ type Props = {
   controlsContainer?: HTMLElement | null;
   /** Moderators' OpenStreetMap mode. */
   osm?: OsmLayer;
+  /** A right click on the map: the point under it, and where on screen. */
+  onContextMenu?: (at: MapContextMenuAt) => void;
   /** Switchable layers in the layer menu; the button shows when one is on. */
   overlays?: MapOverlay[];
 };
@@ -682,6 +690,7 @@ export default function ProjectMap({
   controlsContainer,
   osm,
   overlays = noOverlays,
+  onContextMenu,
 }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -709,6 +718,7 @@ export default function ProjectMap({
     onUserMove?: () => void;
     bottomInset?: () => number;
     leftInset?: () => number;
+    onContextMenu?: (at: MapContextMenuAt) => void;
     draw: boolean;
     commit: (next: Point[]) => void;
   }>({ onSelect, onViewChange, onReady, draw, commit: () => {} });
@@ -787,6 +797,7 @@ export default function ProjectMap({
       onUserMove,
       bottomInset,
       leftInset,
+      onContextMenu,
       draw,
       commit(next) {
         onPointsChange?.(next);
@@ -800,6 +811,7 @@ export default function ProjectMap({
     onUserMove,
     bottomInset,
     leftInset,
+    onContextMenu,
     draw,
     onPointsChange,
   ]);
@@ -1013,6 +1025,24 @@ export default function ProjectMap({
   useEffect(() => {
     projectsRef.current = projects;
   }, [projects]);
+  // Right clicks, only while someone asks for them: listening keeps the
+  // browser's own menu off the map, and changes how Leaflet reads touch.
+  const contextMenu = onContextMenu !== undefined;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map || !contextMenu) return;
+    const open = ({ latlng, originalEvent }: L.LeafletMouseEvent) =>
+      handlers.current.onContextMenu?.({
+        point: [latlng.lat, latlng.lng],
+        zoom: map.getZoom(),
+        x: originalEvent.clientX,
+        y: originalEvent.clientY,
+      });
+    map.on("contextmenu", open);
+    return () => {
+      map.off("contextmenu", open);
+    };
+  }, [ready, contextMenu]);
   // Drawing maps frame the shape being edited, or the place's preset view.
   useEffect(() => {
     const map = mapRef.current;
@@ -1026,7 +1056,12 @@ export default function ProjectMap({
     }
     if (!draw) return;
     const place = city ? cities[city] : undefined;
-    if (initialPoints.current.length)
+    // Opened on a spot, it starts there once; a new place moves on.
+    const start = startView.current;
+    startView.current = null;
+    if (start && !initialPoints.current.length)
+      map.setView(start.center, start.zoom);
+    else if (initialPoints.current.length)
       map.fitBounds(L.latLngBounds(initialPoints.current), {
         padding: [40, 40],
         maxZoom: 17,

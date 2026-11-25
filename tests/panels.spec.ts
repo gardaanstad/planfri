@@ -14,6 +14,7 @@ import {
   openDiscussion,
   openOwnProfile,
   openSaved,
+  origin,
   projectAction,
   shot,
   signIn,
@@ -248,6 +249,63 @@ test.describe("desktop panels", () => {
     // Once the full size has loaded, the thumbnail goes.
     const cover = page.locator("[data-project-post] figure button").first();
     await expect(cover.locator("img")).toHaveCount(1);
+  });
+});
+
+test.describe("map menu", () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
+
+  test("right-clicking the map starts a project there, zoomed in", async ({
+    browser,
+  }) => {
+    const moderator = await member({
+      username: uniqueName("map_menu_mod"),
+      email: "map-menu-moderator@example.test",
+    });
+    const person = await member({ username: uniqueName("map_menu") });
+    const open = async (account: typeof person) => {
+      const context = await browser.newContext({
+        baseURL: origin,
+        viewport: { width: 1280, height: 800 },
+      });
+      await signIn(context, account);
+      const page = await context.newPage();
+      await page.goto("/?kart=60.3913,5.3221,13");
+      const map = page.locator("[data-project-map] .leaflet-container");
+      await expect(map).toBeVisible();
+      const box = (await map.boundingBox())!;
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, {
+        button: "right",
+      });
+      return page;
+    };
+
+    const page = await open(moderator);
+    const menu = page.locator("[data-map-menu]");
+    await expect(menu).toBeVisible();
+    await shot(page, "map-menu");
+    await menu.getByRole("menuitem", { name: "Legg til prosjekt her" }).click();
+    await expect(menu).toHaveCount(0);
+    const editor = page.locator("[data-project-editor]");
+    await expect(editor.getByLabel("Sted", { exact: true })).toHaveValue("Bergen");
+    // Close enough in to draw at: tens of metres, not the city.
+    await expect(editor.locator(".leaflet-control-scale-line")).toHaveText("50 m");
+    await page.context().close();
+
+    const memberPage = await open(person);
+    await memberPage
+      .locator("[data-map-menu]")
+      .getByRole("menuitem", { name: "Foreslå prosjekt her" })
+      .click();
+    await expect(
+      memberPage.getByRole("heading", { name: "Foreslå prosjekt" }),
+    ).toBeVisible();
+    await expect(
+      memberPage
+        .locator("[data-project-editor]")
+        .getByLabel("Sted", { exact: true }),
+    ).toHaveValue("Bergen");
+    await memberPage.context().close();
   });
 });
 

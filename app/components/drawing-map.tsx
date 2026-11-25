@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import type { Point } from "../lib/data";
+import type { MapView } from "../lib/explore-state";
 import { cn } from "../lib/cn";
 import { controlBase, fieldControl, iconButton } from "../lib/ui";
 
@@ -50,6 +51,7 @@ export default function DrawingMap({
   onShapeChange,
   compact = false,
   frameClassName,
+  view,
 }: {
   city: string;
   points: Point[];
@@ -59,6 +61,8 @@ export default function DrawingMap({
   /** No layer menu, for the small map in edit mode. */
   compact?: boolean;
   frameClassName?: string;
+  /** Where to open, such as the spot the explorer's map was right-clicked. */
+  view?: MapView;
 }) {
   // Drawing edits can be undone one by one, moves and removals included.
   const [history, setHistory] = useState<Point[][]>([]);
@@ -290,6 +294,7 @@ export default function DrawingMap({
       >
         <ProjectMap
           city={city}
+          initialView={view}
           draw
           compact={compact}
           points={points}

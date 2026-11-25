@@ -9,6 +9,7 @@ import {
 } from "react";
 import { AlertCircle } from "lucide-react";
 import { centroid, type Project } from "../lib/data";
+import type { MapView } from "../lib/explore-state";
 import { errorMessage } from "../lib/api-client";
 import { cn } from "../lib/cn";
 import { fieldControl } from "../lib/ui";
@@ -113,6 +114,7 @@ export default function ProjectEditor({
   closeRef,
   dirtyRef,
   initial,
+  view,
   suggest = false,
 }: {
   onClose: () => void;
@@ -122,6 +124,8 @@ export default function ProjectEditor({
   dirtyRef?: RefObject<(() => boolean) | null>;
   /** A head start, such as a railway from OpenStreetMap. */
   initial?: Partial<Project>;
+  /** Where the drawing map opens, in place of the place's preset view. */
+  view?: MapView;
   /** A member's suggestion, which waits for a moderator. */
   suggest?: boolean;
 }) {
@@ -337,6 +341,7 @@ export default function ProjectEditor({
               shape={draft.geometryType}
               onPointsChange={(geometry) => change({ geometry })}
               onShapeChange={(geometryType) => change({ geometryType })}
+              view={view}
               frameClassName={error("geometry") && "border-danger"}
             />
           </Field>
