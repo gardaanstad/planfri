@@ -39,7 +39,7 @@ import {
  */
 
 export const mobileDrawerClasses = [
-  // Their shadow is cast by the layer they render into; see `SheetLayer`.
+  // Rendered into the sheet layer, they cast its shadow; see `SheetLayer`.
   "z-[800] rounded-t-sheet border-t border-border bg-surface text-ink",
   "[--drawer-content-height:100dvh] [--drawer-bleed-background:var(--color-surface)]",
   "motion-reduce:transition-none motion-reduce:[&_*]:transition-none motion-reduce:[&_*]:animate-none",

@@ -1,9 +1,11 @@
 "use client";
 
 import {
+  type ComponentProps,
   type CSSProperties,
   Fragment,
   type ReactNode,
+  type RefObject,
   memo,
   startTransition,
   useCallback,
@@ -163,6 +165,30 @@ const densityOptions = [
   { value: "feed", label: "Nytt", Icon: Activity },
 ] as const;
 
+// The selects' options and icons are made once: a select only redraws when
+// what it shows changes, not each time the list follows the map.
+const densityChoices = densityOptions.map(({ value, label, Icon }) => ({
+  value,
+  label,
+  icon: <Icon size={18} aria-hidden="true" />,
+}));
+const pickDensity = (value: string) => storeDensity(value as ListDensity);
+const statusOptions = statusOrder.map((value) => ({
+  value,
+  label: statuses[value].label,
+  dot: statusTone[value].dot,
+}));
+// Main categories; their subcategories open underneath once chosen.
+const categoryOptions = categoryTree.map((node) => ({
+  value: node.name,
+  label: node.name,
+  icon: <CategoryIcon category={node.name} size={16} />,
+  more: lessUsedCategories.has(node.name),
+  children: node.subcategories.map((sub) => ({ value: sub, label: sub })),
+}));
+const sortIcon = <ArrowDownUp size={14} />;
+const placeIcon = <MapPin size={15} aria-hidden="true" />;
+
 /** Where in a project to open: an update, a comment, or a section. */
 type PostTarget = {
   updateId?: string;
@@ -174,8 +200,23 @@ type PostTarget = {
 const middleSnapPoint = 0.58;
 // The compact drawer shows just the header and filters along the bottom edge.
 const compactSnapPoint = "136px";
+/**
+ * The window's height, kept from its last resize. Chrome lays the page out
+ * to answer `innerHeight`, and the drawer's motion asks on every write to
+ * its style: the fold a pan starts held up the pan's first frame.
+ */
+let windowHeight = 0;
+function viewHeight() {
+  if (!windowHeight) {
+    windowHeight = window.innerHeight;
+    window.addEventListener("resize", () => {
+      windowHeight = window.innerHeight;
+    });
+  }
+  return windowHeight;
+}
 /** The map a project at the middle height covers. */
-const middleMapInset = () => Math.round(window.innerHeight * middleSnapPoint);
+const middleMapInset = () => Math.round(viewHeight() * middleSnapPoint);
 /** The map the drawer covers at its compact height. */
 const compactMapInset = Number.parseInt(compactSnapPoint);
 /**
@@ -233,7 +274,7 @@ type LivePlaceStore = ReturnType<typeof createLivePlace>;
 const noLivePlace = () => null;
 
 type PlaceSelectProps = Omit<
-  Extract<Parameters<typeof ChoiceSelect>[0], { multiple?: false }>,
+  Extract<ComponentProps<typeof ChoiceSelect>, { multiple?: false }>,
   "pins"
 >;
 
@@ -352,9 +393,53 @@ const controlsSlotClasses = cn(
 type ListRow = { project: Project; offMap: boolean };
 const rowKey = (row: ListRow) => row.project.id;
 
+/**
+ * The list's rows, in view and then out of it, moving from one set to the
+ * next (see `useListMotion`). The rows it shows are its own state, so each
+ * swap redraws the rows alone, not the whole explorer: in a dense area a pan
+ * swaps them many times over.
+ */
+function ListRows({
+  items,
+  scroller,
+  renderCard,
+  hidden,
+  offMapLabel,
+  empty,
+}: {
+  items: ListRow[];
+  scroller: RefObject<HTMLElement | null>;
+  renderCard: (row: ListRow) => ReactNode;
+  /** Kept moving out of sight, as in "Nytt", which shows its own rows. */
+  hidden: boolean;
+  offMapLabel: string;
+  /** Shown once the last rows are gone, unless null. */
+  empty: ReactNode;
+}) {
+  const rows = useListMotion(items, rowKey, scroller, "data-card-id");
+  const inView = rows.filter((row) => !row.offMap);
+  const outOfView = rows.filter((row) => row.offMap);
+  return (
+    <>
+      {/* Kept when empty, so rows filtered out can fade in it. */}
+      <ol className="relative" data-list-motion="">
+        {!hidden && inView.map(renderCard)}
+      </ol>
+      {/* A list of their own, so a project coming into view is one row
+          moving across rather than every row before it moving down. */}
+      {!hidden && outOfView.length > 0 && (
+        <OffMapGroup label={offMapLabel}>
+          {outOfView.map(renderCard)}
+        </OffMapGroup>
+      )}
+      {(hidden || rows.length === 0) && empty}
+    </>
+  );
+}
+
 function coverControls(slot: HTMLElement | null, motion: DrawerMotion) {
   if (!slot) return;
-  const covered = motion.visible > window.innerHeight * middleSnapPoint + 2;
+  const covered = motion.visible > viewHeight() * middleSnapPoint + 2;
   if (covered === slot.hasAttribute("data-covered")) return;
   // A snap up hides them at once, where the drawer would have slid over
   // them; a snap down shows them as it arrives. A drag fades them.
@@ -477,6 +562,8 @@ export default memo(function Explorer({
     middleSnapPoint,
   );
   const snapRef = useRef(snapPoint);
+  /** A pan or zoom by hand under way, until the map settles. */
+  const mapGesture = useRef(false);
   // A project opened over the map rests at the middle height with the list
   // at the same height behind it, so closing it leaves the list there. From
   // the full list, the list comes down to meet it, in step, and goes back up
@@ -936,6 +1023,7 @@ export default memo(function Explorer({
     // waits for it to settle; following it mid-pan stalled Safari. Only the
     // place it names keeps up, through the pill alone (see `LivePlace`).
     if (view.moving && isMobile) return followPlace(view);
+    if (!view.moving) mapGesture.current = false;
     // The URL and the view to return to take only views the map rests on.
     if (!view.moving) mapViewRef.current = view;
     const shown = projectsInView(view);
@@ -987,21 +1075,31 @@ export default memo(function Explorer({
   // The drawer's height changes what of the map is in sight, and so what the
   // list holds. Under the full drawer the map is out of sight: the list
   // keeps what it had.
+  // Folded by a pan, it waits for the pan to settle, which reports the view
+  // anyway: listed in the frames after the fold, the rows held up its start.
   const placeUnderDrawer = useEffectEvent(() => {
     if (snapRef.current === snapPoint) return;
     snapRef.current = snapPoint;
     if (!postId && snapPoint !== 1) backToFullList.current = false;
     const view = mapViewRef.current;
-    if (!view || !mapApi.current || snapPoint === 1) return;
+    if (!view || !mapApi.current || snapPoint === 1 || mapGesture.current)
+      return;
     onMapView({ ...view, bounds: mapApi.current.boundsAbove(mapInset.current) });
   });
   useEffect(() => placeUnderDrawer(), [snapPoint]);
   // Folded down, the list shows only its filters: a list left scrolled, as a
   // wheel that unfolds it can leave it, would show rows there instead and
-  // take the next swipe up from the drawer.
+  // take the next swipe up from the drawer. Only a list marked scrolled is
+  // (see `useScrolledMark`): scrolling lays the page out there and then,
+  // which held up the first frame of a pan folding it.
   useLayoutEffect(() => {
-    if (isMobile && snapPoint === compactSnapPoint)
-      listRef.current?.scrollTo({ top: 0 });
+    const list = listRef.current;
+    if (
+      isMobile &&
+      snapPoint === compactSnapPoint &&
+      list?.hasAttribute("data-scrolled")
+    )
+      list.scrollTo({ top: 0 });
   }, [isMobile, snapPoint]);
   /** Moves the map to a place, or out to Norway for none. */
   function goToPlace(name: string) {
@@ -1025,6 +1123,14 @@ export default memo(function Explorer({
     if (maximized && !isMobile) return setPlace(name);
     goToPlace(name);
   }
+  const pickPlaceLatest = useRef(pickPlace);
+  useLayoutEffect(() => {
+    pickPlaceLatest.current = pickPlace;
+  });
+  const choosePlace = useCallback(
+    (name: string) => pickPlaceLatest.current(name),
+    [],
+  );
   function onMapReady(api: MapApi) {
     mapApi.current = api;
     // A card hovered while the map loaded.
@@ -1084,6 +1190,7 @@ export default memo(function Explorer({
    * On phones, panning or zooming the map folds the list down out of its way.
    */
   function onMapGesture() {
+    mapGesture.current = true;
     if (isMobile) foldPost();
     if (isMobile && !topLayer && snapPoint === middleSnapPoint)
       setSnapPoint(compactSnapPoint);
@@ -1659,19 +1766,6 @@ export default memo(function Explorer({
     </section>
   );
 
-  const statusOptions = statusOrder.map((value) => ({
-    value,
-    label: statuses[value].label,
-    dot: statusTone[value].dot,
-  }));
-  // Main categories; their subcategories open underneath once chosen.
-  const categoryOptions = categoryTree.map((node) => ({
-    value: node.name,
-    label: node.name,
-    icon: <CategoryIcon category={node.name} size={16} />,
-    more: lessUsedCategories.has(node.name),
-    children: node.subcategories.map((sub) => ({ value: sub, label: sub })),
-  }));
   // The main cities, then other cities and counties with projects, A–Å;
   // `PlaceSelect` puts those pinned above them.
   const placeOptions = useMemo(() => {
@@ -1704,10 +1798,10 @@ export default memo(function Explorer({
   const placeFallback = allInView ? "Hele Norge" : "Velg sted";
   // Every status shown is no filter; the last one shown can't be hidden.
   const statusValue = status.length ? status : statusOrder;
-  const pickStatus = (next: string[]) => {
+  const pickStatus = useCallback((next: string[]) => {
     if (next.length === 0) return;
     setStatus(next.length === statusOrder.length ? [] : next);
-  };
+  }, []);
   const statusFilter = (
     <ChoiceSelect
       label="Prosjektstatus"
@@ -1731,7 +1825,7 @@ export default memo(function Explorer({
       goTo
       place={place}
       fallback={placeFallback}
-      onChange={pickPlace}
+      onChange={choosePlace}
       className={cn(
         inlineChoiceClasses,
         "[&_[data-slot=choice-trigger]>span:nth-of-type(2)]:hidden",
@@ -1811,7 +1905,7 @@ export default memo(function Explorer({
         // Phones: beside the view button, a narrow list keeps the icon alone.
         "max-md:@max-[360px]/list:[&_[data-slot=choice-trigger]>span]:sr-only",
       )}
-      icon={<ArrowDownUp size={14} />}
+      icon={sortIcon}
       onChange={setSort}
       options={sortOptions}
     />
@@ -1821,13 +1915,9 @@ export default memo(function Explorer({
     <ChoiceSelect
       label="Visning"
       value={density}
-      onChange={(value) => storeDensity(value as ListDensity)}
+      onChange={pickDensity}
       className={sortChoice}
-      options={densityOptions.map(({ value, label, Icon }) => ({
-        value,
-        label,
-        icon: <Icon size={18} aria-hidden="true" />,
-      }))}
+      options={densityChoices}
     />
   );
   const densitySwitch = (
@@ -1896,9 +1986,9 @@ export default memo(function Explorer({
       smoothWidth
       goTo
       value={place}
-      onChange={pickPlace}
+      onChange={choosePlace}
       triggerLabel={place || placeFallback}
-      icon={<MapPin size={15} aria-hidden="true" />}
+      icon={placeIcon}
       className={cn(
         panelChoiceClasses,
         // Always named; narrow, a long name gives way.
@@ -2203,12 +2293,6 @@ export default memo(function Explorer({
     ],
     [listedProjects, offMapProjects],
   );
-  const listRows = useListMotion(
-    listItems,
-    rowKey,
-    listRef,
-    "data-card-id",
-  );
   const renderCard = ({ project, offMap }: ListRow) => (
     <ProjectCard
       key={project.id}
@@ -2253,8 +2337,6 @@ export default memo(function Explorer({
     if (listContentRef.current) observer.observe(listContentRef.current);
     return () => observer.disconnect();
   }, [isMobile]);
-  const inView = listRows.filter((row) => !row.offMap);
-  const outOfView = listRows.filter((row) => row.offMap);
   // On phones the header scrolls away with the rows.
   const projectResults = (header?: ReactNode) => (
     <section
@@ -2338,33 +2420,35 @@ export default memo(function Explorer({
             ))}
           </ol>
         )}
-        {/* Kept when empty, so rows filtered out can fade in it. */}
-        <ol className="relative" data-list-motion="">
-          {density !== "feed" && inView.map(renderCard)}
-        </ol>
-        {/* A list of their own, so a project coming into view is one row
-            moving across rather than every row before it moving down. */}
-        {density !== "feed" && outOfView.length > 0 && (
-          <OffMapGroup label={`Utenfor kartet i ${place}`}>
-            {outOfView.map(renderCard)}
-          </OffMapGroup>
-        )}
-        {(density === "feed"
-          ? feedProjects.length === 0
-          : listRows.length === 0) && (
-          // Fades in as the last rows fade out over it.
-          <div className="animate-panel-fade-in">
-            <EmptyState
-              level={2}
-              icon={
-                filtersChanged ? <Search size={22} /> : <MapPin size={22} />
-              }
-              title={filtersChanged ? "Ingen treff" : "Ingen prosjekter her"}
-            >
-              {emptyActions}
-            </EmptyState>
-          </div>
-        )}
+        <ListRows
+          items={listItems}
+          scroller={listRef}
+          renderCard={renderCard}
+          hidden={density === "feed"}
+          offMapLabel={`Utenfor kartet i ${place}`}
+          empty={
+            density === "feed" && feedProjects.length > 0 ? null : (
+              // Fades in as the last rows fade out over it.
+              <div className="animate-panel-fade-in">
+                <EmptyState
+                  level={2}
+                  icon={
+                    filtersChanged ? (
+                      <Search size={22} />
+                    ) : (
+                      <MapPin size={22} />
+                    )
+                  }
+                  title={
+                    filtersChanged ? "Ingen treff" : "Ingen prosjekter her"
+                  }
+                >
+                  {emptyActions}
+                </EmptyState>
+              </div>
+            )
+          }
+        />
         <div className="flex pt-3 md:mt-auto">
           {/* Pulled out by its padding, border and the plus's own inset, so
               the plus lines up with the rows' text. */}

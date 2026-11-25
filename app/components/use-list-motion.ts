@@ -109,56 +109,9 @@ export function useListMotion<T>(
     return () => live.forEach((node) => node.remove());
   }, []);
 
-  useLayoutEffect(() => {
-    if (prev.current === items) return;
-    prev.current = items;
-    const view = sightOf(scroller.current);
-    const rows =
-      scroller.current?.querySelectorAll<HTMLElement>(`[${attribute}]`) ?? [];
-    const still =
-      !view ||
-      view.height === 0 ||
-      document.hidden ||
-      matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (still) {
-      from.current = null;
-      for (const list of animationsOf(rows).values())
-        list.forEach((animation) => animation.cancel());
-    } else {
-      const rects = new Map<string, DOMRect>();
-      const left: Ghost[] = [];
-      const staying = new Set(items.map(keyRef.current));
-      // Every read before any write, so the list is laid out once, not once
-      // a row.
-      for (const row of rows) {
-        const id = row.getAttribute(attribute)!;
-        // Mid-glide, from where the row is now, not where it is headed.
-        const rect = row.getBoundingClientRect();
-        rects.set(id, rect);
-        if (!staying.has(id) && overlaps(rect, view))
-          left.push({
-            node: row,
-            rect,
-            opacity: Number(getComputedStyle(row).opacity),
-          });
-      }
-      for (const ghost of left) {
-        const node = ghost.node.cloneNode(true) as HTMLElement;
-        node.removeAttribute(attribute);
-        node.querySelectorAll("[id]").forEach((el) => el.removeAttribute("id"));
-        ghost.node = node;
-      }
-      for (const list of animationsOf(rows, [moveId]).values())
-        list.forEach((animation) => animation.cancel());
-      from.current = rects;
-      ghosts.current = left;
-    }
-    // The swap waits on the rows as they were, so it follows their commit.
-    // Set here, in a layout effect, it would render at once, holding up the
-    // frame however the change came: a pan bringing many rows in stuttered.
-    startTransition(() => setShown(items));
-  }, [attribute, items, scroller]);
-
+  // The glide comes first: a commit can bring both the swap and the next
+  // change, as a pan does, and the change measures the rows where the swap
+  // has put them, which the glide would take for where they were.
   useLayoutEffect(() => {
     const rects = from.current;
     const left = ghosts.current;
@@ -170,7 +123,10 @@ export function useListMotion<T>(
     const rows = container.querySelectorAll<HTMLElement>(`[${attribute}]`);
     const list = container.querySelector<HTMLElement>("[data-list-motion]");
 
-    // Where every row landed, read before any of them starts to move.
+    // Where every row landed, read before any of them starts to move, and
+    // without the glides still under way: each starts anew from where it was.
+    for (const running of animationsOf(rows, [moveId]).values())
+      running.forEach((animation) => animation.cancel());
     const landed = Array.from(rows, (row) => row.getBoundingClientRect());
     const entering = animationsOf(rows, [enterId]);
     if (list) {
@@ -235,6 +191,56 @@ export function useListMotion<T>(
       );
     }
   }, [attribute, scroller, shown]);
+
+  useLayoutEffect(() => {
+    if (prev.current === items) return;
+    prev.current = items;
+    const view = sightOf(scroller.current);
+    const rows =
+      scroller.current?.querySelectorAll<HTMLElement>(`[${attribute}]`) ?? [];
+    const still =
+      !view ||
+      view.height === 0 ||
+      document.hidden ||
+      matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (still) {
+      from.current = null;
+      for (const list of animationsOf(rows).values())
+        list.forEach((animation) => animation.cancel());
+    } else {
+      const rects = new Map<string, DOMRect>();
+      const left: Ghost[] = [];
+      const staying = new Set(items.map(keyRef.current));
+      // Every read before any write, so the list is laid out once, not once
+      // a row.
+      for (const row of rows) {
+        const id = row.getAttribute(attribute)!;
+        // Mid-glide, from where the row is now, not where it is headed.
+        const rect = row.getBoundingClientRect();
+        rects.set(id, rect);
+        if (!staying.has(id) && overlaps(rect, view))
+          left.push({
+            node: row,
+            rect,
+            opacity: Number(getComputedStyle(row).opacity),
+          });
+      }
+      for (const ghost of left) {
+        const node = ghost.node.cloneNode(true) as HTMLElement;
+        node.removeAttribute(attribute);
+        node.querySelectorAll("[id]").forEach((el) => el.removeAttribute("id"));
+        ghost.node = node;
+      }
+      // The rows glide on until the swap: cancelled here, a row coming in
+      // stood at its place, unmoved, until the swap set it going again.
+      from.current = rects;
+      ghosts.current = left;
+    }
+    // The swap waits on the rows as they were, so it follows their commit.
+    // Set here, in a layout effect, it would render at once, holding up the
+    // frame however the change came: a pan bringing many rows in stuttered.
+    startTransition(() => setShown(items));
+  }, [attribute, items, scroller]);
 
   return shown;
 }

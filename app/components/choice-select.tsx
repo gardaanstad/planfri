@@ -2,6 +2,7 @@
 
 import {
   Fragment,
+  memo,
   useEffectEvent,
   useLayoutEffect,
   useId,
@@ -112,7 +113,11 @@ const reachBordered = cn(reach, "before:-inset-x-px before:-inset-y-[3px]");
 const reachPastGroup =
   "[[data-slot=choice-group][data-open=true]+&]:before:-top-[6px]";
 
-export default function ChoiceSelect(props: ChoiceSelectProps) {
+/**
+ * Memoized: a list or map beside it re-renders often, and a menu is costly
+ * to redraw. Pass it stable options, icons and handlers.
+ */
+export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
   const {
     label,
     options,
@@ -1046,7 +1051,7 @@ export default function ChoiceSelect(props: ChoiceSelectProps) {
       </div>
     </div>
   );
-}
+});
 
 /** A run of neighbouring children, by index, first to last. */
 type Run = readonly [number, number];

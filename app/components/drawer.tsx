@@ -26,18 +26,20 @@ type DrawerMotion = {
 };
 
 /**
- * The sheets' shadow. It goes on a layer holding all of them, not on each:
- * where they overlap, one shadow falls around them together, never one
- * stacked on another; and drawn outside the clip that gives a floating
- * sheet its gap, it falls on its sides and bottom too.
+ * The sheets' shadow, on each sheet. A box shadow is drawn once with the
+ * sheet and moves with it; a drop shadow on the layer holding them all was
+ * blurred anew on every frame the map moved under it, halving the frame
+ * rate of a pan on phones. It falls above the sheet as the drop shadow did,
+ * but drawn in from the sides by its spread, so it fades out before the clip
+ * that gives a floating sheet its gap would cut it off.
  */
 const sheetShadowClasses =
-  "[filter:drop-shadow(0_-1px_6px_rgb(20_28_24/0.05))_drop-shadow(0_-6px_28px_rgb(20_28_24/0.09))]";
+  "shadow-[0_-4px_6px_-3px_rgb(20_28_24/0.05),0_-22px_28px_-16px_rgb(20_28_24/0.09)]";
 const SheetLayerContext = React.createContext<HTMLElement | null>(null);
 
 const subscribeNever = () => () => {};
 
-/** Phones: renders its drawers into one layer that casts their shadow. */
+/** Phones: renders its drawers into one layer, where they cast a shadow. */
 function SheetLayer({ children }: { children: React.ReactNode }) {
   const [layer, setLayer] = React.useState<HTMLDivElement | null>(null);
   const mounted = React.useSyncExternalStore(
@@ -52,10 +54,7 @@ function SheetLayer({ children }: { children: React.ReactNode }) {
         <div
           ref={setLayer}
           data-sheet-layer=""
-          className={cn(
-            "pointer-events-none fixed inset-0 z-50",
-            sheetShadowClasses,
-          )}
+          className="pointer-events-none fixed inset-0 z-50"
         />,
         document.body,
       )}
@@ -159,6 +158,10 @@ function useFloatingGap(content: HTMLElement | null, floating?: boolean) {
     const popup = content?.closest<HTMLElement>("[data-slot=drawer-popup]");
     const viewport = popup?.parentElement;
     if (!content || !popup || !viewport || !tracking) return;
+    // Its height, kept from its last resize. Asked on each write to its
+    // style, it laid the page out mid-frame: the fold a pan starts held up
+    // the pan's first frame.
+    let height = popup.offsetHeight;
     // What of it showed when it last rested floating.
     let rest = -1;
     let dragging = false;
@@ -177,7 +180,6 @@ function useFloatingGap(content: HTMLElement | null, floating?: boolean) {
       const movement =
         Number.parseFloat(style.getPropertyValue("--drawer-swipe-movement-y")) ||
         0;
-      const height = popup.offsetHeight;
       if (!popup.hasAttribute("data-swiping")) {
         if (floatingRef.current) rest = height - offset;
         if (dragging) {
@@ -219,9 +221,14 @@ function useFloatingGap(content: HTMLElement | null, floating?: boolean) {
       attributes: true,
       attributeFilter: ["style", "data-swiping"],
     });
+    const resize = new ResizeObserver(() => {
+      height = popup.offsetHeight;
+    });
+    resize.observe(popup);
     read();
     return () => {
       mutations.disconnect();
+      resize.disconnect();
       cancelAnimationFrame(frame);
       window.clearTimeout(timer);
       release();
@@ -496,6 +503,7 @@ function DrawerContent({
           className={cn(
             // Base.
             "group/drawer-popup pointer-events-auto fixed z-50 m-(--drawer-inset,0px) flex h-(--drawer-content-height) max-h-(--drawer-content-max-height,none) min-h-0 w-(--drawer-content-width,auto) transform-[translate3d(var(--translate-x,0px),var(--translate-y,0px),0)_scale(var(--stack-scale))] flex-col border-border bg-surface text-sm text-ink transition-[transform,height,opacity,filter] duration-450 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform outline-none select-none [interpolate-size:allow-keywords] focus-visible:-outline-offset-2 motion-reduce:transition-none data-[swipe-direction=down]:rounded-t-sheet data-[swipe-direction=down]:border-t data-[swipe-direction=left]:rounded-r-sheet data-[swipe-direction=left]:border-r data-[swipe-direction=right]:rounded-l-sheet data-[swipe-direction=right]:border-l data-[swipe-direction=up]:rounded-b-sheet data-[swipe-direction=up]:border-b",
+            layer && sheetShadowClasses,
             // Nested.
             "data-nested-drawer-open:overflow-hidden data-nested-drawer-open:brightness-95",
             // Bleed.
