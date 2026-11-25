@@ -1957,7 +1957,7 @@ test.describe("desktop explorer", () => {
     // Its shape lights up once the page is hydrated.
     await expect(
       page.locator(`path[data-project-id="${project.id}"]`),
-    ).toHaveAttribute("stroke-width", "4");
+    ).toHaveAttribute("fill-opacity", "0.34");
     expect(
       await page.evaluate(
         ([x, y]) => document.elementFromPoint(x, y)?.hasAttribute("data-card-gap"),
@@ -2212,9 +2212,10 @@ test.describe("desktop explorer", () => {
   }) => {
     await page.goto(oslo);
     await card(page, project.title).hover();
-    await expect(
-      page.locator(`path[data-project-id="${project.id}"]`),
-    ).toHaveAttribute("stroke-width", "4");
+    const shape = page.locator(`path[data-project-id="${project.id}"]`);
+    await expect(shape).toHaveAttribute("fill-opacity", "0.34");
+    // An area fills deeper but keeps its outline.
+    await expect(shape).toHaveAttribute("stroke-width", "2.5");
     // The list stays put when a shape is hovered.
     const list = listRegion(page);
     const top = await list.evaluate((element) => element.scrollTop);
@@ -2243,6 +2244,34 @@ test.describe("desktop explorer", () => {
     expect(box.y + box.height).toBeGreaterThan(shape.y - 16);
     await shot(page, "card-hover-tooltip");
     await page.mouse.move(1000, 790);
+    await expect(tooltip).toHaveCount(0);
+  });
+
+  test("hovering a card shows no tooltip while most of its shape is out of sight", async ({
+    page,
+  }) => {
+    await page.goto(oslo);
+    const tooltip = page.locator(".project-tooltip");
+    const path = page.locator(`path[data-project-id="${project.id}"]`);
+    await card(page, project.title).hover();
+    await expect(tooltip).toHaveCount(1);
+    await page.mouse.move(1000, 790);
+    await expect(tooltip).toHaveCount(0);
+    // Dragged until only a sliver of the shape is left by the sidebar.
+    const view = (await page.locator(".leaflet-container").boundingBox())!;
+    const shape = (await path.boundingBox())!;
+    const from = { x: view.x + view.width - 60, y: view.y + view.height / 2 };
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(
+      from.x - (shape.x - view.x) - shape.width * 0.8,
+      from.y,
+      { steps: 12 },
+    );
+    await page.mouse.up();
+    await card(page, project.title).hover();
+    await expect(path).toHaveAttribute("fill-opacity", "0.34");
+    await page.waitForTimeout(300);
     await expect(tooltip).toHaveCount(0);
   });
 

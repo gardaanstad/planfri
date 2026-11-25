@@ -52,7 +52,8 @@ import { mapIconButton } from "../lib/ui";
 
 type MapLayer = "standard" | "streets" | "osm";
 
-// Selected projects draw heavier; shared by the first render and selection.
+// Selected lines draw heavier, areas only fill deeper; shared by the first
+// render and selection.
 // Not yet built: planned dashed, proposed dotted.
 const dashes: Partial<Record<Status, { area: string; line: string }>> = {
   // Round caps add the stroke width to each dash: short dashes, wide gaps.
@@ -61,7 +62,7 @@ const dashes: Partial<Record<Status, { area: string; line: string }>> = {
 };
 const lineWeight = (selected: boolean) => (selected ? 5 : 3.5);
 const shapeStyle = (line: boolean, selected: boolean) => ({
-  weight: line ? lineWeight(selected) : selected ? 4 : 2.5,
+  weight: line ? lineWeight(selected) : 2.5,
   fillOpacity: selected ? 0.34 : 0.2,
 });
 const dotRadius = (selected: boolean) => (selected ? 8 : 6);
@@ -108,6 +109,35 @@ const projectStyle = (project: Project, selected: boolean) => {
     return { ...base, weight: railWeight(selected), dashArray: `${dash}, ${dash}` };
   }
   return base;
+};
+
+/** How much of a line's length lies within `view`, from 0 to 1. */
+const lineInSight = (points: L.Point[], view: L.Bounds) => {
+  let total = 0;
+  let inside = 0;
+  for (let index = 1; index < points.length; index++) {
+    const a = points[index - 1];
+    const b = points[index];
+    total += a.distanceTo(b);
+    const clipped = L.LineUtil.clipSegment(a, b, view);
+    if (clipped) inside += clipped[0].distanceTo(clipped[1]);
+  }
+  return total ? inside / total : 0;
+};
+
+const polygonArea = (points: L.Point[]) =>
+  Math.abs(
+    points.reduce((sum, a, index) => {
+      const b = points[(index + 1) % points.length];
+      return sum + a.x * b.y - b.x * a.y;
+    }, 0),
+  ) / 2;
+
+/** How much of an area lies within `view`, from 0 to 1. */
+const areaInSight = (points: L.Point[], view: L.Bounds) => {
+  const total = polygonArea(points);
+  if (!total) return 0;
+  return polygonArea(L.PolyUtil.clipPolygon(points, view)) / total;
 };
 
 type DotRenderer = L.SVG & {
@@ -601,6 +631,8 @@ type Props = {
    * Reported bounds leave them out, and framing keeps clear of them.
    */
   bottomInset?: () => number;
+  /** Pixels along the left that a panel lying over the map covers. */
+  leftInset?: () => number;
   /** Something else sits above the drawer for now: the credits fold away. */
   foldCredits?: boolean;
   selectedId?: string | null;
@@ -636,6 +668,7 @@ export default function ProjectMap({
   onGestureStart,
   onUserMove,
   bottomInset,
+  leftInset,
   foldCredits = false,
   selectedId = null,
   onSelect = noSelect,
@@ -675,6 +708,7 @@ export default function ProjectMap({
     onGestureStart?: () => void;
     onUserMove?: () => void;
     bottomInset?: () => number;
+    leftInset?: () => number;
     draw: boolean;
     commit: (next: Point[]) => void;
   }>({ onSelect, onViewChange, onReady, draw, commit: () => {} });
@@ -752,6 +786,7 @@ export default function ProjectMap({
       onGestureStart,
       onUserMove,
       bottomInset,
+      leftInset,
       draw,
       commit(next) {
         onPointsChange?.(next);
@@ -764,6 +799,7 @@ export default function ProjectMap({
     onGestureStart,
     onUserMove,
     bottomInset,
+    leftInset,
     draw,
     onPointsChange,
   ]);
@@ -1548,7 +1584,8 @@ export default function ProjectMap({
     };
     // A hovered card's project shows its tooltip centred over it: over the
     // group it sits in, its dot, the midpoint of its line or the top of its
-    // area, kept on the map for an area larger than the view.
+    // area, kept on the map for an area larger than the view. Only while
+    // most of it is in sight, not off the map or under a panel over it.
     const hint = L.tooltip({
       ...tooltipOptions,
       sticky: false,
@@ -1563,18 +1600,47 @@ export default function ProjectMap({
         hintId = null;
         return;
       }
-      const { project, shape, dot } = entry;
+      const { project, dot } = entry;
       const group = groupOf.get(id);
       const line = project.geometryType === "line";
-      const area = !group && !line && !dots.hasLayer(dot);
-      const bounds = area ? shape.getBounds() : undefined;
+      const point = group || dots.hasLayer(dot);
+      const area = !point && !line;
+      const size = map.getSize();
+      const inSight = L.bounds(
+        [Math.min(handlers.current.leftInset?.() ?? 0, size.x), 0],
+        [size.x, Math.max(0, size.y - (handlers.current.bottomInset?.() ?? 0))],
+      );
+      const pixels = point
+        ? []
+        : project.geometry.map((latLng) => map.latLngToContainerPoint(latLng));
+      const shown = point
+        ? inSight.contains(map.latLngToContainerPoint((group ?? dot).getLatLng()))
+        : line
+          ? lineInSight(pixels, inSight) > 0.5
+          : areaInSight(pixels, inSight) > 0.5;
+      if (!shown) {
+        hint.remove();
+        hintId = null;
+        return;
+      }
+      // An area's top, within the part of it in sight.
+      const top = area
+        ? L.bounds(
+            pixels.map((pixel) =>
+              L.point(
+                Math.min(Math.max(pixel.x, inSight.min!.x), inSight.max!.x),
+                Math.min(Math.max(pixel.y, inSight.min!.y), inSight.max!.y),
+              ),
+            ),
+          )
+        : undefined;
       const at = group
         ? group.getLatLng()
-        : bounds
-          ? L.latLng(
-              Math.min(bounds.getNorth(), map.getBounds().getNorth()),
-              bounds.getCenter().lng,
-            )
+        : top
+          ? map.containerPointToLatLng([
+              (top.min!.x + top.max!.x) / 2,
+              top.min!.y,
+            ])
           : dot.getLatLng();
       // Clear of the marker or line the tooltip points at. A group's size
       // comes from its icon: measuring it would force a layout mid-hover.
@@ -1639,8 +1705,10 @@ export default function ProjectMap({
     drawProjectsRef.current = drawProjects;
     const regroup = clusterRef.current;
     map.on("zoomend", regroup);
+    map.on("moveend", placeHint);
     return () => {
       map.off("zoomend", regroup);
+      map.off("moveend", placeHint);
       hint.remove();
       clusterRef.current = () => {};
       styleRef.current = () => {};

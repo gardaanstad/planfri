@@ -3080,6 +3080,10 @@ export default memo(function Explorer({
             onGestureStart={onMapGesture}
             onUserMove={onMapMove}
             bottomInset={isMobile ? mobileMapInset : undefined}
+            // Collapsed, panels lie over the map's left edge.
+            leftInset={
+              !isMobile && sidebarMode === "collapsed" ? sidebarWidth : undefined
+            }
             foldCredits={isMobile && nothingMatches}
             controlsContainer={
               isMobile
