@@ -65,6 +65,11 @@ type ChoiceSelectBase = {
    */
   inline?: boolean;
   /**
+   * Inline, with the anchored menu's rows, sized for a pointer: for a
+   * desktop popover of filters.
+   */
+  compact?: boolean;
+  /**
    * Options are places to go rather than a state to keep: none shows as
    * chosen, and the menu opens on its first.
    */
@@ -108,10 +113,10 @@ const widthMotion = "choice-width";
 const reach = "relative before:absolute before:z-1 before:inset-x-0";
 // Rows with a border reach from inside it: 1px more, past it.
 const reachBordered = cn(reach, "before:-inset-x-px before:-inset-y-[3px]");
-// Below an open group: across the whole gap and the group's bottom border,
-// as the group's last child can't reach past its clipping.
+// Below an open group: across the whole gap, as the group's last child
+// can't reach past its clipping.
 const reachPastGroup =
-  "[[data-slot=choice-group][data-open=true]+&]:before:-top-[6px]";
+  "[[data-slot=choice-group][data-open=true]+&]:before:-top-[5px]";
 
 /**
  * Memoized: a list or map beside it re-renders often, and a menu is costly
@@ -128,6 +133,7 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
     menuTitle = false,
     smoothWidth = false,
     inline = false,
+    compact = false,
     goTo = false,
     pins,
   } = props;
@@ -161,7 +167,7 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
   const [expanded, setExpanded] = useState(inline && extraChosen);
   // Grouped menus get room for their subcategories to sit side by side.
   const grouped = options.some((option) => option.children?.length);
-  const [sheet, setSheet] = useState(inline);
+  const [sheet, setSheet] = useState(inline && !compact);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   // The width it last rested at, for `smoothWidth`.
@@ -402,36 +408,15 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
 
   /**
    * Multiple choice. A parent stands for all of it and opens its children;
-   * choosing children narrows it instead. Choosing a narrowed parent again
-   * widens it back to all, and choosing it once more clears the group.
+   * choosing children narrows it instead, and unchoosing the last of them
+   * widens it back to all. Choosing a narrowed parent widens it too, and
+   * choosing it once more clears the group.
    */
   function toggle(value: string) {
     if (props.multiple !== true) return;
     const parent = options.find((option) => option.value === value);
     if (!props.value.includes(value)) {
       props.onChange([...props.value, value]);
-      return;
-    }
-    // Unchoosing the last chosen child takes its parent along.
-    const owner = options.find((option) =>
-      option.children?.some((child) => child.value === value),
-    );
-    if (owner) {
-      const left = props.value.filter((item) => item !== value);
-      const siblingsLeft = owner.children!.some((child) =>
-        left.includes(child.value),
-      );
-      if (siblingsLeft) {
-        props.onChange(left);
-        return;
-      }
-      // Its row closes under focus; keep focus, and the menu, on the parent.
-      list.current
-        ?.querySelector<HTMLButtonElement>(
-          `[data-slot="choice-option"][data-value="${CSS.escape(owner.value)}"]`,
-        )
-        ?.focus({ preventScroll: true });
-      props.onChange(left.filter((item) => item !== owner.value));
       return;
     }
     const children = new Set(
@@ -446,7 +431,44 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
     );
   }
 
-  /** Checks a chosen row where several can be chosen, and on phones. */
+  /**
+   * One choice of several: a ring on every row, filled in the middle once
+   * chosen, both in the chosen row's ink.
+   */
+  // Drawn, not boxed, so the dot sits exactly in the middle at any scale.
+  const radio = (chosen: boolean, alone: boolean) => {
+    const size = sheet ? 18 : 15;
+    const middle = size / 2;
+    return (
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        aria-hidden="true"
+        data-slot="choice-radio"
+        // Its edge's smoothing may fall past a box at a fractional place.
+        className={cn(
+          "shrink-0 overflow-visible",
+          alone && "ml-auto",
+          chosen ? "text-ink" : "text-ink/35",
+        )}
+      >
+        <circle
+          cx={middle}
+          cy={middle}
+          r={middle - 1}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+        />
+        {chosen && (
+          <circle cx={middle} cy={middle} r={sheet ? 5 : 4} fill="currentColor" />
+        )}
+      </svg>
+    );
+  };
+
+  /** Checks a chosen row where several can be chosen. */
   const check = (chosen: boolean, size: number, alone: boolean) => (
     <Check
       size={size}
@@ -567,23 +589,16 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
             : [
                 "min-h-9 gap-2 px-2.5 py-1.5 text-ui hover:bg-surface-muted",
                 reachBordered,
-                // A group's parent also spans the group's border.
                 option.children?.length
-                  ? "before:-inset-y-1 [[data-slot=choice-group][data-open=true]+[data-slot=choice-group]>&]:before:-top-[7px]"
+                  ? "[[data-slot=choice-group][data-open=true]+[data-slot=choice-group]>&]:before:-top-[5px]"
                   : reachPastGroup,
                 // Over its pin, the row still reads as hovered.
                 pinnable && "group-hover/row:bg-surface-muted",
-                // One choice: outlined like a chosen group, not checked.
-                !grouped && !multiple && "aria-selected:border-border-strong",
               ],
           // Clear of the pin at its end.
           pinnable && (sheet ? "pr-12" : "pr-9"),
-          // Grouped: the group's outline marks what's chosen.
-          grouped && [
-            // Inside the group's outline, the row's corners follow it.
-            option.children?.length && "rounded-[9px]",
-            open && "font-medium",
-          ],
+          // Grouped: an open main reads as chosen, narrowed or not.
+          grouped && open && "font-medium",
         )}
         onClick={() => {
           if (props.multiple) {
@@ -610,9 +625,10 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
             {option.count}
           </span>
         )}
-        {(sheet || grouped || multiple) &&
-          !goTo &&
-          check(chosen, sheet ? 18 : 15, option.count === undefined)}
+        {!goTo &&
+          (grouped || multiple
+            ? check(chosen, sheet ? 18 : 15, option.count === undefined)
+            : radio(chosen, option.count === undefined))}
       </button>
     );
   }
@@ -687,7 +703,7 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
         aria-label={option.label}
         data-slot="choice-group"
         data-open={open}
-        className="relative shrink-0 rounded-[10px] border border-transparent"
+        className="relative shrink-0"
       >
         {renderOption(option)}
         {/* Rows ease from 0fr to 1fr, so the group opens smoothly. */}
@@ -714,15 +730,7 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
             </div>
           </div>
         </div>
-        <GroupOutline
-          runs={
-            !open
-              ? []
-              : narrowed(option)
-                ? chosenRuns(option.children, marked)
-                : [whole]
-          }
-        />
+        <GroupOutline runs={chosenRuns(option.children, marked)} />
       </div>
     );
   }
@@ -793,7 +801,6 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
             aria-expanded={expanded}
             className={cn(
               "flex w-full shrink-0 items-center rounded-lg border border-transparent text-left text-muted -outline-offset-2",
-              "transition-colors duration-150 motion-reduce:transition-none",
               "hover:text-ink focus-visible:bg-surface-muted focus-visible:text-ink",
               sheet
                 ? "min-h-12 gap-3 px-3 text-body active:bg-surface-muted"
@@ -853,7 +860,7 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
         aria-multiselectable={multiple || undefined}
         aria-label={label}
         data-slot="choice-list"
-        className={cn("flex flex-col px-2", className)}
+        className={cn("flex flex-col", sheet ? "px-2" : "px-1.5", className)}
         onKeyDown={navigate}
       >
         {optionList}
@@ -1055,8 +1062,6 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
 
 /** A run of neighbouring children, by index, first to last. */
 type Run = readonly [number, number];
-/** The whole group: its main and every child. */
-const whole: Run = [-1, Number.MAX_SAFE_INTEGER];
 
 /** The chosen children, as runs of neighbours. */
 function chosenRuns(children: Option[], selected: Set<string>): Run[] {
@@ -1072,16 +1077,13 @@ function chosenRuns(children: Option[], selected: Set<string>): Run[] {
 
 const overlaps = (a: Run, b: Run) => a[0] <= b[1] && b[0] <= a[1];
 
-type Frame = Pick<
-  CSSStyleDeclaration,
-  "top" | "left" | "width" | "height" | "borderRadius"
->;
+type Frame = Pick<CSSStyleDeclaration, "top" | "left" | "width" | "height">;
 
 const moveMs = 250;
 const fadeMs = 200;
 const ease = "cubic-bezier(0.22, 1, 0.36, 1)";
 const transition = [
-  ...["top", "left", "width", "height", "border-radius"].map(
+  ...["top", "left", "width", "height"].map(
     (property) => `${property} ${moveMs}ms ${ease}`,
   ),
   `opacity ${fadeMs}ms ease-out`,
@@ -1102,21 +1104,11 @@ function offsetWithin(element: HTMLElement, ancestor: HTMLElement) {
 
 /** Where a run's outline sits in its group. */
 function frameOf(group: HTMLElement, run: Run): Frame {
-  // Over the group's own border, so it follows the group as it opens.
-  if (run === whole)
-    return {
-      top: "-1px",
-      left: "-1px",
-      width: "calc(100% + 2px)",
-      height: "calc(100% + 2px)",
-      borderRadius: "10px",
-    };
   const rows = group.querySelectorAll<HTMLElement>(
     '[data-slot="choice-suboption"]',
   );
   const first = rows[run[0]];
   const last = rows[run[1]];
-  if (!first || !last) return frameOf(group, whole);
   const start = offsetWithin(first, group);
   const end = offsetWithin(last, group);
   return {
@@ -1124,7 +1116,6 @@ function frameOf(group: HTMLElement, run: Run): Frame {
     left: `${start.left}px`,
     width: `${first.offsetWidth}px`,
     height: `${end.top + last.offsetHeight - start.top}px`,
-    borderRadius: "8px",
   };
 }
 
@@ -1142,10 +1133,9 @@ function jump(element: HTMLElement, frame: Frame, opacity = "1") {
 }
 
 /**
- * The outline around what's chosen in a group: all of it, or each run of
- * chosen children. Outlines glide between choices: from the group onto a
- * child, out over a neighbour, apart when a run is broken and together when
- * runs join; one around a child on its own fades in.
+ * The outline around each run of chosen children in a group. Outlines glide
+ * between choices: out over a neighbour, apart when a run is broken and
+ * together when runs join; one around a child on its own fades in.
  */
 function GroupOutline({ runs }: { runs: Run[] }) {
   const layer = useRef<HTMLDivElement>(null);
@@ -1175,7 +1165,6 @@ function GroupOutline({ runs }: { runs: Run[] }) {
             left: style.left,
             width: style.width,
             height: style.height,
-            borderRadius: style.borderRadius,
           },
         ];
       }),
@@ -1193,7 +1182,7 @@ function GroupOutline({ runs }: { runs: Run[] }) {
       }
       const element = document.createElement("div");
       element.style.cssText =
-        "position:absolute;box-sizing:border-box;pointer-events:none;border:1px solid var(--color-border-strong)";
+        "position:absolute;box-sizing:border-box;pointer-events:none;border:1px solid var(--color-border-strong);border-radius:8px";
       layer.current!.append(element);
       if (!animate) jump(element, frame);
       else {

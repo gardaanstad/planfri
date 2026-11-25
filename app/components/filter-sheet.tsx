@@ -147,22 +147,24 @@ function FilterRows({
           open ? "shrink" : "shrink-0",
           index > 0 &&
             sections[index - 1].id === active &&
-            "border-t border-border",
+            // Clear of the line, so its tint doesn't touch it.
+            "border-t border-border pt-1",
         )}
         data-filter-group={section.id}
         data-open={open || undefined}
       >
         <div className={cn("shrink-0", compact ? "px-1.5" : "px-2")}>
+          {/* Hover and press tint at once, as the options do. */}
           <button
             type="button"
             data-filter-section={section.id}
             aria-expanded={open}
             data-press=""
             className={cn(
-              "flex w-full items-center rounded-lg text-left -outline-offset-2",
-              "transition-colors duration-150 active:bg-surface-muted motion-reduce:transition-none",
+              "flex w-full items-center rounded-lg text-left -outline-offset-2 active:bg-surface-muted",
               compact
-                ? "min-h-10 gap-2.5 px-2.5 hover:bg-surface-muted"
+                ? // In line with the options' labels, inside their border.
+                  "min-h-9 gap-2 px-2.75 hover:bg-surface-muted focus-visible:bg-surface-muted"
                 : "min-h-13 gap-3 px-3",
             )}
             onClick={() => onToggle(section.id)}
@@ -178,7 +180,7 @@ function FilterRows({
               {section.summary}
             </span>
             <ChevronDown
-              size={compact ? 16 : 18}
+              size={compact ? 14 : 18}
               aria-hidden="true"
               className={cn(
                 "shrink-0 text-muted transition-transform duration-300 ease-out-soft motion-reduce:transition-none",
@@ -192,7 +194,7 @@ function FilterRows({
           hidden={!open && !going}
           inert={!open}
           className={cn(
-            "flex min-h-0 flex-col border-t border-border",
+            "flex min-h-0 flex-col",
             going && "absolute inset-x-0 top-full",
           )}
           style={going ? { height: leaving.height } : undefined}
@@ -203,7 +205,7 @@ function FilterRows({
             }}
             className={cn(
               "min-h-0 overflow-y-auto overscroll-contain",
-              compact ? "py-1.5" : "pt-1.5",
+              compact ? "pt-0.5 pb-1.5" : "pt-1.5",
             )}
           >
             {section.content}
@@ -405,8 +407,8 @@ export function FilterPopover({
       aria-label={label}
       data-filter-popover=""
       className={cn(
-        "fixed inset-auto top-0 left-0 m-0 w-75 flex-col overflow-visible border-0 bg-transparent p-0 text-ink open:flex",
-        "motion-safe:open:animate-menu-enter",
+        // Shows at once, as the other menus do.
+        "fixed inset-auto top-0 left-0 m-0 w-80 flex-col overflow-visible border-0 bg-transparent p-0 text-ink open:flex",
       )}
     >
       <div

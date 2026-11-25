@@ -25,6 +25,8 @@ export const sortChoice = [
   "-mr-2 w-auto shrink-0",
   "[&_[data-slot=choice-trigger]]:min-h-9 [&_[data-slot=choice-trigger]]:gap-1.5 [&_[data-slot=choice-trigger]]:border-transparent [&_[data-slot=choice-trigger]]:bg-transparent! [&_[data-slot=choice-trigger]]:px-2 [&_[data-slot=choice-trigger]]:text-ui [&_[data-slot=choice-trigger]]:text-muted",
   "md:[&_[data-slot=choice-trigger]]:hover:bg-ink/[0.05]! md:[&_[data-slot=choice-trigger]]:hover:text-ink",
+  // Hover tints and colours at once.
+  "[&_[data-slot=choice-trigger]]:transition-none",
   "[&_[data-slot=choice-menu]]:right-0 [&_[data-slot=choice-menu]]:left-auto [&_[data-slot=choice-menu]]:min-w-[205px] [&_[data-slot=choice-menu][data-open=false]]:hidden",
 ].join(" ");
 

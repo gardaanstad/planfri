@@ -101,6 +101,22 @@ async function expectMembersIn(
     .toEqual([]);
 }
 
+// Desktop: the filter popover, open on one of its sections.
+async function openFilter(page: Page, section: "Kategori" | "Status") {
+  await page
+    .getByRole("region", { name: "Filtrer prosjekter", exact: true })
+    .getByRole("button", { name: "Filtre", exact: true })
+    .click();
+  const popover = page.locator("[data-filter-popover]");
+  await expect(popover).toBeVisible();
+  const row = popover.getByRole("button", { name: new RegExp(`^${section}`) });
+  if ((await row.getAttribute("aria-expanded")) !== "true") await row.click();
+  return popover.getByRole("listbox", {
+    name: section === "Status" ? "Prosjektstatus" : "Kategori",
+    exact: true,
+  });
+}
+
 async function expectMenuFits(menu: Locator) {
   await expect(menu).toBeVisible();
   await expect
@@ -1950,21 +1966,15 @@ test.describe("desktop explorer", () => {
       ),
     ).toBeLessThanOrEqual(2);
     expect(sortBox!.x).toBeGreaterThan(countBox!.x + countBox!.width);
-    const filters = page.getByRole("region", {
-      name: "Filtrer prosjekter",
-      exact: true,
-    });
-    // Named, with no dots; finished ones are hidden by default.
-    const trigger = filters.getByRole("button", {
-      name: "Prosjektstatus: Foreslått, Planlagt, Under bygging",
-      exact: true,
-    });
-    expect(await trigger.evaluate((element) => (element as HTMLElement).innerText)).toBe(
-      "Status",
+    // Finished ones are hidden by default.
+    const menu = await openFilter(page, "Status");
+    // Rows as in the other menus, sized for a pointer, tinting at once.
+    expect((await menu.getByRole("option").first().boundingBox())!.height).toBe(
+      36,
     );
-    await expect(trigger.locator("svg")).toHaveCount(1);
-    await trigger.click();
-    const menu = page.getByRole("listbox", { name: "Prosjektstatus", exact: true });
+    await expect(
+      page.locator("[data-filter-popover]").getByRole("button", { name: /^Status/ }),
+    ).toHaveCSS("transition-duration", "0s");
     // Several can be chosen, and each chosen one is checked.
     await expect(menu).toHaveAttribute("aria-multiselectable", "true");
     await expect(menu.getByRole("option", { selected: true })).toHaveCount(3);
@@ -2005,31 +2015,22 @@ test.describe("desktop explorer", () => {
     });
     // No place filter: the map is the place.
     await expect(reset).toBeHidden();
-    await filters
-      .getByRole("button", {
-        name: "Prosjektstatus: Foreslått, Planlagt, Under bygging",
-        exact: true,
-      })
-      .click();
-    const status = page.getByRole("listbox", { name: "Prosjektstatus", exact: true });
+    const filterButton = filters.getByRole("button", {
+      name: "Filtre",
+      exact: true,
+    });
+    await expect(filterButton).not.toHaveAttribute("data-active");
+    const status = await openFilter(page, "Status");
     await status.getByRole("option", { name: /^Foreslått/ }).click();
     await status.getByRole("option", { name: /^Planlagt/ }).click();
     await page.keyboard.press("Escape");
-    // One filter set is enough to offer the reset, and the status pill reads
-    // as set, like the others.
+    // One filter set is enough to offer the reset, and the filter button
+    // reads as set.
     await expect(reset).toBeVisible();
-    const statusTrigger = filters.getByRole("button", {
-      name: "Prosjektstatus: Under bygging",
-      exact: true,
-    });
-    await expect(statusTrigger).toHaveCSS("font-weight", "600");
+    await expect(filterButton).toHaveAttribute("data-active", "true");
     // Main categories first; a chosen one opens its subcategories.
     const [main, sub] = project.categories;
-    await filters.getByRole("button", { name: "Kategori", exact: true }).click();
-    const categoryMenu = page.getByRole("listbox", {
-      name: "Kategori",
-      exact: true,
-    });
+    const categoryMenu = await openFilter(page, "Kategori");
     // Less used categories wait under "Vis flere".
     const energy = categoryMenu.getByRole("option", { name: /^Energi/ });
     const more = categoryMenu.getByRole("button", { name: "Vis flere" });
@@ -2053,21 +2054,15 @@ test.describe("desktop explorer", () => {
     await subOption.click();
     await expect(mainOption).toHaveAttribute("aria-selected", "false");
     await expect(subOption).toBeVisible();
-    // Unchoosing its last subcategory unchooses the main too.
+    // Unchoosing its last subcategory widens it back to all of the main,
+    // still open.
     await subOption.click();
-    await expect(subOption).toBeHidden();
-    await expect(page).not.toHaveURL(/kategori=/);
-    await mainOption.click();
+    await expect(mainOption).toHaveAttribute("aria-selected", "true");
+    await expect(subOption).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`kategori=${main}(&|$)`));
     await subOption.click();
     await expect(subOption).toHaveAttribute("aria-selected", "true");
     await page.keyboard.press("Escape");
-    // A set filter's pill: a firmer edge and bolder words, no fill.
-    const categoryTrigger = filters.getByRole("button", { name: /^Kategori/ });
-    await expect(categoryTrigger).toHaveCSS("font-weight", "600");
-    await expect(categoryTrigger).toHaveCSS(
-      "background-color",
-      await statusTrigger.evaluate((el) => getComputedStyle(el).backgroundColor),
-    );
     await expect(page).toHaveURL(
       new RegExp(`status=construction&kategori=${main},${sub}`),
     );
@@ -2080,8 +2075,9 @@ test.describe("desktop explorer", () => {
     const listed = seedProjects.filter((seed) => ids.includes(seed.id));
     expect(listed.length).toBeGreaterThan(0);
     for (const seed of listed) expect(seed.categories).toContain(sub);
-    await categoryTrigger.click();
+    await openFilter(page, "Kategori");
     await subOption.click();
+    await mainOption.click();
     await page.keyboard.press("Escape");
     await expect(page).not.toHaveURL(/kategori=/);
     await page.getByRole("button", { name: /^Sorter prosjekter:/ }).click();
@@ -2100,9 +2096,11 @@ test.describe("desktop explorer", () => {
     ).toBeFocused();
     await expect(page).toHaveURL(/sorter=title/);
     await page.reload();
+    await expect(filterButton).toHaveAttribute("data-active", "true");
     await expect(
-      filters.getByRole("button", { name: "Prosjektstatus: Under bygging", exact: true }),
-    ).toBeVisible();
+      (await openFilter(page, "Status")).getByRole("option", { selected: true }),
+    ).toHaveText([/^Under bygging/]);
+    await page.keyboard.press("Escape");
     await expect(
       page.getByRole("button", {
         name: "Sorter prosjekter: Alfabetisk",
@@ -2256,15 +2254,7 @@ test.describe("desktop explorer", () => {
     await kept.evaluate((element) => element.setAttribute("data-test-kept", ""));
     const shapes = page.locator("path[data-project-id]");
     const before = await shapes.count();
-    await page
-      .getByRole("region", { name: "Filtrer prosjekter", exact: true })
-      .getByRole("button", {
-        name: "Prosjektstatus: Foreslått, Planlagt, Under bygging",
-        exact: true,
-      })
-      .click();
-    await page
-      .getByRole("listbox", { name: "Prosjektstatus", exact: true })
+    await (await openFilter(page, "Status"))
       .getByRole("option", { name: /^Ferdigstilt/ })
       .click();
     await page.keyboard.press("Escape");
@@ -2492,8 +2482,11 @@ test.describe("desktop explorer", () => {
           ? getComputedStyle(element).outlineStyle
           : null;
       });
-    await page.getByRole("button", { name: "Kategori", exact: true }).click();
-    const list = page.getByRole("listbox", { name: "Kategori", exact: true });
+    await page.getByRole("button", { name: /^Sorter prosjekter:/ }).click();
+    const list = page.getByRole("listbox", {
+      name: "Sorter prosjekter",
+      exact: true,
+    });
     await expect(list).toBeVisible();
     expect(await focusOutline()).not.toBe("solid");
     await page.keyboard.press("ArrowDown");
@@ -2655,8 +2648,6 @@ test.describe("desktop explorer", () => {
     const maximize = header.locator("[data-sidebar-maximize]");
     const login = header.getByRole("button", { name: "Logg inn", exact: true });
     const loginLabel = login.locator("[data-tooltip-label]");
-    const categoryPill = filters.getByRole("button", { name: /^Kategori/ });
-    const statusPill = filters.getByRole("button", { name: /^Prosjektstatus/ });
     const filterButton = filters.getByRole("button", {
       name: "Filtre",
       exact: true,
@@ -2669,8 +2660,10 @@ test.describe("desktop explorer", () => {
       .getByRole("group", { name: "Visning" })
       .getByRole("button", { name: "Kompakt" })
       .locator("[data-view-label]");
-    const full = [theme, maximize, loginLabel, categoryPill, statusPill];
-    const narrow = [menu, filterButton];
+    const full = [theme, maximize, loginLabel];
+    const narrow = [menu];
+    // The filter button shows at every width.
+    await expect(filterButton).toBeVisible();
     // At its default width, everything shows.
     await expect(count).toBeVisible();
     for (const control of full) await expect(control).toBeVisible();
@@ -2729,6 +2722,7 @@ test.describe("desktop explorer", () => {
     await expect(place).not.toHaveText("");
     await shot(page, "sidebar-narrow");
     // The filter button holds category and status.
+    await expect(filterButton).toBeVisible();
     await filterButton.click();
     const popover = page.getByRole("dialog", { name: "Filtre", exact: true });
     await expect(popover).toBeVisible();
@@ -4009,17 +4003,11 @@ test("search, filters, saving and the full page act as the mouse goes down", asy
   await page.keyboard.press("Escape");
   await expect(searchButton).toBeFocused();
 
-  // A narrow sidebar's filter button opens its popover, and its rows open.
-  const handle = page.getByRole("separator", {
-    name: "Bredde på prosjektlisten",
-  });
+  // The filter button opens its popover, and its rows open.
   const filterButton = filters.getByRole("button", {
     name: "Filtre",
     exact: true,
   });
-  await handle.focus();
-  for (let step = 0; step < 20 && !(await filterButton.isVisible()); step++)
-    await page.keyboard.press("ArrowLeft");
   const popover = page.locator("[data-filter-popover]");
   await press(filterButton);
   await expect(popover).toBeVisible();

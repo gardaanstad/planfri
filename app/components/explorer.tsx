@@ -1644,12 +1644,12 @@ export default memo(function Explorer({
       ref={searchTriggerRef}
       type="button"
       className={cn(
-        "relative flex shrink-0 items-center justify-center rounded-full text-muted",
-        "transition-colors duration-150 motion-reduce:transition-none",
+        // Hover tints and colours at once, as the sort beside it does.
+        "relative flex shrink-0 items-center justify-center text-muted",
         isMobile
-          ? "size-11 [-webkit-tap-highlight-color:transparent]"
+          ? "size-11 rounded-full [-webkit-tap-highlight-color:transparent]"
           : [
-              "size-9 hover:text-ink",
+              "size-9 rounded-[9px] hover:bg-ink/[0.05] hover:text-ink",
               searchActive && "text-accent hover:text-accent-strong",
             ],
       )}
@@ -1663,19 +1663,19 @@ export default memo(function Explorer({
       <Search size={isMobile ? 19 : 16} aria-hidden="true" />
     </button>
   );
-  // Phones, and a narrow sidebar, gather category and status in one sheet
-  // or popover, behind this button.
+  // Category and status gather in one sheet (phones) or popover, behind
+  // this button.
   const filtersSet = statusChanged || category.length > 0;
   const filterButton = (
     <button
       ref={filterButtonRef}
       type="button"
       className={cn(
-        "relative flex shrink-0 items-center justify-center rounded-full text-muted",
-        "transition-colors duration-150 motion-reduce:transition-none",
+        // Hover tints and colours at once, as the sort beside it does.
+        "relative flex shrink-0 items-center justify-center text-muted",
         isMobile
-          ? "size-11 [-webkit-tap-highlight-color:transparent]"
-          : "size-9 hover:text-ink",
+          ? "size-11 rounded-full [-webkit-tap-highlight-color:transparent]"
+          : "size-9 rounded-[9px] hover:bg-ink/[0.05] hover:text-ink",
         filtersSet && "text-ink",
       )}
       aria-label="Filtre"
@@ -1721,10 +1721,10 @@ export default memo(function Explorer({
       >
         {filters}
         <div
+          // Desktop: the buttons, tinted on hover, end on the list's edge.
           className={cn(
             "ml-auto flex shrink-0 items-center pl-1",
-            // The glyph, not the button, ends on the list's edge.
-            !isMobile && "-mr-2.5",
+            !isMobile && "gap-0.5",
           )}
         >
           {/* Any filter but the place offers a way back, beside them. */}
@@ -1740,14 +1740,7 @@ export default memo(function Explorer({
               Nullstill filtre
             </button>
           )}
-          {isMobile ? (
-            filterButton
-          ) : (
-            // Narrow, in place of the category and status pills.
-            <div className="fold folded narrow:unfolded">
-              <div>{filterButton}</div>
-            </div>
-          )}
+          {filterButton}
           {searchButton}
         </div>
       </div>
@@ -1803,22 +1796,6 @@ export default memo(function Explorer({
     if (next.length === 0) return;
     setStatus(next.length === statusOrder.length ? [] : next);
   }, []);
-  const statusFilter = (
-    <ChoiceSelect
-      label="Prosjektstatus"
-      smoothWidth
-      multiple
-      value={statusValue}
-      onChange={pickStatus}
-      triggerLabel="Status"
-      className={cn(
-        panelChoiceClasses,
-        "shrink-0 [&_[data-slot=choice-menu]]:min-w-[200px]",
-        statusChanged && panelChoiceActive,
-      )}
-      options={statusOptions}
-    />
-  );
   const mobileFilters = filterBar(
     <LivePlaceSelect
       live={livePlace}
@@ -1845,6 +1822,7 @@ export default memo(function Explorer({
       content: (
         <ChoiceSelect
           inline
+          compact={!isMobile}
           label="Kategori"
           multiple
           value={category}
@@ -1865,6 +1843,7 @@ export default memo(function Explorer({
       content: (
         <ChoiceSelect
           inline
+          compact={!isMobile}
           label="Prosjektstatus"
           multiple
           value={statusValue}
@@ -1999,33 +1978,7 @@ export default memo(function Explorer({
       options={placeOptions}
     />
   );
-  const desktopFilters = filterBar(
-    <>
-      {placeFilter}
-      {/* Narrow, these fold into the filter button at the row's end. */}
-      <div className="fold unfolded min-w-0 narrow:folded">
-        {/* The space before them inside, so it folds away too. */}
-        <div>
-          <div className="flex min-w-0 items-center gap-1.5 pl-1.5">
-            <ChoiceSelect
-              label="Kategori"
-              smoothWidth
-              multiple
-              value={category}
-              onChange={setCategory}
-              triggerLabel={categorySummary(category)}
-              className={cn(
-                panelChoiceClasses,
-                category.length > 0 && panelChoiceActive,
-              )}
-              options={categoryOptions}
-            />
-            {statusFilter}
-          </div>
-        </div>
-      </div>
-    </>,
-  );
+  const desktopFilters = filterBar(placeFilter);
 
   const shown = listedProjects.length;
   // Beside the map, the place the view is on, and how many match there.
