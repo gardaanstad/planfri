@@ -11,7 +11,7 @@ bun run setup
 bun dev
 ```
 
-Open http://localhost:3000. Working in several worktrees? Run `bun run hub` in a terminal of your own, then `bun scripts/preview.ts` (T3's Preview button) in a worktree serves it on localhost:3000 through the hub, keeping each worktree's dev server running so switching back is instant; open tabs follow the latest switch. See [Google OAuth and production setup](docs/google-auth.md) for the Client ID, Client Secret, callback URLs, and Turso configuration.
+Open http://localhost:3000. Working in several worktrees? Run `bun run hub` in a terminal of your own, then `bun scripts/preview.ts` (T3's Preview button) in a worktree serves it on localhost:3000 through the hub, keeping each worktree's dev server running so switching back is instant; open tabs follow the latest switch. A worktree's first `bun dev` or Preview copies the Turbopack dev cache from the checkout that ran most recently (`scripts/seed-dev-cache.ts`), so its first page compiles in seconds instead of half a minute. See [Google OAuth and production setup](docs/google-auth.md) for the Client ID, Client Secret, callback URLs, and Turso configuration.
 
 Deployment: see [Deploy to Vercel](docs/google-auth.md#deploy-to-vercel). Validation: `bun run lint`, `bun run typecheck`, and `bun run test` (Playwright/Chromium).
 

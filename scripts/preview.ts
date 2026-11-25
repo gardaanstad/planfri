@@ -19,6 +19,7 @@ import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import type { ServerWebSocket } from "bun";
 import { Database } from "bun:sqlite";
+import { seedDevCache } from "./seed-dev-cache";
 
 const hubPort = Number(process.env.PREVIEW_HUB_PORT) || 3000;
 const hubUrl = `http://127.0.0.1:${hubPort}`;
@@ -48,6 +49,7 @@ async function preview() {
   if (!server) {
     const port = freePort(4100 + (createHash("sha1").update(dir).digest().readUInt16BE(0) % 900));
     mkdirSync(join(dir, ".next"), { recursive: true });
+    seedDevCache(dir);
     const out = openSync(log, "w");
     const env = { ...process.env };
     delete env.PORT;
