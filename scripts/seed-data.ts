@@ -572,6 +572,28 @@ export const seedProjects: Project[] = [
     geometry: area(58.956, 5.74, 1.7),
     year: "2028",
   },
+  {
+    ...base,
+    id: "sandvika-sentrum",
+    title: "Sandvika sentrum",
+    district: "Sandvika",
+    city: "Bærum",
+    categories: ["Byutvikling", "Bolig", "Næring"],
+    status: "planned",
+    image: "",
+    description:
+      "Byutvikling rundt Sandvika stasjon, med nye boliger, arbeidsplasser og byrom langs Sandvikselva.",
+    center: [59.8895, 10.524],
+    geometry: [
+      [59.8925, 10.519],
+      [59.8925, 10.529],
+      [59.8865, 10.529],
+      [59.8865, 10.519],
+    ],
+    year: "2035",
+    updated: "2026-07-20T09:00:00",
+    developer: "Bærum kommune",
+  },
 ];
 export const seedComments: Comment[] = [
   {

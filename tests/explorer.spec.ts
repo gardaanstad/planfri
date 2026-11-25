@@ -1372,6 +1372,35 @@ test.describe("desktop explorer", () => {
     listRegion(page).getByRole("button", { name: new RegExp(`^${title} · `) });
   const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
 
+  test("Nytt in two places the map shows lists the news of both", async ({
+    page,
+  }) => {
+    // Between Oslo and Bærum, the view names both.
+    await page.goto("/?kart=59.9050,10.5900,12");
+    await expect(
+      page
+        .getByRole("region", { name: "Filtrer prosjekter", exact: true })
+        .getByRole("button", { name: "Sted", exact: true }),
+    ).toHaveText("Oslo og Bærum");
+    const nytt = page
+      .getByRole("group", { name: "Visning" })
+      .getByRole("button", { name: "Nytt" });
+    await expect(async () => {
+      await nytt.click();
+      await expect(nytt).toHaveAttribute("aria-pressed", "true", {
+        timeout: 1000,
+      });
+    }).toPass();
+    await expect(
+      page.getByRole("status", {
+        name: /^Nytt fra [1-9]\d* prosjekter i Oslo og Bærum$/,
+      }),
+    ).toBeVisible();
+    const rows = listRegion(page).locator("[data-feed-id]");
+    for (const title of ["Sandvika sentrum", "Fornebubanen"])
+      await expect(rows.filter({ hasText: title }).first()).toBeVisible();
+  });
+
   test("Nytt lists what last happened on each project, and opens at it", async ({
     page,
   }) => {
@@ -3334,7 +3363,7 @@ test.describe("the place follows the map", () => {
     test("picking a place moves the map; zooming names the place; clearing shows Norway", async ({
       page,
     }) => {
-      await page.goto("/?kart=59.9100,10.7500,9");
+      await page.goto("/?kart=59.9100,10.8500,9");
       // Zoomed out over Oslo, the view names no place yet.
       await expect(place(page, "Hele Norge")).toHaveText("Velg sted");
       const zoomIn = page.getByRole("button", { name: "Zoom inn", exact: true });

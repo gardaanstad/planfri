@@ -2103,7 +2103,7 @@ export default memo(function Explorer({
         ? []
         : place
           ? searchHits.filter((project) =>
-              placesOf.get(project.id)?.includes(place),
+              inPlaceNamed(placesOf.get(project.id), place),
             )
           : searchHits,
     [density, place, placesOf, searchHits],
