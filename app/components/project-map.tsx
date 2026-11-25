@@ -54,6 +54,68 @@ type MapLayer = "standard" | "streets" | "osm";
 // Selected lines draw heavier, areas only fill deeper; shared by the first
 // render and selection.
 // Not yet built: planned dashed, proposed dotted.
+/** Leaflet's own hooks for a view change, which `fly` drives frame by frame. */
+type Mover = L.Map & {
+  _stop(): void;
+  _flyToFrame?: number;
+  _moveStart(zoomChanged: boolean, noMoveStart: boolean): void;
+  _move(center: L.LatLng, zoom: number, data?: object): void;
+  _moveEnd(zoomChanged: boolean): void;
+  _getBoundsCenterZoom(
+    bounds: L.LatLngBounds,
+    options: L.FitBoundsOptions,
+  ): { center: L.LatLng; zoom: number };
+};
+/** Leaves at full speed and settles gently, sharper than Leaflet's own curve. */
+const easeOut = (t: number) => 1 - (1 - t) ** 4;
+/**
+ * Leaflet's `flyTo`, along the same path out and back in, but most of the way
+ * is covered at once and the rest settles, so the zoom feels quick.
+ */
+function fly(leaflet: L.Map, target: L.LatLng, zoom: number, duration: number) {
+  const map = leaflet as Mover;
+  map._stop();
+  const from = map.project(map.getCenter());
+  const to = map.project(target);
+  const size = map.getSize();
+  const startZoom = map.getZoom();
+  const w0 = Math.max(size.x, size.y);
+  const w1 = w0 * map.getZoomScale(startZoom, zoom);
+  const u1 = to.distanceTo(from) || 1;
+  const rho = 1.42;
+  const rho2 = rho * rho;
+  const r = (end: boolean) => {
+    const b =
+      (w1 * w1 - w0 * w0 + (end ? -1 : 1) * rho2 * rho2 * u1 * u1) /
+      (2 * (end ? w1 : w0) * rho2 * u1);
+    const sq = Math.sqrt(b * b + 1) - b;
+    return sq < 1e-9 ? -18 : Math.log(sq);
+  };
+  const r0 = r(false);
+  const path = (r(true) - r0) / rho;
+  const width = (s: number) => w0 * (Math.cosh(r0) / Math.cosh(r0 + rho * s));
+  const along = (s: number) =>
+    (w0 * (Math.cosh(r0) * Math.tanh(r0 + rho * s) - Math.sinh(r0))) / rho2;
+  const start = performance.now();
+  const frame = () => {
+    const t = (performance.now() - start) / (duration * 1000);
+    if (t >= 1) {
+      map._flyToFrame = undefined;
+      map._move(target, zoom);
+      map._moveEnd(true);
+      return;
+    }
+    map._flyToFrame = L.Util.requestAnimFrame(frame);
+    const s = easeOut(t) * path;
+    map._move(
+      map.unproject(from.add(to.subtract(from).multiplyBy(along(s) / u1)), startZoom),
+      map.getScaleZoom(w0 / width(s), startZoom),
+      { flyTo: true },
+    );
+  };
+  map._moveStart(true, false);
+  frame();
+}
 const dashes: Partial<Record<Status, { area: string; line: string }>> = {
   // Round caps add the stroke width to each dash: short dashes, wide gaps.
   proposed: { area: "3, 9", line: "3, 12" },
@@ -1208,12 +1270,14 @@ export default function ProjectMap({
       else pending();
     };
     let pending = () => {};
+    // Opening and closing a project fly this long, so the zoom feels snappy.
+    const flight = 0.5;
     // A change of zoom flies: `setView` jumps instead when it changes by
     // more than four levels. At the same zoom it pans in step with a drawer
     // sliding (450ms, easing out).
     const moveTo = (target: L.LatLng, zoom: number) => {
       if (reducedMotion()) map.setView(target, zoom, { animate: false });
-      else if (zoom !== map.getZoom()) map.flyTo(target, zoom, { duration: 0.8 });
+      else if (zoom !== map.getZoom()) fly(map, target, zoom, flight);
       else map.panTo(target, { duration: 0.45, easeLinearity: 0.2 });
     };
     let wantedHighlight = highlightedRef.current;
@@ -1235,7 +1299,10 @@ export default function ProjectMap({
             map.fitBounds(bounds, { ...options, animate: false });
           // fitBounds jumps instead when the zoom changes by more than four
           // levels or the place is over a screen away, so it flies there.
-          else map.flyToBounds(bounds, { ...options, duration: 0.8 });
+          else {
+            const view = (map as Mover)._getBoundsCenterZoom(bounds, options);
+            fly(map, view.center, view.zoom, flight);
+          }
         });
       },
       center(points, { bottom = inset(), maxZoom = 14 } = {}) {
