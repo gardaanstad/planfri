@@ -4,19 +4,20 @@ import { Menu } from "@base-ui/react/menu";
 import { Ellipsis, Trash2 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { mobileQuery, useMediaQuery } from "../lib/media";
-import { dangerButton, secondaryButton } from "../lib/ui";
+import {
+  dangerButton,
+  menuItem,
+  menuItemDanger,
+  menuPopup,
+  secondaryButton,
+} from "../lib/ui";
 import ActionSheet from "./action-sheet";
 import Dialog from "./dialog";
 
 const trigger = cn(
   "grid size-8 place-items-center rounded-md p-0 text-muted max-sm:size-9",
-  "transition-colors hover:bg-ink/[0.06] hover:text-ink",
-  "data-popup-open:bg-ink/[0.06] data-popup-open:text-ink aria-expanded:bg-ink/[0.06] aria-expanded:text-ink",
-);
-const item = cn(
-  "flex min-h-9 cursor-default items-center gap-2.5 rounded-lg px-2.5 py-1.5 outline-none select-none",
-  "pointer-fine:data-highlighted:bg-surface-muted focus-visible:bg-surface-muted pointer-coarse:min-h-11",
-  "[&>svg]:shrink-0",
+  "transition-colors hover:bg-ink/[0.05] hover:text-ink",
+  "data-popup-open:bg-ink/[0.05] data-popup-open:text-ink aria-expanded:bg-ink/[0.05] aria-expanded:text-ink",
 );
 
 /**
@@ -69,10 +70,10 @@ export default function CommentMenu({
             >
               <Menu.Popup
                 aria-label={label}
-                className="min-w-44 rounded-xl border border-border bg-surface p-1.5 text-ui shadow-popover outline-none motion-safe:animate-menu-enter"
+                className={menuPopup}
               >
                 <Menu.Item
-                  className={cn(item, "text-danger")}
+                  className={cn(menuItem, menuItemDanger)}
                   onClick={() => setConfirming(true)}
                 >
                   <Trash2 size={16} aria-hidden="true" />
@@ -98,7 +99,24 @@ export default function CommentMenu({
           onClose={() => setSheetOpen(false)}
         />
       )}
-      {confirming && (
+      {confirming && mobile && (
+        <ActionSheet
+          label="Slette kommentaren?"
+          title="Slette kommentaren?"
+          actions={[
+            {
+              id: "confirm-delete",
+              label: "Slett",
+              detail: hasReplies ? "Svarene blir stående." : undefined,
+              icon: <Trash2 size={20} />,
+              danger: true,
+              onSelect: () => void onDelete(),
+            },
+          ]}
+          onClose={() => setConfirming(false)}
+        />
+      )}
+      {confirming && !mobile && (
         <Dialog
           title="Slette kommentaren?"
           closeButton={false}
@@ -106,7 +124,7 @@ export default function CommentMenu({
           onClose={() => !busy && setConfirming(false)}
         >
           <div className="p-5">
-            <h2 className="text-heading">Slette kommentaren?</h2>
+            <h2 className="text-title">Slette kommentaren?</h2>
             {hasReplies && (
               <p className="mt-1.5 text-ui text-muted">Svarene blir stående.</p>
             )}

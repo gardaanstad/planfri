@@ -15,7 +15,6 @@ import {
   Minus,
   Plus,
   X,
-  Check,
 } from "lucide-react";
 import {
   categoryLabels,
@@ -48,6 +47,7 @@ import { cn } from "../lib/cn";
 import { extentPoints, placeExtent } from "../lib/places";
 import { mobileQuery, reducedMotion, useMediaQuery } from "../lib/media";
 import ActionSheet, { SwitchTrack, type SheetAction } from "./action-sheet";
+import { Radio } from "./choice-mark";
 import { mapIconButton } from "../lib/ui";
 
 type MapLayer = "standard" | "streets" | "osm";
@@ -251,7 +251,7 @@ const layerOptions: ReadonlyArray<{
   },
 ];
 
-// Rows as in the other menus: a tint on hover, the chosen one checked.
+// Rows as in the other menus: a tint on hover, a radio by each layer.
 const layerOptionButton = cn(
   "flex min-h-11 w-full items-center gap-2.5 rounded-lg px-1.5 py-1 text-left text-ui text-ink -outline-offset-2",
   "transition-colors duration-150 motion-reduce:transition-none",
@@ -2126,19 +2126,12 @@ export default function ProjectMap({
             >
               <span className={cn(layerThumb, swatch)} aria-hidden="true" />
               {label}
-              {layer === value && (
-                <Check
-                  className="mr-1 ml-auto shrink-0"
-                  size={15}
-                  strokeWidth={2.25}
-                  aria-hidden="true"
-                />
-              )}
+              <Radio chosen={layer === value} className="mr-1 ml-auto" />
             </button>
           ))}
           {overlays.length > 0 && (
             <>
-              <hr className="mx-1 my-1 border-border" />
+              <hr className="-mx-1.5 my-1.5 border-border" />
               {overlays.map((overlay) => (
                 <button
                   type="button"
@@ -2185,7 +2178,7 @@ export default function ProjectMap({
         data-tooltip="Kartlag"
         onClick={() => setLayersOpen(!layersOpen)}
       >
-        <Layers size={19} aria-hidden="true" />
+        <Layers size={20} aria-hidden="true" />
         {overlays.some((overlay) => overlay.on) && (
           <span
             className="absolute top-1.5 right-1.5 size-2.5 rounded-full border-2 border-surface bg-ink"
@@ -2194,7 +2187,7 @@ export default function ProjectMap({
           />
         )}
       </button>
-      <div className="flex flex-col divide-y divide-border overflow-hidden rounded-[6px] border border-border bg-surface shadow-control">
+      <div className="flex flex-col divide-y divide-border overflow-hidden rounded-md border border-border bg-surface shadow-control">
         <button
           type="button"
           className={cn(
@@ -2246,14 +2239,14 @@ export default function ProjectMap({
         onClick={() => setCreditsOpen(!creditsOpen)}
       >
         <span className="grid size-6 place-items-center rounded-full bg-surface/80">
-          <Info size={15} aria-hidden="true" />
+          <Info size={16} aria-hidden="true" />
         </span>
       </button>
       {creditsOpen && (
         <p
           id="map-credits"
           // Short of the controls; narrow phones wrap it.
-          className="absolute top-1/2 left-full -translate-y-1/2 rounded-[4px] bg-surface/80 px-1.5 py-0.5 text-[9px] leading-tight w-max max-w-[calc(100vw-7.5rem)] text-muted [&_a]:text-muted"
+          className="absolute top-1/2 left-full -translate-y-1/2 rounded-sm bg-surface/80 px-1.5 py-0.5 text-[9px] leading-tight w-max max-w-[calc(100vw-7.5rem)] text-muted [&_a]:text-muted"
           dangerouslySetInnerHTML={{
             __html: layer === "osm" ? osmAttribution : mapAttribution,
           }}
@@ -2294,7 +2287,7 @@ export default function ProjectMap({
           )}
       {mapMessage && (
         <div
-          className="absolute top-18.75 left-1/2 z-650 flex w-max max-w-[85%] -translate-x-1/2 items-center gap-2.5 rounded-[7px] border border-border bg-surface px-3.5 py-3 text-2xs shadow-[0_4px_15px_rgb(20_28_24/0.10)] max-sm:top-16 max-sm:max-w-[calc(100%-28px)] max-sm:text-xs"
+          className="absolute top-18.75 left-1/2 z-650 flex w-max max-w-[85%] -translate-x-1/2 items-center gap-2.5 rounded-md border border-border bg-surface px-3.5 py-3 text-2xs shadow-popover max-sm:top-16 max-sm:max-w-[calc(100%-28px)] max-sm:text-xs"
           role="status"
         >
           {mapMessage}

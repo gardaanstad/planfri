@@ -1,6 +1,8 @@
 "use client";
 import { Menu } from "@base-ui/react/menu";
 import { Plus } from "lucide-react";
+import { cn } from "../lib/cn";
+import { menuItem, menuPopup } from "../lib/ui";
 
 /**
  * The desktop map's right-click menu, opened at the pointer: starts a
@@ -39,10 +41,11 @@ export default function MapContextMenu({
           <Menu.Popup
             aria-label="Valg for stedet i kartet"
             data-map-menu=""
-            className="min-w-52 rounded-xl border border-border bg-surface p-1.5 text-ui shadow-popover outline-none"
+            // At the pointer, at once, as the system's own menu would.
+            className={cn(menuPopup, "motion-safe:animate-none")}
           >
             <Menu.Item
-              className="flex min-h-9 cursor-default items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-ink outline-none select-none focus-visible:bg-surface-muted pointer-fine:data-highlighted:bg-surface-muted [&>svg]:shrink-0"
+              className={menuItem}
               onClick={onCreate}
             >
               <Plus size={16} aria-hidden="true" />

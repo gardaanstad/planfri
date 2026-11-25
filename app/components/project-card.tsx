@@ -41,7 +41,7 @@ function Place({ project }: { project: Project }) {
   if (!mode)
     return (
       <>
-        <MapPin size={13} className="shrink-0" aria-hidden="true" />
+        <MapPin size={14} className="shrink-0" aria-hidden="true" />
         <span className="min-w-0 truncate">{projectPlace(project)}</span>
       </>
     );
@@ -55,7 +55,7 @@ function Place({ project }: { project: Project }) {
   return (
     <>
       <span className="inline-flex shrink-0 items-center gap-1 font-medium text-ink-soft">
-        <Icon size={13} className="shrink-0" aria-hidden="true" />
+        <Icon size={14} className="shrink-0" aria-hidden="true" />
         {label}
       </span>
       <span aria-hidden="true">·</span>
@@ -214,8 +214,9 @@ export default memo(function ProjectCard({
         // Instant, so moving down the list reads as a pointer, not a fade.
         "before:absolute before:inset-x-[-12px] before:-z-1 before:rounded-xl max-md:before:inset-x-[-8px]",
         wash,
-        // As dark as the other hovers in light mode.
+        // As dark as the other hovers in light mode; a touch shows it too.
         "hover:before:bg-ink/[0.05] dark:hover:before:bg-surface-muted/65",
+        "pointer-coarse:active:before:bg-ink/[0.05] dark:pointer-coarse:active:before:bg-surface-muted/65",
         offMap && [
           "opacity-60 transition-opacity duration-120 hover:opacity-100 focus-within:opacity-100",
           "dark:opacity-50 dark:hover:opacity-100 dark:focus-within:opacity-100",
@@ -289,13 +290,13 @@ export default memo(function ProjectCard({
           >
             {status}
             <span className={cardStat} data-tooltip={commentLabel}>
-              <MessageCircle size={13} aria-hidden="true" />
+              <MessageCircle size={14} aria-hidden="true" />
               {commentCount}
               <span className="sr-only">{` ${commentWord}`}</span>
             </span>
             {updates.length > 0 && (
               <span className={cardStat} data-tooltip={updatesTooltip}>
-                <Megaphone size={13} aria-hidden="true" />
+                <Megaphone size={14} aria-hidden="true" />
                 {updates.length}
                 <span className="sr-only"> oppdateringer</span>
               </span>
@@ -320,7 +321,7 @@ export default memo(function ProjectCard({
             data-tooltip={commentLabel}
             onClick={() => onOpen(project.id, "discussion")}
           >
-            <MessageCircle size={15} aria-hidden="true" />
+            <MessageCircle size={16} aria-hidden="true" />
             <span>
               {commentCount}
               <span
@@ -338,7 +339,7 @@ export default memo(function ProjectCard({
               data-press=""
               onClick={() => onOpen(project.id, "updates")}
             >
-              <Megaphone size={15} aria-hidden="true" />
+              <Megaphone size={16} aria-hidden="true" />
               <span>
                 {updates.length}
                 <span className="max-[359px]:hidden narrow:hidden">
@@ -362,7 +363,7 @@ export default memo(function ProjectCard({
             onClick={() => onSave(project.id)}
           >
             <Bookmark
-              size={15}
+              size={16}
               fill={saved ? "currentColor" : "none"}
               aria-hidden="true"
             />

@@ -5,7 +5,7 @@ const contact = "gardaanstad@gmail.com";
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="mt-5">
-      <h2 className="text-sm font-semibold text-ink">{title}</h2>
+      <h2 className="text-heading text-ink">{title}</h2>
       <p className="mt-1 text-sm leading-6 text-muted">{children}</p>
     </section>
   );

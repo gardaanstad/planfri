@@ -86,7 +86,7 @@ export default function SavedProjects({
         {sorted.length === 0 ? (
           <EmptyState
             level={2}
-            icon={<Bookmark size={22} />}
+            icon={<Bookmark size={24} />}
             title="Ingen lagrede prosjekter"
             description="Lagre et prosjekt med bokmerket for å finne det igjen her."
           />

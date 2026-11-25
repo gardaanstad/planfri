@@ -7,7 +7,8 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { Check, LogIn } from "lucide-react";
+import { LogIn } from "lucide-react";
+import { Radio } from "./choice-mark";
 import { cn } from "../lib/cn";
 import { reducedMotion, sheetLeave } from "../lib/media";
 import { useBackgroundPush } from "../lib/background-push";
@@ -26,7 +27,7 @@ export type SheetAction = {
   /** Greyed out for guests; choosing it asks them to log in. */
   locked?: boolean;
   pressed?: boolean;
-  /** One choice of several, such as a map layer: checked on the right. */
+  /** One choice of several, such as a map layer: a radio on the right. */
   selected?: boolean;
   /** Destructive, such as deleting: in the danger colour. */
   danger?: boolean;
@@ -41,6 +42,22 @@ export type SheetAction = {
   /** A square icon button beside the row, for a related action. */
   aside?: { id: string; label: string; icon: ReactNode; onSelect: () => void };
 };
+
+/**
+ * The handle at the top of every sheet and drawer from a phone's bottom
+ * edge. It darkens under a pointer over its strip (`group/handle`).
+ */
+export function SheetGrip() {
+  return (
+    <span
+      aria-hidden="true"
+      className="h-1 w-9 shrink-0 rounded-full bg-ink/15 transition-colors group-hover/handle:bg-ink/25 motion-reduce:transition-none"
+    />
+  );
+}
+
+/** A drawer's title, under its grip: what is being chosen or acted on. */
+export const sheetTitle = "text-heading text-ink";
 
 /** The track and knob of an on/off switch, for a row that is one. */
 export function SwitchTrack({ on }: { on: boolean }) {
@@ -173,15 +190,10 @@ export function BottomSheet({
           className,
         )}
       >
-        <div
-          aria-hidden="true"
-          className="flex shrink-0 flex-col items-center px-1 pt-2 pb-3"
-        >
-          <span className="h-1 w-9 rounded-full bg-ink/15" />
+        <div className="flex shrink-0 flex-col items-center px-1 pt-2 pb-3">
+          <SheetGrip />
           {title && (
-            <span className="mt-3 self-start px-2 text-heading text-ink">
-              {title}
-            </span>
+            <h2 className={cn(sheetTitle, "mt-3 self-start px-2")}>{title}</h2>
           )}
         </div>
         <SheetCloseContext value={close}>{children}</SheetCloseContext>
@@ -260,13 +272,8 @@ function SheetActions({
             {action.checked !== undefined && (
               <SwitchTrack on={action.checked} />
             )}
-            {action.selected && (
-              <Check
-                size={18}
-                strokeWidth={2.25}
-                className="text-ink!"
-                aria-hidden="true"
-              />
+            {action.selected !== undefined && (
+              <Radio chosen={action.selected} large />
             )}
             {action.locked && <LogIn size={16} aria-hidden="true" />}
           </button>

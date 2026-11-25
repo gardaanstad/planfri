@@ -17,7 +17,7 @@ const twMerge = extendTailwindMerge({
         "panel",
         "dialog",
       ],
-      radius: ["panel"],
+      radius: ["panel", "dialog", "sheet"],
       breakpoint: ["xs"],
       animate: [
         "preview-in",

@@ -48,3 +48,7 @@ On exit 0:
 # Reporting
 
 Report what changed and what you found, not the process. Don't cite or quote these rules to the user. Keep environment, Git, test and landing details to one line at most, e.g. "Lint, typecheck and explorer specs pass." After landing, reply with just the landed SHA and any flaky spec.
+
+# Design
+
+Follow `docs/design.md` for overlays, type, sizing and states; reuse the classes in `app/lib/ui.ts`.

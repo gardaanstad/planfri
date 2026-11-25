@@ -64,9 +64,9 @@
    * Heading roles: size, leading, tracking and weight in one class, so every
    * heading of a kind looks the same. Tracking is in em, so a role shrunk on
    * phones with `max-md:text-[…]` keeps its proportions.
-   *   display  a page's or a project's title
-   *   title    a panel's or a dialog's title, a profile's name
-   *   heading  a section or an entry inside a page (an update, a sheet)
+   *   display  a page's or a panel's title (a project, Lagret, Forslag)
+   *   title    a dialog's title, a profile's name
+   *   heading  a section or an entry inside a page (an update); a sheet's title
    *   item     a row's title in a list
    * Everything else is regular (400) text; controls and selected or key
    * values are medium (500). Reading text is `ink-soft`, metadata `muted`.
@@ -98,6 +98,8 @@
   --shadow-panel: 0 20px 60px rgb(20 28 24 / 0.14);
   --shadow-dialog: 0 24px 80px rgb(20 28 24 / 0.2);
   --radius-panel: 1.5rem;
+  /* Dialogs, and the cards that stand in for them on desktop. */
+  --radius-dialog: 18px;
   /* Every sheet and drawer rising from a phone's bottom edge. */
   --radius-sheet: 22px;
 

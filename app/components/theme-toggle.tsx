@@ -106,7 +106,7 @@ export default function ThemeToggle({ tooltip = true }: { tooltip?: boolean }) {
       onClick={toggleTheme}
     >
       <Sun
-        size={19}
+        size={20}
         aria-hidden="true"
         className={cn(
           icon,

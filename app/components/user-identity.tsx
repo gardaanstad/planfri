@@ -245,7 +245,7 @@ export default function UserIdentity({
             className="size-10 text-sm"
           />
           <div className="min-w-0">
-            <h3 className="truncate text-body leading-5 font-semibold">
+            <h3 className="truncate text-item">
               {profile.username}
             </h3>
             {profile.location && (

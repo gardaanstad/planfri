@@ -76,7 +76,7 @@ function Prompt() {
         className={cn(
           "bg-surface",
           "max-md:rounded-t-sheet max-md:border-t max-md:border-border max-md:px-4.5 max-md:pt-5 max-md:pb-[calc(12px+env(safe-area-inset-bottom))] max-md:shadow-bar max-md:motion-safe:animate-sheet-in",
-          "md:rounded-[18px] md:border md:border-border md:p-6 md:pb-4 md:shadow-dialog md:motion-safe:animate-dialog-enter",
+          "md:rounded-dialog md:border md:border-border md:p-6 md:pb-4 md:shadow-dialog md:motion-safe:animate-dialog-enter",
         )}
       >
         <h2 id="username-prompt-title" className="text-title">

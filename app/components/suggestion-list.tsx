@@ -62,6 +62,8 @@ import {
 import {
   dangerButton,
   fieldControl,
+  menuItem,
+  menuPopup,
   secondaryButton,
   textButton,
 } from "../lib/ui";
@@ -122,7 +124,7 @@ function KindIcon({ kind }: { kind: SuggestionKind }) {
       data-kind={kind}
       data-tooltip={kindLabels[kind]}
     >
-      <Icon size={15} strokeWidth={2.1} aria-hidden="true" />
+      <Icon size={16} strokeWidth={2.1} aria-hidden="true" />
       <span className="sr-only">{kindLabels[kind]}</span>
     </span>
   );
@@ -297,7 +299,7 @@ function ValueChange({ before, after }: { before: string; after: string }) {
         <>
           <del className={cn(chip, removed, "px-1.75")}>{before}</del>
           <ArrowRight
-            size={13}
+            size={14}
             className="shrink-0 text-muted"
             aria-label="til"
           />
@@ -430,7 +432,7 @@ function FieldMenu({
         className={cn(
           "-my-1 -mr-1.5 grid size-7 place-items-center rounded-md text-muted",
           "opacity-0 transition-opacity duration-120 group-hover/field:opacity-100 focus-visible:opacity-100",
-          "hover:bg-ink/[0.06] hover:text-ink data-popup-open:bg-ink/[0.06] data-popup-open:opacity-100",
+          "hover:bg-ink/[0.05] hover:text-ink data-popup-open:bg-ink/[0.05] data-popup-open:opacity-100",
           "pointer-coarse:opacity-100 motion-reduce:transition-none",
         )}
         aria-label={`Valg for ${label.toLowerCase()}`}
@@ -439,12 +441,12 @@ function FieldMenu({
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Positioner side="bottom" align="end" sideOffset={4} className="z-50">
-          <Menu.Popup className="min-w-52 rounded-xl border border-border bg-surface p-1.5 text-ui shadow-popover outline-none motion-safe:animate-menu-enter">
+          <Menu.Popup className={menuPopup}>
             <Menu.Item
-              className="flex min-h-9 cursor-default items-center gap-2 rounded-lg px-2.5 py-1.5 text-ink outline-none select-none pointer-fine:data-highlighted:bg-surface-muted focus-visible:bg-surface-muted"
+              className={menuItem}
               onClick={() => onExclude(true)}
             >
-              <CircleSlash size={14} className="text-muted" aria-hidden="true" />
+              <CircleSlash size={16} aria-hidden="true" />
               Ikke ta med denne endringen
             </Menu.Item>
           </Menu.Popup>
@@ -714,7 +716,7 @@ function Note({ author, note }: { author: string; note: string }) {
 const iconAction = cn(
   "grid size-9 shrink-0 place-items-center rounded-full border",
   "transition-[color,background-color,border-color,transform] duration-150",
-  "active:scale-[0.96] disabled:pointer-events-none disabled:opacity-40",
+  "active:scale-[0.97] disabled:pointer-events-none disabled:opacity-45",
   "motion-reduce:transition-none motion-reduce:active:scale-100",
 );
 
@@ -793,7 +795,10 @@ function SuggestionRow({
     <article
       className={cn(
         "transition-colors duration-150 motion-reduce:transition-none",
-        !expanded && "hover:bg-surface-subtle",
+        !expanded && [
+            "hover:bg-ink/[0.05] pointer-coarse:active:bg-ink/[0.05]",
+            "dark:hover:bg-surface-muted/65 dark:pointer-coarse:active:bg-surface-muted/65",
+          ],
       )}
       aria-labelledby={`${bodyId}-title`}
       data-suggestion={suggestion.kind}
@@ -944,7 +949,7 @@ function SuggestionRow({
                     aria-pressed={editing}
                     onClick={() => setEditing(!editing)}
                   >
-                    <Pencil size={13} aria-hidden="true" />
+                    <Pencil size={14} aria-hidden="true" />
                     {editing ? "Ferdig" : "Rediger"}
                   </button>
                 )}
@@ -981,7 +986,7 @@ function SuggestionRow({
                       disabled={busy}
                       onClick={() => setRejecting(!rejecting)}
                     >
-                      <X size={17} strokeWidth={2.25} aria-hidden="true" />
+                      <X size={18} strokeWidth={2.25} aria-hidden="true" />
                     </button>
                     <button
                       type="button"
@@ -997,7 +1002,7 @@ function SuggestionRow({
                       }
                       onClick={approve}
                     >
-                      <Check size={17} strokeWidth={2.5} aria-hidden="true" />
+                      <Check size={18} strokeWidth={2.5} aria-hidden="true" />
                     </button>
                   </div>
                 )}

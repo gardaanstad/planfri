@@ -117,7 +117,7 @@ export default function AccountPanel({
                   aria-label="Rediger profil"
                   data-tooltip="Rediger profil"
                 >
-                  <Pencil size={17} aria-hidden="true" />
+                  <Pencil size={18} aria-hidden="true" />
                 </PanelHeaderButton>
               }
             />

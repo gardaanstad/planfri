@@ -110,9 +110,9 @@ function DesktopActions({
   const menu: OverflowAction[] = [
     {
       id: "save",
-      label: saved ? "Lagret" : "Lagre",
-      icon: <Bookmark size={16} />,
-      checked: saved,
+      label: saved ? "Fjern fra lagrede" : "Lagre",
+      icon: <Bookmark size={16} fill={saved ? "currentColor" : "none"} />,
+      pressed: saved,
       onSelect: onSave,
     },
     ...(onEdit
@@ -447,7 +447,7 @@ export default function ProjectPostHeader({
               data-press=""
               data-sidebar-maximize=""
             >
-              {full ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+              {full ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
             </button>
           )}
           {close}

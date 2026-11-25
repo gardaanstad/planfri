@@ -94,7 +94,7 @@ export default function AccountSettings({
     >
       {variant === "page" && (
         <header className="mb-6">
-          <h1 className="text-title">Kontoinnstillinger</h1>
+          <h1 className="text-display">Kontoinnstillinger</h1>
           <div className="mt-3 flex items-center gap-2.5">
             <ProfileAvatar name={user.username!} className="size-8 text-xs" />
             <p className="min-w-0 text-sm font-semibold wrap-anywhere">
@@ -121,7 +121,7 @@ export default function AccountSettings({
           className={cn(secondaryButton, "mt-3 w-full")}
           onClick={() => setSigningOut(true)}
         >
-          <LogOut size={17} aria-hidden="true" />
+          <LogOut size={18} aria-hidden="true" />
           Logg ut
         </button>
       </section>
@@ -254,6 +254,7 @@ export function AccountSettingsSheet({
   return (
     <BottomSheet
       label="Kontoinnstillinger"
+      title="Kontoinnstillinger"
       scroller={scroller}
       className="max-h-[calc(100dvh-22px-env(safe-area-inset-top))]"
       onClose={onClose}
@@ -276,18 +277,13 @@ function SettingsSheetBody({
   scroller: RefObject<HTMLDivElement | null>;
   onSignedOut: () => void;
 }) {
-  const id = useId();
   const close = useSheetClose();
   return (
     <div
       ref={scroller}
-      aria-labelledby={`${id}-title`}
       className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
       data-settings-sheet=""
     >
-      <h2 id={`${id}-title`} className="px-2.5 pb-4 text-heading">
-        Kontoinnstillinger
-      </h2>
       <AccountSettings
         user={user}
         variant="sheet"

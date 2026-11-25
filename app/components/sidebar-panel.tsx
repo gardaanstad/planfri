@@ -90,7 +90,7 @@ export function MaximizeButton({
       data-tooltip={label}
       data-sidebar-maximize=""
     >
-      {maximized ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+      {maximized ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
     </button>
   );
 }
@@ -164,7 +164,7 @@ export function SidebarPanel({
             aria-label="Tilbake"
             data-tooltip="Tilbake"
           >
-            <ArrowLeft size={19} />
+            <ArrowLeft size={20} />
           </button>
         )}
         <div className="ml-auto flex items-center gap-0.5">

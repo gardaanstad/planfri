@@ -189,7 +189,7 @@ export default function DrawingMap({
         ) : (
           <>
             <div
-              className="inline-flex rounded-lg bg-ink/[0.06] p-0.5"
+              className="inline-flex rounded-lg bg-ink/[0.05] p-0.5"
               role="group"
               aria-label="Form"
             >
@@ -199,7 +199,7 @@ export default function DrawingMap({
                 aria-pressed={shape === "area"}
                 onClick={() => onShapeChange("area")}
               >
-                <Pentagon size={15} aria-hidden="true" /> Område
+                <Pentagon size={16} aria-hidden="true" /> Område
               </button>
               <button
                 type="button"
@@ -207,7 +207,7 @@ export default function DrawingMap({
                 aria-pressed={shape === "line"}
                 onClick={() => onShapeChange("line")}
               >
-                <Route size={15} aria-hidden="true" /> Trasé
+                <Route size={16} aria-hidden="true" /> Trasé
               </button>
             </div>
             <div className="ml-auto flex items-center gap-0.5">
@@ -228,7 +228,7 @@ export default function DrawingMap({
                         : "Tegn videre fra starten"
                     }
                   >
-                    <ArrowLeftRight size={17} aria-hidden="true" />
+                    <ArrowLeftRight size={18} aria-hidden="true" />
                   </button>
                   <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
                 </>
@@ -241,7 +241,7 @@ export default function DrawingMap({
                 aria-label="Angre"
                 data-tooltip="Angre"
               >
-                <Undo2 size={17} aria-hidden="true" />
+                <Undo2 size={18} aria-hidden="true" />
               </button>
               <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
               <button
@@ -253,7 +253,7 @@ export default function DrawingMap({
                 aria-label="Fjern alle punkter"
                 data-tooltip="Fjern alle punkter"
               >
-                <Trash2 size={17} aria-hidden="true" />
+                <Trash2 size={18} aria-hidden="true" />
               </button>
               <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
               {maximized ? (
@@ -277,7 +277,7 @@ export default function DrawingMap({
                   aria-label="Forstørr kartet"
                   data-tooltip="Forstørr kartet"
                 >
-                  <Maximize2 size={17} aria-hidden="true" />
+                  <Maximize2 size={18} aria-hidden="true" />
                 </button>
               )}
             </div>

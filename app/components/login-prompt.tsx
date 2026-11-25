@@ -7,7 +7,7 @@ import { cn } from "../lib/cn";
 import { reducedMotion, sheetLeave } from "../lib/media";
 import { useBackgroundPush } from "../lib/background-push";
 import { iconButton } from "../lib/ui";
-import { openedByKeyboard } from "./action-sheet";
+import { SheetGrip, openedByKeyboard } from "./action-sheet";
 import GoogleSignIn from "./google-sign-in";
 
 
@@ -113,29 +113,30 @@ export default function LoginPrompt({
         className={cn(
           "relative bg-surface",
           "max-md:rounded-t-sheet max-md:border-t max-md:border-border max-md:px-4.5 max-md:pb-[calc(16px+env(safe-area-inset-bottom))] max-md:shadow-bar max-md:[--sheet:1] max-md:motion-safe:animate-sheet-in",
-          "md:rounded-[18px] md:border md:border-border md:p-6 md:shadow-dialog md:motion-safe:animate-dialog-enter",
+          "md:rounded-dialog md:border md:border-border md:p-6 md:shadow-dialog md:motion-safe:animate-dialog-enter",
         )}
       >
         <div
           aria-hidden="true"
           className="flex justify-center pt-2 pb-1 md:hidden"
         >
-          <span className="h-1 w-9 rounded-full bg-ink/15" />
+          <SheetGrip />
         </div>
         <button
           type="button"
           className={cn(
             iconButton,
-            "absolute top-2 right-2 rounded-lg max-md:top-1.5 max-md:right-1.5",
+            // Phones close it as every sheet: a swipe, the scrim or Escape.
+            "absolute top-2 right-2 rounded-lg max-md:hidden",
           )}
           aria-label="Lukk"
           onClick={close}
         >
-          <X size={19} />
+          <X size={20} />
         </button>
         <h2
           id="login-prompt-title"
-          className="pr-10 text-title max-md:mt-3"
+          className="text-title md:pr-10 max-md:mt-3"
         >
           Logg inn
         </h2>

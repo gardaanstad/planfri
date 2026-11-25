@@ -32,7 +32,7 @@ import styles from "./project-discussion.module.css";
 
 const voteButton = cn(
   "grid size-8 place-items-center rounded-md p-0 text-muted max-sm:size-9",
-  "transition-colors hover:bg-ink/[0.06] hover:not-aria-pressed:text-ink",
+  "transition-colors hover:bg-ink/[0.05] hover:not-aria-pressed:text-ink",
   "[&[aria-pressed=true]>svg]:stroke-[2.8]",
 );
 /** On a phone, where the replies' line is hidden, a tap on the name's line folds a thread. */
@@ -405,7 +405,7 @@ export default function ProjectDiscussion({
                           void castVote(comment.id, vote === 1 ? 0 : 1)
                         }
                       >
-                        <ArrowUp size={15} />
+                        <ArrowUp size={16} />
                       </button>
                       <span
                         className={cn(
@@ -427,14 +427,14 @@ export default function ProjectDiscussion({
                           void castVote(comment.id, vote === -1 ? 0 : -1)
                         }
                       >
-                        <ArrowDown size={15} />
+                        <ArrowDown size={16} />
                       </button>
                     </div>
                     <button
                       type="button"
                       className={cn(
                         "inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted",
-                        "transition-colors hover:bg-ink/[0.06] hover:text-ink max-sm:order-first max-sm:h-9",
+                        "transition-colors hover:bg-ink/[0.05] hover:text-ink max-sm:order-first max-sm:h-9",
                       )}
                       ref={(element) => {
                         if (element)
@@ -457,7 +457,7 @@ export default function ProjectDiscussion({
                         replyDraftFor.current = comment.id;
                       }}
                     >
-                      <MessageCircle size={13} />
+                      <MessageCircle size={14} />
                       Svar
                     </button>
                     {user?.username === comment.author && (
@@ -518,7 +518,7 @@ export default function ProjectDiscussion({
                         type="button"
                         className={cn(
                           "grid size-8 shrink-0 place-items-center rounded-full text-muted",
-                          "transition-colors hover:bg-ink/[0.06] hover:text-ink",
+                          "transition-colors hover:bg-ink/[0.05] hover:text-ink",
                         )}
                         aria-label="Avbryt"
                         onClick={() => {

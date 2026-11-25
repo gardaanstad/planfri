@@ -77,7 +77,7 @@ export default function UsernameForm() {
       <span className="text-danger">Brukernavnet er allerede tatt.</span>
     ) : ready ? (
       <span className="flex items-center gap-1 text-accent">
-        <Check size={13} aria-hidden="true" />Ledig
+        <Check size={14} aria-hidden="true" />Ledig
       </span>
     ) : null;
   return (

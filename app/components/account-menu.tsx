@@ -6,15 +6,8 @@ import { useAuth } from "./auth-provider";
 import ActionSheet, { SwitchTrack, type SheetAction } from "./action-sheet";
 import ProfileAvatar from "./profile-avatar";
 import { cn } from "../lib/cn";
+import { countBadge, menuItem as item, menuPopup, menuSeparator as separator } from "../lib/ui";
 
-const item = cn(
-  "flex min-h-9 cursor-default items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-ink outline-none select-none",
-  "pointer-fine:data-highlighted:bg-surface-muted focus-visible:bg-surface-muted pointer-coarse:min-h-11",
-  "[&>svg]:shrink-0 [&>svg]:text-muted",
-);
-const separator = "-mx-1.5 my-1.5 h-px bg-border";
-const countBadge =
-  "inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-accent px-1.25 text-2xs leading-none font-semibold text-on-accent tabular-nums";
 
 function Count({ count }: { count: number }) {
   return count > 0 ? (
@@ -168,7 +161,7 @@ export default function AccountMenu({
         >
           <Menu.Popup
             aria-label="Konto"
-            className="min-w-60 rounded-xl border border-border bg-surface p-1.5 text-ui shadow-popover outline-none motion-safe:animate-menu-enter"
+            className={cn(menuPopup, "min-w-60")}
           >
             <div className="flex gap-1">
               <Menu.Item

@@ -117,7 +117,7 @@ export const FeedRow = memo(function FeedRow({
       className={cn(
         "relative isolate border-b border-border py-3.5",
         // A single happening is one press; grouped, each comment is its own.
-        !grouped && [wash, "before:inset-y-1.5 hover:before:bg-surface-muted/65"],
+        !grouped && [wash, "before:inset-y-1.5 hover:before:bg-ink/[0.05] pointer-coarse:active:before:bg-ink/[0.05] dark:hover:before:bg-surface-muted/65 dark:pointer-coarse:active:before:bg-surface-muted/65"],
       )}
       data-feed-id={project.id}
       data-event={event.kind}
@@ -178,7 +178,7 @@ export const FeedRow = memo(function FeedRow({
                   className={cn(
                     "block w-full outline-none",
                     wash,
-                    "before:-inset-y-1.5 hover:before:bg-surface-muted/65",
+                    "before:-inset-y-1.5 hover:before:bg-ink/[0.05] pointer-coarse:active:before:bg-ink/[0.05] dark:hover:before:bg-surface-muted/65 dark:pointer-coarse:active:before:bg-surface-muted/65",
                     "after:absolute after:inset-x-[-12px] after:-inset-y-1.5 after:rounded-xl max-md:after:inset-x-[-8px] focus-visible:after:outline-2 focus-visible:after:outline-focus",
                   )}
                   aria-label={`${project.title}: kommentar fra ${comment.author}${index === 0 ? unread : ""}`}

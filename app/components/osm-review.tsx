@@ -46,7 +46,16 @@ import {
   osmTitles,
 } from "../lib/osm-candidates";
 import { cn } from "../lib/cn";
-import { iconButton, primaryButton, secondaryButton } from "../lib/ui";
+import {
+  iconButton,
+  menuItem,
+  menuPopup,
+  menuSeparator,
+  primaryButton,
+  secondaryButton,
+} from "../lib/ui";
+import { Menu } from "@base-ui/react/menu";
+import { SwitchTrack } from "./action-sheet";
 import type { OsmLayer, OsmLine } from "./project-map";
 import { notify } from "./toast";
 
@@ -338,7 +347,7 @@ function Box({ checked, color }: { checked: boolean; color?: string }) {
   return (
     <span
       className={cn(
-        "flex size-3.5 shrink-0 items-center justify-center rounded-[4px] border-[1.5px] text-surface",
+        "flex size-3.5 shrink-0 items-center justify-center rounded-sm border-[1.5px] text-surface",
         checked ? "border-transparent" : "border-border-strong bg-surface",
         checked && !color && "bg-accent",
       )}
@@ -375,124 +384,82 @@ function StatusSample({ status, on }: { status: OsmStatus; on: boolean }) {
 
 /** The ⋯ menu: hidden candidates, and reading OSM again. */
 function MoreMenu({ review }: { review: OsmReview }) {
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const outside = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      setOpen(false);
-      root.current?.querySelector<HTMLButtonElement>("button")?.focus();
-    };
-    document.addEventListener("pointerdown", outside);
-    window.addEventListener("keydown", escape, true);
-    return () => {
-      document.removeEventListener("pointerdown", outside);
-      window.removeEventListener("keydown", escape, true);
-    };
-  }, [open]);
   const hidden = review.feed?.dismissed.length ?? 0;
   const fetchedAt = review.feed?.fetchedAt;
-  const item =
-    "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-ui text-ink hover:bg-surface-muted disabled:opacity-45 [&>svg]:shrink-0 [&>svg]:text-muted";
+  const disabled = "data-disabled:pointer-events-none data-disabled:opacity-45";
   return (
-    <div ref={root} className="relative">
-      <button
-        type="button"
-        className={smallIcon}
+    <Menu.Root>
+      <Menu.Trigger
+        className={cn(smallIcon, "data-popup-open:bg-ink/[0.05] data-popup-open:text-ink")}
         aria-label="Flere valg"
-        aria-expanded={open}
-        aria-haspopup="menu"
-        data-tooltip={open ? undefined : "Flere valg"}
-        onClick={() => setOpen(!open)}
+        data-tooltip="Flere valg"
       >
-        <Ellipsis size={17} aria-hidden="true" />
-      </button>
-      {open && (
-        <div
-          role="menu"
-          className="absolute top-full right-0 z-10 mt-1.5 w-64 rounded-xl border border-border bg-surface p-1.5 shadow-popover"
+        <Ellipsis size={18} aria-hidden="true" />
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner
+          side="bottom"
+          align="end"
+          sideOffset={6}
+          className="z-[1000]"
         >
-          <button
-            type="button"
-            role="menuitemcheckbox"
-            aria-checked={review.showHidden}
-            className={item}
-            disabled={!hidden && !review.showHidden}
-            onClick={() => {
-              review.setShowHidden(!review.showHidden);
-              setOpen(false);
-            }}
-          >
-            {review.showHidden ? (
-              <EyeOff size={16} aria-hidden="true" />
-            ) : (
-              <Eye size={16} aria-hidden="true" />
-            )}
-            <span className="flex-1">
-              {review.showHidden ? "Ikke vis skjulte" : "Vis skjulte"}
-            </span>
-            <span className="text-xs text-muted tabular-nums">{hidden}</span>
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className={item}
-            disabled={!hidden}
-            onClick={() => {
-              setOpen(false);
-              void review.resetDismissed();
-            }}
-          >
-            <RotateCcw size={16} aria-hidden="true" />
-            Nullstill skjulte
-          </button>
-          <div className="my-1 border-t border-border" />
-          <button
-            type="button"
-            role="menuitemcheckbox"
-            aria-checked={review.hideProjects}
-            className={item}
-            onClick={() => {
-              review.setHideProjects(!review.hideProjects);
-              setOpen(false);
-            }}
-          >
-            <MapPinOff size={16} aria-hidden="true" />
-            <span className="flex-1">Skjul eksisterende prosjekter</span>
-            {review.hideProjects && (
-              <Check size={16} className="text-accent!" aria-hidden="true" />
-            )}
-          </button>
-          <div className="my-1 border-t border-border" />
-          <button
-            type="button"
-            role="menuitem"
-            className={item}
-            disabled={review.refreshing}
-            onClick={() => {
-              setOpen(false);
-              void review.refresh();
-            }}
-          >
-            <RefreshCw size={16} aria-hidden="true" />
-            <span className="flex flex-col">
-              Oppdater fra OpenStreetMap
-              {fetchedAt && (
-                <span className="text-xs text-muted">
-                  Hentet {fetchedFormat.format(new Date(fetchedAt))}
-                </span>
+          <Menu.Popup className={cn(menuPopup, "w-64")}>
+            <Menu.CheckboxItem
+              className={cn(menuItem, disabled)}
+              checked={review.showHidden}
+              disabled={!hidden && !review.showHidden}
+              closeOnClick
+              onCheckedChange={review.setShowHidden}
+            >
+              {review.showHidden ? (
+                <EyeOff size={16} aria-hidden="true" />
+              ) : (
+                <Eye size={16} aria-hidden="true" />
               )}
-            </span>
-          </button>
-        </div>
-      )}
-    </div>
+              <span className="flex-1">
+                {review.showHidden ? "Ikke vis skjulte" : "Vis skjulte"}
+              </span>
+              <span className="text-xs text-muted tabular-nums">{hidden}</span>
+            </Menu.CheckboxItem>
+            <Menu.Item
+              className={cn(menuItem, disabled)}
+              disabled={!hidden}
+              onClick={() => void review.resetDismissed()}
+            >
+              <RotateCcw size={16} aria-hidden="true" />
+              Nullstill skjulte
+            </Menu.Item>
+            <Menu.Separator className={menuSeparator} />
+            <Menu.CheckboxItem
+              className={menuItem}
+              checked={review.hideProjects}
+              closeOnClick
+              onCheckedChange={review.setHideProjects}
+            >
+              <MapPinOff size={16} aria-hidden="true" />
+              <span className="mr-3 flex-1">Skjul eksisterende prosjekter</span>
+              <SwitchTrack on={review.hideProjects} />
+            </Menu.CheckboxItem>
+            <Menu.Separator className={menuSeparator} />
+            <Menu.Item
+              className={cn(menuItem, disabled)}
+              disabled={review.refreshing}
+              onClick={() => void review.refresh()}
+            >
+              <RefreshCw size={16} aria-hidden="true" />
+              <span className="flex flex-col">
+                Oppdater fra OpenStreetMap
+                {fetchedAt && (
+                  <span className="text-xs text-muted">
+                    Hentet {fetchedFormat.format(new Date(fetchedAt))}
+                  </span>
+                )}
+              </span>
+            </Menu.Item>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
   );
 }
 
@@ -576,7 +543,7 @@ export function OsmPanel({
               data-tooltip="Slå av"
               onClick={review.toggle}
             >
-              <X size={17} aria-hidden="true" />
+              <X size={18} aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -609,7 +576,7 @@ export function OsmPanel({
               disabled={!queue.length}
               onClick={() => review.step(-1)}
             >
-              <ChevronLeft size={17} aria-hidden="true" />
+              <ChevronLeft size={18} aria-hidden="true" />
             </button>
             {position >= 0 && (
               <span
@@ -627,7 +594,7 @@ export function OsmPanel({
               disabled={!queue.length}
               onClick={() => review.step(1)}
             >
-              <ChevronRight size={17} aria-hidden="true" />
+              <ChevronRight size={18} aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -639,7 +606,7 @@ export function OsmPanel({
             {review.loading || review.refreshing ? (
               <>
                 <LoaderCircle
-                  size={15}
+                  size={16}
                   className="shrink-0 animate-spin motion-reduce:animate-none"
                   aria-hidden="true"
                 />
@@ -669,7 +636,7 @@ export function OsmPanel({
           data-osm-selected={candidate.id}
         >
           <div className="flex items-start gap-2">
-            <h2 className="min-w-0 flex-1 text-ui leading-snug font-semibold text-ink">
+            <h2 className="min-w-0 flex-1 text-item text-ink">
               {selected.title}
             </h2>
             <button
@@ -680,7 +647,7 @@ export function OsmPanel({
               data-tooltip="Fjern valget"
               onClick={() => review.select(null)}
             >
-              <X size={15} aria-hidden="true" />
+              <X size={16} aria-hidden="true" />
             </button>
           </div>
           <p className="mt-0.5 text-xs text-muted">
@@ -730,7 +697,7 @@ export function OsmPanel({
                 className={cn(secondaryButton, "min-h-9 rounded-lg px-3 text-ui")}
                 onClick={() => review.restore(candidate.id)}
               >
-                <Eye size={15} aria-hidden="true" />
+                <Eye size={16} aria-hidden="true" />
                 Vis igjen
               </button>
             ) : (
@@ -740,7 +707,7 @@ export function OsmPanel({
                   className={cn(secondaryButton, "min-h-9 rounded-lg px-3 text-ui")}
                   onClick={() => void review.dismiss(candidate.id)}
                 >
-                  <EyeOff size={15} aria-hidden="true" />
+                  <EyeOff size={16} aria-hidden="true" />
                   Skjul
                 </button>
               )
@@ -753,7 +720,7 @@ export function OsmPanel({
               aria-label="Åpne i OpenStreetMap"
               data-tooltip="Åpne i OpenStreetMap"
             >
-              <ExternalLink size={15} aria-hidden="true" />
+              <ExternalLink size={16} aria-hidden="true" />
             </a>
           </div>
         </div>

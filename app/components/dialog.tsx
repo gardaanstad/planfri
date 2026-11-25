@@ -6,18 +6,18 @@ import { cn } from "../lib/cn";
 
 const dialogStyles = [
   "relative m-auto max-h-[90dvh] w-[480px] max-w-[calc(100vw-32px)]",
-  "overflow-y-auto overscroll-contain rounded-[18px] border border-border bg-surface p-0 text-ink",
+  "overflow-y-auto overscroll-contain rounded-dialog border border-border bg-surface p-0 text-ink",
   "shadow-dialog scrollbar-thin",
   "motion-safe:animate-dialog-enter",
   "backdrop:bg-scrim/33 backdrop:backdrop-blur-[4px]",
-  "max-sm:max-h-[calc(100dvh-32px)] max-sm:w-full max-sm:max-w-[calc(100vw-20px)] max-sm:rounded-2xl",
+  "max-sm:max-h-[calc(100dvh-32px)] max-sm:w-full max-sm:max-w-[calc(100vw-20px)]",
 ].join(" ");
 
 const closeButtonStyles = cn(
   "absolute top-[17px] right-[17px] z-10 inline-flex size-11 items-center justify-center",
   "rounded-xl border-0 bg-transparent p-0 text-muted",
   "transition-[color,background-color,transform] duration-150",
-  "hover:bg-ink/[0.06] hover:text-ink",
+  "hover:bg-ink/[0.05] hover:text-ink",
   "active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100",
   "max-sm:top-3 max-sm:right-3",
 );

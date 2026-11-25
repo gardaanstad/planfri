@@ -18,6 +18,7 @@ import {
   LoaderCircle,
   MessagesSquare,
   Plus,
+  Trash2,
 } from "lucide-react";
 import {
   arrangePhotos,
@@ -52,6 +53,7 @@ import {
 import DrawingMap from "./drawing-map";
 import ProjectPostHeader from "./project-post-header";
 import Dialog from "./dialog";
+import ActionSheet from "./action-sheet";
 import ProjectDiscussion, { DiscussionSortSelect } from "./project-discussion";
 import type { DiscussionSort } from "../lib/discussion";
 import CategoryPicker from "./category-picker";
@@ -84,14 +86,14 @@ import styles from "./project-post.module.css";
 import { takeLoginIntent } from "../lib/login-intent";
 
 const cover =
-  "relative aspect-3/2 w-full overflow-hidden rounded-[10px] bg-surface-muted";
+  "relative aspect-3/2 w-full overflow-hidden rounded-xl bg-surface-muted";
 /**
  * "Les mer" / "Skjul kommentarer": sticks to the bottom (when `sticky`) and
  * becomes a floating pill while stuck.
  */
 const stickyToggle = cn(
   "bottom-3 z-2 mx-auto mt-1 mb-0.5 flex min-h-9 items-center gap-1 rounded-full border border-transparent pr-3 pl-3.5",
-  "text-ui font-medium text-ink transition-[background-color,border-color,box-shadow] duration-150 not-data-moving:hover:bg-ink/5",
+  "text-ui font-medium text-ink transition-[background-color,border-color,box-shadow] duration-150 not-data-moving:hover:bg-ink/[0.05]",
   // While it slides into place, it turns into the pill over the same stretch, without the hover
   // tint left from the tap that moved it.
   "data-moving:duration-320 data-moving:ease-out-soft",
@@ -105,8 +107,8 @@ const updateAction = cn(
 );
 const composerTool = cn(
   "inline-flex min-h-8 items-center gap-1.5 rounded-full px-2.5 text-xs leading-normal font-medium text-muted",
-  "transition-colors duration-120 hover:bg-ink/6 hover:text-ink focus-within:bg-ink/6 focus-within:text-ink",
-  "aria-expanded:bg-ink/6 aria-expanded:text-ink",
+  "transition-colors duration-120 hover:bg-ink/[0.05] hover:text-ink focus-within:bg-ink/[0.05] focus-within:text-ink",
+  "aria-expanded:bg-ink/[0.05] aria-expanded:text-ink",
 );
 type Props = {
   project: Project;
@@ -881,7 +883,7 @@ function UpdateComposer({
         icon={<Megaphone size={24} />}
         title="Ingen oppdateringer ennå"
       >
-        <EmptyAction ref={pillRef} icon={<Plus size={15} />} onClick={start}>
+        <EmptyAction ref={pillRef} icon={<Plus size={16} />} onClick={start}>
           {label}
         </EmptyAction>
       </EmptyState>
@@ -990,7 +992,7 @@ function UpdateComposer({
               aria-controls="update-composer-images"
               onClick={() => setPicking(!picking)}
             >
-              <ImagePlus size={15} aria-hidden="true" />
+              <ImagePlus size={16} aria-hidden="true" />
               {tip ? "Bilde" : "Bilder"}
               {images.length > 0 && (
                 <small className="text-2xs tabular-nums">{images.length}</small>
@@ -1509,7 +1511,7 @@ export default function ProjectPost({
                               </>
                             )}
                           </p>
-                          <h3 className="mt-1 mb-2.5 text-heading max-sm:mt-0.5 max-sm:mb-2 max-sm:text-[1.0625rem]">
+                          <h3 className="mt-1 mb-2.5 text-heading max-sm:mt-0.5 max-sm:mb-2 max-sm:text-item">
                             {update.title}
                           </h3>
                           {update.body.split("\n\n").map((paragraph, index) => (
@@ -1539,7 +1541,7 @@ export default function ProjectPost({
                               aria-controls={`update-comments-${update.id}`}
                               onClick={() => toggleComments(update.id)}
                             >
-                              <MessagesSquare size={15} aria-hidden="true" />
+                              <MessagesSquare size={16} aria-hidden="true" />
                               <span>
                                 {openComments[update.id]
                                   ? "Skjul kommentarer"
@@ -1622,7 +1624,25 @@ export default function ProjectPost({
         </div>
       </article>
       {feedback}
-      {deleting && (
+      {/* Phones: the sheet slides away as the deletion starts. */}
+      {deleting === "confirm" && mobile && (
+        <ActionSheet
+          label="Slette prosjektet?"
+          title="Slette prosjektet?"
+          actions={[
+            {
+              id: "delete-project",
+              label: "Slett prosjekt",
+              detail: `«${project.title}» forsvinner for alle. Dette kan ikke angres.`,
+              icon: <Trash2 size={20} />,
+              danger: true,
+              onSelect: () => void deleteProject(),
+            },
+          ]}
+          onClose={() => setDeleting(null)}
+        />
+      )}
+      {deleting && !mobile && (
         <Dialog
           title="Slette prosjektet?"
           closeButton={false}
@@ -1631,7 +1651,7 @@ export default function ProjectPost({
           onClose={() => deleting !== "busy" && setDeleting(null)}
         >
           <div className="p-5">
-            <h2 className="text-heading">Slette prosjektet?</h2>
+            <h2 className="text-title">Slette prosjektet?</h2>
             <p className="mt-1.5 text-ui text-muted">
               «{project.title}» forsvinner for alle, med oppdateringer,
               kommentarer og forslag. Dette kan ikke angres.

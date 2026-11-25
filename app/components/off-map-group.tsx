@@ -233,7 +233,7 @@ export default function OffMapGroup({
           "relative isolate flex w-full items-center justify-center gap-1.5 border-b border-border py-2.5 text-xs leading-4.5 font-medium text-muted outline-none",
           "transition-colors duration-120 hover:text-ink motion-reduce:transition-none",
           // The cards' hover wash and focus ring, bleeding past the text.
-          "before:absolute before:inset-x-[-12px] before:inset-y-1 before:-z-1 before:rounded-lg hover:before:bg-surface-muted/65 max-md:before:inset-x-[-8px]",
+          "before:absolute before:inset-x-[-12px] before:inset-y-1 before:-z-1 before:rounded-lg hover:before:bg-ink/[0.05] pointer-coarse:active:before:bg-ink/[0.05] dark:hover:before:bg-surface-muted/65 dark:pointer-coarse:active:before:bg-surface-muted/65 max-md:before:inset-x-[-8px]",
           "focus-visible:before:outline-2 focus-visible:before:outline-focus",
         )}
         aria-expanded={open}
@@ -241,10 +241,10 @@ export default function OffMapGroup({
         data-off-map-toggle=""
         onClick={() => fold(open)}
       >
-        <EyeOff size={13} aria-hidden="true" className="shrink-0" />
+        <EyeOff size={14} aria-hidden="true" className="shrink-0" />
         Ikke synlige på kartet
         <ChevronDown
-          size={15}
+          size={16}
           aria-hidden="true"
           className={cn(
             "absolute right-0 shrink-0 transition-transform duration-200 ease-out-soft motion-reduce:transition-none",

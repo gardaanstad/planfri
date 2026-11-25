@@ -30,6 +30,30 @@ export const sortChoice = [
   "[&_[data-slot=choice-menu]]:right-0 [&_[data-slot=choice-menu]]:left-auto [&_[data-slot=choice-menu]]:min-w-[205px] [&_[data-slot=choice-menu][data-open=false]]:hidden",
 ].join(" ");
 
+/**
+ * A desktop dropdown (Base UI `Menu.Popup`): actions or settings. Menus
+ * with long rows or switches widen it with `min-w-60`.
+ */
+export const menuPopup =
+  "min-w-52 rounded-xl border border-border bg-surface p-1.5 text-ui shadow-popover outline-none motion-safe:animate-menu-enter";
+
+/** A row in `menuPopup`: the same wash for hover and the keyboard. */
+export const menuItem = cn(
+  "flex min-h-9 cursor-default items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-ink outline-none select-none",
+  "pointer-fine:data-highlighted:bg-surface-muted focus-visible:bg-surface-muted pointer-coarse:min-h-11",
+  "[&>svg:first-child]:shrink-0 [&>svg:first-child]:text-muted",
+);
+
+/** Destructive, in a menu or on its own: the row and its icon in danger. */
+export const menuItemDanger = "text-danger [&>svg:first-child]:text-danger";
+
+/** A hairline between groups in `menuPopup`, out to its edges. */
+export const menuSeparator = "-mx-1.5 my-1.5 h-px bg-border";
+
+/** A count on an accent pill, such as unseen suggestions. */
+export const countBadge =
+  "inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-accent px-1.25 text-2xs leading-none font-semibold text-on-accent tabular-nums";
+
 export const primaryButton = [
   controlBase,
   "border border-accent bg-accent text-on-accent shadow-xs",
@@ -90,7 +114,7 @@ export const accountView =
 
 /** A square control over the map: zoom, layers, modes. */
 export const mapIconButton = [
-  "inline-flex size-11 shrink-0 items-center justify-center rounded-[6px] border border-border bg-surface text-ink shadow-control",
+  "inline-flex size-11 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-ink shadow-control",
   "transition-[color,background-color,opacity,transform] duration-150",
   "hover:bg-surface-muted hover:text-ink aria-pressed:bg-surface-muted aria-pressed:text-ink",
   "disabled:pointer-events-none disabled:opacity-45 active:scale-[0.97]",
@@ -100,7 +124,7 @@ export const mapIconButton = [
 export const iconButton = [
   "inline-flex size-11 shrink-0 items-center justify-center rounded-xl border border-transparent text-muted",
   "transition-[color,background-color,opacity,transform] duration-150",
-  "hover:bg-ink/[0.06] hover:text-ink",
+  "hover:bg-ink/[0.05] hover:text-ink",
   "aria-pressed:text-accent",
   "disabled:pointer-events-none disabled:opacity-45 active:scale-[0.97]",
   "motion-reduce:transition-none motion-reduce:active:scale-100",

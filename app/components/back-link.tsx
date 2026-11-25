@@ -6,7 +6,7 @@ import { textButton } from "../lib/ui";
 export default function BackLink({ href = "/" }: { href?: string }) {
   return (
     <Link href={href} className={cn(textButton, "min-h-11 w-fit text-muted")}>
-      <ArrowLeft size={17} aria-hidden="true" />
+      <ArrowLeft size={18} aria-hidden="true" />
       Tilbake
     </Link>
   );

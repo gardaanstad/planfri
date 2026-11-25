@@ -145,7 +145,7 @@ export default function ProfileEditor({
               )}
             >
               {!feedback.error && (
-                <Check size={15} className="mt-1 shrink-0" aria-hidden="true" />
+                <Check size={16} className="mt-1 shrink-0" aria-hidden="true" />
               )}
               {feedback.text}
             </p>

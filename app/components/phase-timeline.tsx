@@ -167,7 +167,7 @@ const sameLayout = (a: Layout, b: Layout) =>
  */
 const inlineInput = cn(
   "-mx-1 block rounded-sm bg-transparent px-1 tabular-nums outline-none",
-  "placeholder:text-muted/70 hover:bg-ink/[0.06]",
+  "placeholder:text-muted/70 hover:bg-ink/[0.05]",
   "focus:bg-surface focus:ring-2 focus:ring-accent/35",
   "aria-invalid:text-danger aria-invalid:underline aria-invalid:decoration-dotted",
 );

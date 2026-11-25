@@ -209,7 +209,7 @@ export default function PlacePicker({
               className={optionClass(index)}
               onClick={() => pick(place)}
             >
-              <MapPin size={15} aria-hidden="true" className="shrink-0 text-muted" />
+              <MapPin size={16} aria-hidden="true" className="shrink-0 text-muted" />
               <span className="min-w-0 truncate">{place}</span>
             </div>
           </Fragment>
@@ -225,7 +225,7 @@ export default function PlacePicker({
             className={optionClass(matches.length)}
             onClick={() => pick(adding)}
           >
-            <Plus size={15} aria-hidden="true" className="shrink-0 text-muted" />
+            <Plus size={16} aria-hidden="true" className="shrink-0 text-muted" />
             <span className="min-w-0 truncate">{adding}</span>
             <span className="ml-auto shrink-0 text-xs text-muted">Nytt sted</span>
           </div>

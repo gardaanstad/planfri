@@ -89,7 +89,7 @@ export default function SignOutPrompt({
           await run(everywhere);
         }}
       >
-        <h2 className="text-heading">Logg ut?</h2>
+        <h2 className="text-title">Logg ut?</h2>
         <p className="mt-1.5 text-ui text-muted">
           Du kan logge inn igjen med Google når som helst.
         </p>

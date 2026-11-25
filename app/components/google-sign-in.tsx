@@ -78,7 +78,7 @@ export default function GoogleSignIn({
         disabled={pending || !googleEnabled}
         onClick={() => void signIn()}
         className={cn(
-          "flex min-h-13 w-full items-center justify-center gap-3 rounded-xl border border-border-strong bg-surface px-5 text-sm font-semibold text-ink transition-colors duration-150 motion-reduce:transition-none hover:border-accent/50 hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-60",
+          "flex min-h-13 w-full items-center justify-center gap-3 rounded-xl border border-border-strong bg-surface px-5 text-sm font-semibold text-ink transition-colors duration-150 motion-reduce:transition-none hover:border-accent/50 hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60",
         )}
       >
         {pending ? (

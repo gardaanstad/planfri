@@ -27,7 +27,7 @@ export function ProfileEditDialog({ onClose }: { onClose: () => void }) {
     >
       <div className="flex max-h-[min(520px,calc(100dvh-48px))] flex-col">
         {/* Centred on the dialog's close button. */}
-        <h2 className="flex h-19 shrink-0 items-center px-6 pr-18 text-heading max-sm:h-17">
+        <h2 className="flex h-19 shrink-0 items-center px-6 pr-18 text-title max-sm:h-17">
           Rediger profil
         </h2>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-6 scrollbar-thin">
@@ -108,7 +108,7 @@ export function ProfileContent({
               data-tooltip="Rediger profil"
               data-press=""
             >
-              <Pencil size={17} aria-hidden="true" />
+              <Pencil size={18} aria-hidden="true" />
             </button>
           )}
         </header>
@@ -154,7 +154,7 @@ export function ProfileContent({
                     }}
                     className={cn(
                       "-mx-2.5 my-1 block rounded-lg px-2.5 py-2",
-                      "transition-colors duration-150 hover:bg-ink/[0.04] motion-reduce:transition-none",
+                      "transition-colors duration-150 hover:bg-ink/[0.05] pointer-coarse:active:bg-ink/[0.05] dark:hover:bg-surface-muted/65 dark:pointer-coarse:active:bg-surface-muted/65 motion-reduce:transition-none",
                     )}
                   >
                     <span className="flex min-w-0 items-baseline gap-2">

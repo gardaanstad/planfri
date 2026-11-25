@@ -15,6 +15,7 @@ import {
 import { ArrowLeft, X } from "lucide-react";
 import { cn } from "../lib/cn";
 import { iconButton, panelTitle, panelTitleTop } from "../lib/ui";
+import { SheetGrip } from "./action-sheet";
 import {
   Drawer,
   DrawerContent,
@@ -55,11 +56,8 @@ export const visibleBottomClasses =
 export const panelDrawerInnerClasses =
   "flex min-h-0 flex-1 flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]";
 
-export function DrawerGrip() {
-  return (
-    <span className="h-[3px] w-[34px] rounded bg-border-strong transition-colors group-hover/handle:bg-muted/60 motion-reduce:transition-none" />
-  );
-}
+/** The same grip as every other sheet's. */
+export const DrawerGrip = SheetGrip;
 
 const gripBar = (
   <div
@@ -377,7 +375,7 @@ export function PanelHeader({
           aria-label="Tilbake"
           data-tooltip={mobile ? undefined : "Tilbake"}
         >
-          <ArrowLeft size={mobile ? 20 : 19} />
+          <ArrowLeft size={20} />
         </button>
       )}
       <div

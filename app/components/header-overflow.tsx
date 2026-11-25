@@ -11,9 +11,17 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { Menu } from "@base-ui/react/menu";
-import { Check, Ellipsis } from "lucide-react";
+import { Ellipsis } from "lucide-react";
 import { cn } from "../lib/cn";
-import { iconButton } from "../lib/ui";
+import {
+  countBadge,
+  iconButton,
+  menuItem as item,
+  menuItemDanger,
+  menuPopup,
+  menuSeparator,
+} from "../lib/ui";
+import { SwitchTrack } from "./action-sheet";
 
 export type OverflowAction = {
   id: string;
@@ -22,8 +30,13 @@ export type OverflowAction = {
   onSelect: () => void;
   /** Beside the label; the menu's button gets a dot. */
   count?: number;
-  /** A toggle, such as dark mode, ticked when on. */
+  /** A setting, such as dark mode: a switch at the row's end. */
   checked?: boolean;
+  /**
+   * A state the action turns on and off, such as saving: its icon and
+   * label say which, as on the phone's sheet.
+   */
+  pressed?: boolean;
   /** Destructive, such as deleting: in the danger colour. */
   danger?: boolean;
 };
@@ -139,12 +152,6 @@ export function useHeaderOverflow(
   };
 }
 
-const item = cn(
-  "flex min-h-9 cursor-default items-center gap-2.5 rounded-lg py-1.5 pr-2 pl-2.5 text-ink outline-none select-none",
-  "pointer-fine:data-highlighted:bg-surface-muted focus-visible:bg-surface-muted pointer-coarse:min-h-11",
-  "[&>svg:first-child]:shrink-0 [&>svg:first-child]:text-muted",
-);
-
 /** The header's "more" menu: the actions that no longer fit beside it. */
 export function OverflowMenu({ actions }: { actions: OverflowAction[] }) {
   const news = actions.some((action) => (action.count ?? 0) > 0);
@@ -153,7 +160,7 @@ export function OverflowMenu({ actions }: { actions: OverflowAction[] }) {
       <Menu.Trigger
         className={cn(
           iconButton,
-          "relative rounded-lg text-muted hover:text-ink data-popup-open:bg-ink/[0.06] data-popup-open:text-ink",
+          "relative rounded-lg text-muted hover:text-ink data-popup-open:bg-ink/[0.05] data-popup-open:text-ink",
         )}
         aria-label="Flere valg"
         data-tooltip="Flere valg"
@@ -174,36 +181,34 @@ export function OverflowMenu({ actions }: { actions: OverflowAction[] }) {
           sideOffset={4}
           className="z-[1000]"
         >
-          <Menu.Popup className="min-w-52 rounded-xl border border-border bg-surface p-1.5 text-ui shadow-popover outline-none motion-safe:animate-menu-enter">
+          <Menu.Popup className={menuPopup}>
             {actions.map((action, index) => {
               const end =
                 (action.count ?? 0) > 0 ? (
-                  <span className="ml-auto inline-grid h-4.5 min-w-4.5 place-items-center rounded-full bg-accent px-1.25 text-2xs leading-none font-semibold text-on-accent tabular-nums">
+                  <span className={cn(countBadge, "ml-auto")}>
                     {action.count! > 99 ? "99+" : action.count}
                   </span>
-                ) : action.checked ? (
-                  <Check
-                    size={16}
-                    aria-hidden="true"
-                    className="ml-auto text-accent"
-                  />
+                ) : action.checked !== undefined ? (
+                  <span className="ml-auto flex pl-3">
+                    <SwitchTrack on={action.checked} />
+                  </span>
                 ) : null;
               const label =
                 action.count && action.count > 0
                   ? `${action.label} (${action.count})`
                   : undefined;
               const separator = action.danger && index > 0 && (
-                <Menu.Separator className="mx-1 my-1.5 h-px bg-border" />
+                <Menu.Separator className={menuSeparator} />
               );
-              return action.checked === undefined ? (
+              const toggle = action.checked ?? action.pressed;
+              return toggle === undefined ? (
                 <Fragment key={action.id}>
                   {separator}
                 <Menu.Item
                   key={action.id}
                   className={cn(
                     item,
-                    action.danger &&
-                      "text-danger [&>svg:first-child]:text-danger",
+                    action.danger && menuItemDanger,
                   )}
                   onClick={action.onSelect}
                   aria-label={label}
@@ -218,7 +223,7 @@ export function OverflowMenu({ actions }: { actions: OverflowAction[] }) {
                 <Menu.CheckboxItem
                   key={action.id}
                   className={item}
-                  checked={action.checked}
+                  checked={toggle}
                   closeOnClick
                   onCheckedChange={action.onSelect}
                   aria-label={label}

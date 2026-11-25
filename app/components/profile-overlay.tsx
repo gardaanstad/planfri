@@ -73,7 +73,7 @@ export default function ProfileOverlay({
               aria-label="Rediger profil"
               data-tooltip="Rediger profil"
             >
-              <Pencil size={17} aria-hidden="true" />
+              <Pencil size={18} aria-hidden="true" />
             </PanelHeaderButton>
           )
         }
@@ -95,7 +95,7 @@ export default function ProfileOverlay({
           >
             {profile === null ? (
               <>
-                <UserRound size={22} aria-hidden="true" />
+                <UserRound size={24} aria-hidden="true" />
                 Fant ikke @{username}
               </>
             ) : (

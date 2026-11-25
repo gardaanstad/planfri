@@ -485,7 +485,7 @@ const noProjects: Project[] = [];
 // the list's edge; its hover tints at once, as the sort's does.
 const placeChoiceClasses = [
   "-ml-2.5 min-w-0 shrink",
-  "[&_[data-slot=choice-trigger]]:min-h-9 [&_[data-slot=choice-trigger]]:gap-1.5 [&_[data-slot=choice-trigger]]:rounded-[9px] [&_[data-slot=choice-trigger]]:border-transparent! [&_[data-slot=choice-trigger]]:bg-transparent [&_[data-slot=choice-trigger]]:px-2.5 [&_[data-slot=choice-trigger]]:text-ui [&_[data-slot=choice-trigger]]:font-semibold [&_[data-slot=choice-trigger]]:transition-none",
+  "[&_[data-slot=choice-trigger]]:min-h-9 [&_[data-slot=choice-trigger]]:gap-1.5 [&_[data-slot=choice-trigger]]:rounded-lg [&_[data-slot=choice-trigger]]:border-transparent! [&_[data-slot=choice-trigger]]:bg-transparent [&_[data-slot=choice-trigger]]:px-2.5 [&_[data-slot=choice-trigger]]:text-ui [&_[data-slot=choice-trigger]]:font-semibold [&_[data-slot=choice-trigger]]:transition-none",
   "[&_[data-slot=choice-trigger]]:hover:bg-ink/[0.05]! [&_[data-slot=choice-trigger]>svg]:text-muted",
   "[&_[data-slot=choice-menu][data-open=false]]:hidden",
 ].join(" ");
@@ -1661,7 +1661,7 @@ export default memo(function Explorer({
         aria-label="Lukk søk"
         onClick={closeSearch}
       >
-        <X size={15} />
+        <X size={16} />
       </button>
     </div>
   );
@@ -1676,7 +1676,7 @@ export default memo(function Explorer({
         isMobile
           ? "size-11 rounded-full [-webkit-tap-highlight-color:transparent]"
           : [
-              "size-9 rounded-[9px] hover:bg-ink/[0.05] hover:text-ink",
+              "size-9 rounded-lg hover:bg-ink/[0.05] hover:text-ink",
               searchActive && "text-accent hover:text-accent-strong",
             ],
       )}
@@ -1702,7 +1702,7 @@ export default memo(function Explorer({
         "relative flex shrink-0 items-center justify-center text-muted",
         isMobile
           ? "size-11 rounded-full [-webkit-tap-highlight-color:transparent]"
-          : "size-9 rounded-[9px] hover:bg-ink/[0.05] hover:text-ink",
+          : "size-9 rounded-lg hover:bg-ink/[0.05] hover:text-ink",
         filtersSet && "text-ink",
       )}
       aria-label="Filtre"
@@ -1965,7 +1965,7 @@ export default memo(function Explorer({
           data-press=""
           onClick={() => storeDensity(value)}
         >
-          <Icon size={15} className="shrink-0" aria-hidden="true" />
+          <Icon size={16} className="shrink-0" aria-hidden="true" />
           {/* The pressed view names itself: the name opens out beside its
               symbol as the last one folds away. */}
           <span
@@ -2076,7 +2076,7 @@ export default memo(function Explorer({
               : undefined
           }
         >
-          <Eye size={15} aria-hidden="true" />
+          <Eye size={16} aria-hidden="true" />
           {shown}
         </span>
         {showInPlace && (
@@ -2103,7 +2103,7 @@ export default memo(function Explorer({
               requestAnimationFrame(() => requestAnimationFrame(show));
             }}
           >
-            <MapPin size={15} aria-hidden="true" />
+            <MapPin size={16} aria-hidden="true" />
             {inPlace}
           </button>
         )}
@@ -2122,7 +2122,7 @@ export default memo(function Explorer({
     outsideHits > 0 && needle && (
       <EmptyAction
         key="hits"
-        icon={<ZoomOut size={15} />}
+        icon={<ZoomOut size={16} />}
         onClick={showSearchHits}
       >
         Vis {outsideHits} treff
@@ -2339,9 +2339,9 @@ export default memo(function Explorer({
                   level={2}
                   icon={
                     filtersChanged ? (
-                      <Search size={22} />
+                      <Search size={24} />
                     ) : (
-                      <MapPin size={22} />
+                      <MapPin size={24} />
                     )
                   }
                   title={
@@ -2362,7 +2362,7 @@ export default memo(function Explorer({
             className={cn(quietAction, "-ml-3 gap-1.5 text-muted hover:text-ink")}
             onClick={() => openEditor()}
           >
-            <Plus size={15} aria-hidden="true" />
+            <Plus size={16} aria-hidden="true" />
             {canModerate ? "Legg til prosjekt" : "Foreslå prosjekt"}
           </button>
         </div>
@@ -2407,7 +2407,7 @@ export default memo(function Explorer({
 
   const missingProject = (
     <div className="flex min-h-[250px] flex-col items-center justify-center gap-[18px] px-6 py-[55px] text-center text-muted">
-      <MapPin size={28} />
+      <MapPin size={24} />
       <h2 className="text-body font-medium text-ink">Prosjektet finnes ikke</h2>
       <button className={primaryCta} onClick={() => closePost()}>
         Tilbake til prosjektene
@@ -2504,7 +2504,7 @@ export default memo(function Explorer({
   }
   const profileButtonClass = cn(
     "inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-transparent text-xs font-semibold text-muted",
-    "hover:bg-ink/[0.06] hover:text-ink active:scale-[0.97] data-popup-open:bg-ink/[0.06] motion-reduce:transition-none motion-reduce:active:scale-100",
+    "hover:bg-ink/[0.05] hover:text-ink active:scale-[0.97] data-popup-open:bg-ink/[0.05] motion-reduce:transition-none motion-reduce:active:scale-100",
   );
   const profileButton = user?.username ? (
     <AccountMenu
@@ -3132,7 +3132,7 @@ export default memo(function Explorer({
                 ? [
                     {
                       label: "Nye veier og baner",
-                      icon: <Construction size={17} />,
+                      icon: <Construction size={18} />,
                       on: osm.on,
                       onToggle: osm.toggle,
                     },
@@ -3238,7 +3238,7 @@ export default memo(function Explorer({
                           onClick={resetFilters}
                         >
                           <SearchX
-                            size={15}
+                            size={16}
                             className="shrink-0 text-muted"
                             aria-hidden="true"
                           />

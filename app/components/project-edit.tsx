@@ -412,7 +412,7 @@ const barButton = cn(
 export const primaryBarButton = cn(primaryButton, barButton);
 export const quietBarButton = cn(
   barButton,
-  "border border-transparent font-medium text-muted hover:bg-ink/[0.06] hover:text-ink",
+  "border border-transparent font-medium text-muted hover:bg-ink/[0.05] hover:text-ink",
 );
 export const dangerBarButton = cn(
   barButton,
@@ -469,7 +469,7 @@ export function EditBar({
     >
       {reviewing ? (
         <div className="motion-safe:animate-preview-in">
-          <h2 className="flex min-h-8 items-center text-body font-semibold">
+          <h2 className="flex min-h-8 items-center text-item">
             {suggestion ? "Foreslå" : "Lagre"} {count}?
           </h2>
           <ul
@@ -569,7 +569,7 @@ export function EditBar({
                 className={barProblem}
                 onClick={() => focusField(invalid[0])}
               >
-                <AlertCircle size={15} aria-hidden="true" />
+                <AlertCircle size={16} aria-hidden="true" />
                 <span className="truncate">
                   {plural(invalid.length, "felt", "felter")} må rettes
                 </span>

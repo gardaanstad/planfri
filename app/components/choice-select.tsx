@@ -19,7 +19,9 @@ import { cn } from "../lib/cn";
 import { mobileQuery, reducedMotion, sheetLeave } from "../lib/media";
 import { useBackgroundPush } from "../lib/background-push";
 import { useSwipeDismiss } from "./use-swipe-dismiss";
-import { SwitchTrack } from "./action-sheet";
+import { SheetGrip, SwitchTrack, sheetTitle } from "./action-sheet";
+import { menuPopup } from "../lib/ui";
+import { Radio } from "./choice-mark";
 
 type Option = {
   value: string;
@@ -437,42 +439,9 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
     );
   }
 
-  /**
-   * One choice of several: a ring on every row, filled in the middle once
-   * chosen, both in the chosen row's ink.
-   */
-  // Drawn, not boxed, so the dot sits exactly in the middle at any scale.
-  const radio = (chosen: boolean, alone: boolean) => {
-    const size = sheet ? 18 : 15;
-    const middle = size / 2;
-    return (
-      <svg
-        width={size}
-        height={size}
-        viewBox={`0 0 ${size} ${size}`}
-        aria-hidden="true"
-        data-slot="choice-radio"
-        // Its edge's smoothing may fall past a box at a fractional place.
-        className={cn(
-          "shrink-0 overflow-visible",
-          alone && "ml-auto",
-          chosen ? "text-ink" : "text-ink/35",
-        )}
-      >
-        <circle
-          cx={middle}
-          cy={middle}
-          r={middle - 1}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-        />
-        {chosen && (
-          <circle cx={middle} cy={middle} r={sheet ? 5 : 4} fill="currentColor" />
-        )}
-      </svg>
-    );
-  };
+  const radio = (chosen: boolean, alone: boolean) => (
+    <Radio chosen={chosen} large={sheet} className={cn(alone && "ml-auto")} />
+  );
 
   /** Checks a chosen row where several can be chosen. */
   const check = (chosen: boolean, size: number, alone: boolean) => (
@@ -905,12 +874,12 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
         type="button"
         data-slot="choice-trigger"
         className={cn(
-          "group/trigger flex min-h-11 w-full items-center gap-2.5 whitespace-nowrap rounded-[9px] border border-border bg-surface px-3.25 text-left text-ui text-ink",
+          "group/trigger flex min-h-11 w-full items-center gap-2.5 whitespace-nowrap rounded-xl border border-border bg-surface px-3.25 text-left text-ui text-ink",
           "transition-[color,border-color,background-color,box-shadow] duration-150 motion-reduce:transition-none",
           // Phones open a sheet over it, so the trigger keeps still: no
           // hover, press or open states, and no turning chevron.
           "[-webkit-tap-highlight-color:transparent]",
-          "md:hover:border-border-strong md:hover:bg-surface-subtle",
+          "md:hover:border-border-strong md:hover:bg-surface-muted",
           "md:aria-expanded:border-border-strong",
           triggerClassName,
         )}
@@ -955,7 +924,7 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
           {shownLabel}
         </span>
         {multiple && selectedCount > 0 && (
-          <span className="text-[10px] font-semibold tabular-nums">
+          <span className="text-2xs font-semibold tabular-nums">
             {selectedCount}
           </span>
         )}
@@ -1032,16 +1001,13 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
                   data-edge="top"
                   className="pointer-events-none absolute inset-x-0 top-full h-(--fade-height) bg-[linear-gradient(to_top,transparent,var(--color-surface))] opacity-0 [--fade-height:40px]"
                 />
-                <span
-                  aria-hidden="true"
-                  className="h-1 w-9 rounded-full bg-ink/15"
-                />
+                <SheetGrip />
                 <div className="mt-3 flex items-center self-stretch">
                   {/* Above the options' 15px: larger, heavier and in full ink. */}
                   <span
                     aria-hidden="true"
                     data-slot="choice-title"
-                    className="px-1 text-heading text-ink"
+                    className={cn(sheetTitle, "px-1")}
                   >
                     {label}
                   </span>
@@ -1298,7 +1264,7 @@ function SheetMenu({
   return (
     <Menu.Root>
       <Menu.Trigger
-        className="-my-2.5 -mr-2 ml-auto inline-flex size-11 shrink-0 items-center justify-center rounded-xl text-muted active:bg-ink/[0.06] data-popup-open:bg-ink/[0.06] data-popup-open:text-ink"
+        className="-my-2.5 -mr-2 ml-auto inline-flex size-11 shrink-0 items-center justify-center rounded-xl text-muted active:bg-ink/[0.05] data-popup-open:bg-ink/[0.05] data-popup-open:text-ink"
         aria-label="Flere valg"
       >
         <Ellipsis size={20} aria-hidden="true" />
@@ -1311,7 +1277,7 @@ function SheetMenu({
           className="z-[1000]"
           data-slot="choice-sheet-menu"
         >
-          <Menu.Popup className="min-w-60 rounded-xl border border-border bg-surface p-1.5 text-ui shadow-popover outline-none motion-safe:animate-menu-enter">
+          <Menu.Popup className={cn(menuPopup, "min-w-60")}>
             <Menu.CheckboxItem
               className={sheetMenuItem}
               checked={toggle.on}

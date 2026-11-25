@@ -95,7 +95,7 @@ function Field({
           id={control && `${control}-error`}
           className="mt-1.5 flex items-center gap-1 text-xs leading-normal text-danger [&>svg]:shrink-0"
         >
-          <AlertCircle size={13} aria-hidden="true" />
+          <AlertCircle size={14} aria-hidden="true" />
           {error}
         </p>
       )}
@@ -383,7 +383,7 @@ export default function ProjectEditor({
                         form.current && focusField(invalid[0], form.current)
                       }
                     >
-                      <AlertCircle size={15} aria-hidden="true" />
+                      <AlertCircle size={16} aria-hidden="true" />
                       <span className="truncate">
                         {invalid.length}{" "}
                         {invalid.length === 1 ? "felt" : "felter"} må rettes
