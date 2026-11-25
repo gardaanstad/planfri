@@ -239,15 +239,30 @@ function useFloatingGap(content: HTMLElement | null, floating?: boolean) {
 /** The width a floating drawer's text wraps to, pinned while it grows. */
 const pinnedWidth = "--sheet-pinned-width";
 
-/** The nearest box an inline run of text wraps within. */
-function wrappingBox(node: Node) {
+/**
+ * The nearest box an inline run of text wraps within. `boxes` keeps each
+ * element's answer for the walk, since sibling runs share their ancestors.
+ */
+function wrappingBox(node: Node, boxes: Map<Element, HTMLElement | null>) {
+  const passed: Element[] = [];
   let element = node.parentElement;
+  let box: HTMLElement | null = null;
   while (element) {
+    const known = boxes.get(element);
+    if (known !== undefined) {
+      box = known;
+      break;
+    }
+    passed.push(element);
     const display = getComputedStyle(element).display;
-    if (display !== "inline" && display !== "contents") return element;
+    if (display !== "inline" && display !== "contents") {
+      box = element;
+      break;
+    }
     element = element.parentElement;
   }
-  return null;
+  for (const element of passed) boxes.set(element, box);
+  return box;
 }
 
 /**
@@ -262,10 +277,11 @@ function pinLines(content: HTMLElement, viewport: HTMLElement) {
   const held = viewport.style.getPropertyValue("--sheet-gap");
   viewport.style.setProperty("--sheet-gap", "8px");
   const runs = new Map<HTMLElement, Text[]>();
+  const boxes = new Map<Element, HTMLElement | null>();
   const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     if (!node.nodeValue?.trim()) continue;
-    const box = wrappingBox(node);
+    const box = wrappingBox(node, boxes);
     if (!box || box.hasAttribute("data-sheet-pinned")) continue;
     const texts = runs.get(box);
     if (texts) texts.push(node as Text);
@@ -528,7 +544,7 @@ function DrawerContent({
             "data-[swipe-direction=right]:right-0 data-[swipe-direction=right]:origin-right data-[swipe-direction=right]:[--closed-transform:translate3d(calc(100%+var(--drawer-inset,0px)+2px),0,0)] data-[swipe-direction=right]:[--translate-x:calc(var(--drawer-swipe-movement-x)-var(--stack-peek-offset)-(var(--stack-shrink)*100%))]",
             // Floating: as narrow as the viewport's clip.
             floating !== undefined &&
-              "mx-(--sheet-gap) transition-[transform,height,opacity,filter,margin]",
+              "[--sheet-gap:inherit] mx-(--sheet-gap) transition-[transform,height,opacity,filter,margin]",
             className,
           )}
           {...props}
@@ -545,6 +561,7 @@ function DrawerContent({
               // Rounding it anyway costs a mask that Chrome can misdraw under
               // the floating clip, as in the theme's cross-fade.
               !(handle && swipeDirection === "down") && "rounded-[inherit]",
+              floating !== undefined && "[--sheet-gap:inherit]",
               contentClassName,
             )}
           >

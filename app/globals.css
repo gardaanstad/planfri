@@ -386,6 +386,26 @@
   inherits: false;
   initial-value: 0;
 }
+/*
+ * A floating drawer's gap and corner, set on its viewport on every frame of a
+ * drag; the popup and its content take the gap by `inherit` (see drawer.tsx).
+ */
+@property --sheet-gap {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --sheet-radius {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+/* What of a drawer shows, for its `ScrollFade`, which inherits it. */
+@property --drawer-visible-bottom {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
 /* The snap offset a drawer's content is sized for, set once it settles. */
 @property --drawer-rest-offset {
   syntax: "<length>";
