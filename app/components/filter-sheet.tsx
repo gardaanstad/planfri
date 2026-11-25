@@ -33,10 +33,10 @@ const fold = { duration: 300, easing: "cubic-bezier(0.22, 1, 0.36, 1)" };
  * the rows, and its own move is undone first (a sheet resting on the bottom
  * edge grows upwards); `body` is the box inside it that clips them.
  */
-function useFold() {
+function useFold(initial: string | null) {
   const panel = useRef<HTMLDivElement>(null);
   const body = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState<string | null>(null);
+  const [active, setActive] = useState<string | null>(initial);
   // The options folding away, kept in view (out of the flow, at the height
   // they had) while the rows after them cover them.
   const [leaving, setLeaving] = useState<{ id: string; height: number } | null>(
@@ -114,7 +114,13 @@ function useFold() {
     );
   }
 
-  return { panel, body, active, leaving, toggle };
+  // Straight to `id`, without motion: as the menu opens.
+  function reset(id: string | null) {
+    setLeaving(null);
+    setActive(id);
+  }
+
+  return { panel, body, active, leaving, toggle, reset };
 }
 
 /** The sections' rows, each opening onto its options under it. */
@@ -218,21 +224,25 @@ function FilterRows({
 
 export default function FilterSheet({
   label,
+  title,
   sections,
   onClose,
 }: {
   label: string;
+  /** Shown at its top, under the handle. */
+  title: string;
   sections: FilterSection[];
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  // It opens on its first section.
   const {
     panel: sheet,
     body,
     active,
     leaving,
     toggle,
-  } = useFold();
+  } = useFold(sections[0]?.id ?? null);
   // The open section's options, which scroll; a drag waits for their top.
   const scroller = useRef<HTMLDivElement | null>(null);
   const trigger = useRef<Element | null>(null);
@@ -315,12 +325,19 @@ export default function FilterSheet({
             "pb-[calc(10px+env(safe-area-inset-bottom))] motion-safe:animate-sheet-in",
           )}
         >
+          {/* The handle and title, as the choice sheets have them. */}
           <div
             aria-hidden="true"
             data-swipe-handle
-            className="flex shrink-0 touch-none justify-center pt-2 pb-3"
+            className="flex shrink-0 touch-none flex-col items-center px-4 pt-2 pb-2.5"
           >
             <span className="h-1 w-9 rounded-full bg-ink/15" />
+            <span
+              data-slot="filter-title"
+              className="mt-3 self-stretch px-1 text-heading text-ink"
+            >
+              {title}
+            </span>
           </div>
           <FilterRows
             sections={sections}
@@ -356,7 +373,13 @@ export function FilterPopover({
   anchor: RefObject<HTMLElement | null>;
   onOpenChange?: (open: boolean) => void;
 }) {
-  const { panel: ref, body, active, leaving, toggle } = useFold();
+  const first = sections[0]?.id ?? null;
+  const { panel: ref, body, active, leaving, toggle, reset } = useFold(first);
+  // Each time it opens, it opens on its first section.
+  const opening = useRef(() => reset(first));
+  useLayoutEffect(() => {
+    opening.current = () => reset(first);
+  });
   const changed = useRef(onOpenChange);
   useLayoutEffect(() => {
     changed.current = onOpenChange;
@@ -380,7 +403,9 @@ export function FilterPopover({
       popover.style.maxHeight = `${Math.round(window.innerHeight - top - edge)}px`;
     };
     const onBeforeToggle = (event: Event) => {
-      if ((event as ToggleEvent).newState === "open") place();
+      if ((event as ToggleEvent).newState !== "open") return;
+      flushSync(() => opening.current());
+      place();
     };
     const onToggle = (event: Event) => {
       const open = (event as ToggleEvent).newState === "open";

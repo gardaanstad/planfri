@@ -1023,7 +1023,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     });
     await expect(status).toBeVisible();
     // A quick drag down closes it, from a list that doesn't scroll.
-    await drag(page, status.getByRole("option").first(), 180);
+    await drag(page, status.getByRole("option").first(), 220);
     await expect(sheet).toBeHidden();
     await expect(
       filters.getByRole("button", { name: "Filtre", exact: true }),
@@ -1169,7 +1169,16 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expectMenuFits(sheet.locator(":scope > div"));
     const categoryRow = sheet.getByRole("button", { name: /^Kategori/ });
     const statusRow = sheet.getByRole("button", { name: /^Status/ });
-    await expect(categoryRow).toHaveAttribute("aria-expanded", "false");
+    // Titled as the sort sheet is, it opens on its categories, which read as
+    // nothing while none is chosen.
+    await expect(sheet.locator("[data-slot=filter-title]")).toHaveText(
+      "Filtrer prosjekter",
+    );
+    await expect(categoryRow).toHaveAttribute("aria-expanded", "true");
+    await expect(
+      sheet.getByRole("listbox", { name: "Kategori", exact: true }),
+    ).toBeVisible();
+    await expect(categoryRow).toHaveText("Kategori");
     await expect(statusRow).toHaveAttribute("aria-expanded", "false");
     // A row opens its options; the other row stays.
     await statusRow.click();
@@ -2040,6 +2049,14 @@ test.describe("desktop explorer", () => {
     await expect(filterButton).toHaveAttribute("data-active", "true");
     // Main categories first; a chosen one opens its subcategories.
     const [main, sub] = project.categories;
+    // Opened again, it opens on its categories, not where it was left.
+    await filterButton.click();
+    await expect(
+      page
+        .locator("[data-filter-popover]")
+        .getByRole("button", { name: /^Kategori/ }),
+    ).toHaveAttribute("aria-expanded", "true");
+    await page.keyboard.press("Escape");
     const categoryMenu = await openFilter(page, "Kategori");
     // Less used categories wait under "Vis flere".
     const energy = categoryMenu.getByRole("option", { name: /^Energi/ });

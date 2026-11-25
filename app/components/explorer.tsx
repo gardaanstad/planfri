@@ -1836,7 +1836,7 @@ export default memo(function Explorer({
     {
       id: "category",
       label: "Kategori",
-      summary: category.length ? categorySummary(category) : "Alle",
+      summary: category.length ? categorySummary(category) : null,
       content: (
         <ChoiceSelect
           inline
@@ -1874,6 +1874,7 @@ export default memo(function Explorer({
   const filterSheet = filterSheetOpen && (
     <FilterSheet
       label="Filtre"
+      title="Filtrer prosjekter"
       onClose={() => setFilterSheetOpen(false)}
       sections={filterSections}
     />
