@@ -1,5 +1,3 @@
-import { z } from "zod";
-
 const reservedUsernames = new Set([
   "admin",
   "administrator",
@@ -17,24 +15,40 @@ const reservedUsernames = new Set([
   "arkitekturinteressert",
   "oslo_på_sykkel",
 ]);
-export const usernameSchema = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .min(3, "Bruk minst 3 tegn.")
-  .max(24, "Bruk maks 24 tegn.")
-  .regex(
-    /^[a-z0-9æøå][a-z0-9æøå_]*$/,
+export const usernameRules = {
+  min: 3,
+  max: 24,
+  pattern: /^[a-z0-9æøå][a-z0-9æøå_]*$/,
+  reserved: (value: string) => reservedUsernames.has(value),
+};
+export const usernameMessages = {
+  short: "Bruk minst 3 tegn.",
+  long: "Bruk maks 24 tegn.",
+  pattern:
     "Bruk bokstaver, tall og understrek. Start med en bokstav eller et tall.",
-  )
-  .refine(
-    (value) => !reservedUsernames.has(value),
-    "Dette brukernavnet er reservert.",
-  );
-export const profileSchema = z.object({
-  bio: z.string().trim().max(280),
-  location: z.string().trim().max(80),
-});
+  reserved: "Dette brukernavnet er reservert.",
+};
+/**
+ * The username rules without zod, for the browser: the normalized name, or
+ * the first rule it breaks. The server's `usernameSchema`
+ * (`account-schemas.ts`) checks the same rules in the same order.
+ */
+export function checkUsername(
+  value: string,
+): { success: true; data: string } | { success: false; message: string } {
+  const name = value.trim().toLowerCase();
+  const message =
+    name.length < usernameRules.min
+      ? usernameMessages.short
+      : name.length > usernameRules.max
+        ? usernameMessages.long
+        : !usernameRules.pattern.test(name)
+          ? usernameMessages.pattern
+          : usernameRules.reserved(name)
+            ? usernameMessages.reserved
+            : "";
+  return message ? { success: false, message } : { success: true, data: name };
+}
 
 export function safeReturnPath(value: unknown): string {
   if (

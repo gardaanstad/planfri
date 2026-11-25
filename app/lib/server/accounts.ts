@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "../db/client";
 import { user } from "../db/schema";
-import { usernameSchema } from "../account-rules";
+import { usernameSchema } from "../account-schemas";
 import { HttpError } from "./http";
 import type { Profile } from "../profiles";
 import { serverNow } from "./clock";

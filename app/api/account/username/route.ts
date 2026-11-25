@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { usernameSchema } from "@/app/lib/account-rules";
+import { usernameSchema } from "@/app/lib/account-schemas";
 import { getDb } from "@/app/lib/db/client";
 import { user } from "@/app/lib/db/schema";
 import { claimUsername } from "@/app/lib/server/accounts";

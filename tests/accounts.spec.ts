@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import { safeReturnPath, usernameSchema } from "../app/lib/account-rules";
+import { checkUsername, safeReturnPath } from "../app/lib/account-rules";
+import { usernameSchema } from "../app/lib/account-schemas";
 import { seedProjects } from "../scripts/seed-data";
 import {
   account,
@@ -39,6 +40,28 @@ test("username rules normalize Norwegian names and reject reserved or malformed 
     "<script>",
   ])
     expect(usernameSchema.safeParse(name).success).toBe(false);
+  // The browser's zod-free check says the same, message included.
+  for (const name of [
+    "  Østbyen_42 ",
+    "Admin",
+    "byvandrer",
+    "ab",
+    "a",
+    "_",
+    "_nabo",
+    "a b c",
+    "x".repeat(25),
+    "_".repeat(25),
+    "<script>",
+    "oslo_på_sykkel",
+  ]) {
+    const server = usernameSchema.safeParse(name);
+    const browser = checkUsername(name);
+    expect(browser.success).toBe(server.success);
+    if (server.success && browser.success) expect(browser.data).toBe(server.data);
+    else if (!server.success && !browser.success)
+      expect(browser.message).toBe(server.error.issues[0].message);
+  }
   for (const next of [
     "https://evil.test",
     "//evil.test",

@@ -2,7 +2,7 @@
 import { navigateWithFreshSession } from "../lib/auth-navigation";
 import { useEffect, useState } from "react";
 import { Check, LoaderCircle } from "lucide-react";
-import { usernameSchema } from "../lib/account-rules";
+import { checkUsername } from "../lib/account-rules";
 import { apiRequest, errorMessage } from "../lib/api-client";
 import { authClient } from "../lib/auth-client";
 import { cn } from "../lib/cn";
@@ -22,7 +22,7 @@ export default function UsernameForm() {
   const [failed, setFailed] = useState<{ username: string; error: string }>();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-  const validation = usernameSchema.safeParse(username);
+  const validation = checkUsername(username);
   const normalized = validation.success ? validation.data : "";
   useEffect(() => {
     if (!normalized || checked.has(normalized)) return;
@@ -70,7 +70,7 @@ export default function UsernameForm() {
   }
   const status =
     username && !validation.success ? (
-      <span className="text-danger">{validation.error.issues[0].message}</span>
+      <span className="text-danger">{validation.message}</span>
     ) : failure ? (
       <span className="text-danger">{failure}</span>
     ) : available === false ? (

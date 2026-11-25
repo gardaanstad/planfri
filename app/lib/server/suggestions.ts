@@ -22,9 +22,9 @@ import {
   type CorrectionKey,
   type Suggestion,
   type SuggestionLists,
-  type submitSchema,
   tipTitle,
 } from "../suggestions";
+import type { submitSchema } from "../suggestion-schemas";
 import { findProject, saveProject, throttle } from "./community";
 import { HttpError } from "./http";
 import { publishUploads, requireOwnImages } from "./uploads";

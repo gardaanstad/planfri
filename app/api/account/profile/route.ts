@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { profileSchema } from "@/app/lib/account-rules";
+import { profileSchema } from "@/app/lib/account-schemas";
 import { getDb } from "@/app/lib/db/client";
 import { user } from "@/app/lib/db/schema";
 import { publicProfile } from "@/app/lib/server/accounts";

@@ -1,4 +1,4 @@
-import { suggestionMutationSchema } from "@/app/lib/suggestions";
+import { suggestionMutationSchema } from "@/app/lib/suggestion-schemas";
 import { throttle } from "@/app/lib/server/community";
 import {
   api,
