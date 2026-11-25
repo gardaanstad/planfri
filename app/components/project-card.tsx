@@ -165,8 +165,8 @@ export default memo(function ProjectCard({
         )}
         aria-label={`${project.title} · ${project.city}${fresh ? ` · ${unreadSummary(fresh)}` : ""}`}
         data-press=""
-        // Whole, when the title is cut short.
-        data-tooltip={project.title}
+        // Whole, when the compact title is cut short.
+        data-tooltip={expanded ? undefined : project.title}
         data-tooltip-delay="long"
         onClick={() => onOpen(project.id)}
       >
@@ -214,7 +214,8 @@ export default memo(function ProjectCard({
         // Instant, so moving down the list reads as a pointer, not a fade.
         "before:absolute before:inset-x-[-12px] before:-z-1 before:rounded-xl max-md:before:inset-x-[-8px]",
         wash,
-        "hover:before:bg-surface-muted/65",
+        // As dark as the other hovers in light mode.
+        "hover:before:bg-ink/[0.05] dark:hover:before:bg-surface-muted/65",
         offMap && [
           "opacity-60 transition-opacity duration-120 hover:opacity-100 focus-within:opacity-100",
           "dark:opacity-50 dark:hover:opacity-100 dark:focus-within:opacity-100",

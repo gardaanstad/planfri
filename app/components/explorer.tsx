@@ -53,6 +53,7 @@ import {
 } from "../lib/data";
 import {
   defaultDensity,
+  defaultSort,
   defaultStatus,
   maxPinnedPlaces,
   noPinnedPlaces,
@@ -188,7 +189,6 @@ const categoryOptions = categoryTree.map((node) => ({
   children: node.subcategories.map((sub) => ({ value: sub, label: sub })),
 }));
 const sortIcon = <ArrowDownUp size={14} />;
-const placeIcon = <MapPin size={15} aria-hidden="true" />;
 
 /** Where in a project to open: an update, a comment, or a section. */
 type PostTarget = {
@@ -474,16 +474,14 @@ const reviewedDot =
 
 const noProjects: Project[] = [];
 
-// Desktop filters: compact pills that turn green once they narrow the list.
-const panelChoiceClasses = [
-  "min-w-0 shrink",
-  "[&_[data-slot=choice-trigger]]:min-h-9 [&_[data-slot=choice-trigger]]:gap-1.5 [&_[data-slot=choice-trigger]]:rounded-full [&_[data-slot=choice-trigger]]:px-3 [&_[data-slot=choice-trigger]]:text-ui [&_[data-slot=choice-trigger]]:font-medium",
-  "[&_[data-slot=choice-trigger]>svg]:shrink-0 [&_[data-slot=choice-trigger]>svg]:text-muted [&_[data-slot=choice-trigger]>svg:last-child]:ml-0",
-  "[&_[data-slot=choice-trigger]>span:nth-of-type(2)]:hidden [&_[data-slot=choice-menu][data-open=false]]:hidden",
+// Desktop: the place, borderless at the start of the filter row, its text on
+// the list's edge; its hover tints at once, as the sort's does.
+const placeChoiceClasses = [
+  "-ml-2.5 min-w-0 shrink",
+  "[&_[data-slot=choice-trigger]]:min-h-9 [&_[data-slot=choice-trigger]]:gap-1.5 [&_[data-slot=choice-trigger]]:rounded-[9px] [&_[data-slot=choice-trigger]]:border-transparent! [&_[data-slot=choice-trigger]]:bg-transparent [&_[data-slot=choice-trigger]]:px-2.5 [&_[data-slot=choice-trigger]]:text-ui [&_[data-slot=choice-trigger]]:font-semibold [&_[data-slot=choice-trigger]]:transition-none",
+  "[&_[data-slot=choice-trigger]]:hover:bg-ink/[0.05]! [&_[data-slot=choice-trigger]>svg]:text-muted",
+  "[&_[data-slot=choice-menu][data-open=false]]:hidden",
 ].join(" ");
-// Set, a filter's pill gets a firmer edge and bolder words; nothing else.
-const panelChoiceActive =
-  "[&_[data-slot=choice-trigger]]:border-ink/45 [&_[data-slot=choice-trigger]]:font-semibold";
 
 // The sort's name, which folds away to leave its icon.
 const sortLabel =
@@ -1905,6 +1903,8 @@ export default memo(function Explorer({
         "max-md:@max-[360px]/list:[&_[data-slot=choice-trigger]>span]:sr-only",
       )}
       icon={sortIcon}
+      triggerTooltip={isMobile ? undefined : "Sorter prosjekter"}
+      triggerDot={!isMobile && sort !== defaultSort}
       onChange={setSort}
       options={sortOptions}
     />
@@ -1987,12 +1987,10 @@ export default memo(function Explorer({
       value={place}
       onChange={choosePlace}
       triggerLabel={place || placeFallback}
-      icon={placeIcon}
       className={cn(
-        panelChoiceClasses,
+        placeChoiceClasses,
         // Always named; narrow, a long name gives way.
         "shrink-0 narrow:shrink",
-        place && panelChoiceActive,
       )}
       options={placeOptions}
     />
@@ -2064,7 +2062,8 @@ export default memo(function Explorer({
             className={cn(
               countItem,
               // A touch shows the wash a pointer's hover does.
-              "hover:bg-surface-muted/65 hover:text-ink pointer-coarse:active:bg-surface-muted/65 pointer-coarse:active:text-ink",
+              "hover:bg-ink/[0.05] hover:text-ink pointer-coarse:active:bg-ink/[0.05] pointer-coarse:active:text-ink",
+              "dark:hover:bg-surface-muted/65 dark:pointer-coarse:active:bg-surface-muted/65",
             )}
             aria-label={inPlaceLabel}
             data-tooltip={inPlaceLabel}

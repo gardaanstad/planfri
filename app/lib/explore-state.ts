@@ -22,7 +22,7 @@ export const sortOptions = [
   { value: "added", label: "Nyeste" },
   { value: "title", label: "Alfabetisk" },
 ];
-const defaultSort = "current";
+export const defaultSort = "current";
 /** An empty status filter (every status) needs its own value in the URL. */
 const anyStatus = "alle";
 

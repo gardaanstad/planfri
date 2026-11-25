@@ -52,6 +52,10 @@ type ChoiceSelectBase = {
   /** Classes merged onto the trigger, e.g. to match a form's fields. */
   triggerClassName?: string;
   triggerLabel?: string;
+  /** A tooltip on the trigger, for pointers. */
+  triggerTooltip?: string;
+  /** A dot on the trigger's icon: a choice other than the usual one. */
+  triggerDot?: boolean;
   /** Names the anchored menu above its options, as the phone sheet does. */
   menuTitle?: boolean;
   /**
@@ -130,6 +134,8 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
     className = "",
     triggerClassName,
     triggerLabel,
+    triggerTooltip,
+    triggerDot = false,
     menuTitle = false,
     smoothWidth = false,
     inline = false,
@@ -915,6 +921,7 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
         }
         aria-haspopup="listbox"
         data-press=""
+        data-tooltip={triggerTooltip}
         aria-expanded={open}
         aria-controls={open ? id : undefined}
         onClick={() => {
@@ -929,7 +936,19 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
           }
         }}
       >
-        {icon}
+        {triggerDot ? (
+          // Not a span: the triggers' classes fold their label spans.
+          <i className="relative flex shrink-0 not-italic">
+            {icon}
+            <span
+              aria-hidden="true"
+              data-slot="choice-dot"
+              className="absolute -top-1 -right-1 size-2 rounded-full border-[1.5px] border-surface bg-accent box-content"
+            />
+          </i>
+        ) : (
+          icon
+        )}
         <span
           className="min-w-0 overflow-hidden text-ellipsis group-data-growing/choice:text-clip"
         >
