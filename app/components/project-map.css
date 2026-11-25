@@ -86,7 +86,8 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  [data-project-map] .leaflet-interactive:hover,
+  /* Dots keep their solid fill: only shapes lighten under the pointer. */
+  [data-project-map] .leaflet-interactive:not(.project-dot):hover,
   [data-project-map] .leaflet-interactive.is-hovered {
     fill-opacity: 0.3;
     stroke-opacity: 1;
