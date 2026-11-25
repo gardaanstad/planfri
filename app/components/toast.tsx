@@ -11,6 +11,8 @@ type Options = {
   /** Offers "Angre"; the toast closes as it runs. */
   undo?: () => void;
   error?: boolean;
+  /** Names something rather than confirming it: no check mark. */
+  info?: boolean;
 };
 
 // The provider starts listening in an effect after hydration, so a click
@@ -20,14 +22,17 @@ let waiting: (() => void)[] = [];
 let nextId = 0;
 
 /** Shows a short confirmation, or an error, from anywhere on the client. */
-export function notify(message: string, { undo, error }: Options = {}) {
+export function notify(
+  message: string,
+  { undo, error, info }: Options = {},
+) {
   const id = `toast-${++nextId}`;
   const show = () =>
     manager.add({
       id,
       title: message,
-      type: error ? "error" : "success",
-      timeout: undo ? 8000 : error ? 7000 : 5000,
+      type: error ? "error" : info ? "info" : "success",
+      timeout: undo ? 8000 : error ? 7000 : info ? 3000 : 5000,
       actionProps: undo && {
         children: "Angre",
         onClick: () => {
@@ -39,6 +44,11 @@ export function notify(message: string, { undo, error }: Options = {}) {
   if (listening) show();
   else waiting.push(show);
   return id;
+}
+
+/** Closes a toast `notify` showed, if it is still up. */
+export function dismiss(id: string) {
+  manager.close(id);
 }
 
 /**
@@ -137,7 +147,7 @@ function Toasts({ top }: { top: boolean }) {
       >
         {toast.type === "error" ? (
           <CircleAlert size={18} className="shrink-0 text-on-inverse/75" />
-        ) : (
+        ) : toast.type === "info" ? null : (
           <span className="grid size-5 shrink-0 place-items-center rounded-full bg-on-inverse text-inverse">
             <Check size={13} strokeWidth={3} />
           </span>

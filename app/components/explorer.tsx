@@ -119,7 +119,7 @@ import PanelResizer from "./panel-resizer";
 import SavedProjects from "./saved-projects";
 import { useUnread } from "./unread-provider";
 import EmptyState, { EmptyAction } from "./empty-state";
-import { notify } from "./toast";
+import { dismiss, notify } from "./toast";
 import {
   Drawer,
   DrawerContent,
@@ -501,10 +501,10 @@ const sortLabelNarrow =
 // Mobile filters read as inline text; the menus carry the structure.
 const inlineChoiceClasses = [
   "min-w-0 shrink",
-  "[&_[data-slot=choice-trigger]]:min-h-11 [&_[data-slot=choice-trigger]]:gap-1.5 [&_[data-slot=choice-trigger]]:rounded-lg [&_[data-slot=choice-trigger]]:border-transparent! [&_[data-slot=choice-trigger]]:bg-transparent [&_[data-slot=choice-trigger]]:px-2 [&_[data-slot=choice-trigger]]:text-body [&_[data-slot=choice-trigger]]:font-semibold [&_[data-slot=choice-trigger]]:tracking-[-0.2px]",
+  "[&_[data-slot=choice-trigger]]:min-h-11 [&_[data-slot=choice-trigger]]:gap-1.5 [&_[data-slot=choice-trigger]]:rounded-lg [&_[data-slot=choice-trigger]]:border-transparent! [&_[data-slot=choice-trigger]]:bg-transparent [&_[data-slot=choice-trigger]]:px-2 [&_[data-slot=choice-trigger]]:text-item",
   "[&_[data-slot=choice-trigger]>svg]:text-muted",
   "[&_[data-slot=choice-option]]:min-h-11 [&_[data-slot=choice-menu][data-open=false]]:hidden",
-  "max-xs:[&_[data-slot=choice-trigger]]:gap-1 max-xs:[&_[data-slot=choice-trigger]]:px-1.5 max-xs:[&_[data-slot=choice-trigger]]:text-[14px]",
+  "max-xs:[&_[data-slot=choice-trigger]]:gap-1 max-xs:[&_[data-slot=choice-trigger]]:px-1.5 max-xs:[&_[data-slot=choice-trigger]]:text-body",
 ].join(" ");
 // Panels open in drawers of their own over it (see panel.tsx); it stays
 // where it is under them, only dimmed, peeking out above them at full height.
@@ -1733,7 +1733,7 @@ export default memo(function Explorer({
       className={cn(
         "relative",
         isMobile
-          ? "-mx-2 mt-1.5 mb-0.5 h-11 [--search-button:2.75rem]"
+          ? "-mx-2 mt-1.5 h-11 [--search-button:2.75rem]"
           : "mb-1 h-9 [--search-button:2.25rem]",
       )}
       aria-label="Filtrer prosjekter"
@@ -2049,6 +2049,7 @@ export default memo(function Explorer({
   const countItem =
     "relative inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-ink-soft select-none pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-2";
   const inPlaceLabel = `${inPlace} ${inPlace === 1 ? "prosjekt" : "prosjekter"} i ${countPlace}`;
+  const visibleToast = useRef("");
   const visibleLabel = `${shown} ${shown === 1 ? "synlig prosjekt" : "synlige prosjekter"} på kartet`;
   const listCount =
     density === "feed" ? (
@@ -2058,11 +2059,22 @@ export default memo(function Explorer({
     ) : outsideHits > 0 ? (
       <span className="text-ui -mx-2.5 flex items-center tabular-nums">
         <span
-          className={countItem}
+          className={cn(
+            countItem,
+            isMobile && "active:bg-surface-muted/65 active:text-ink",
+          )}
           role="status"
           aria-label={visibleLabel}
           data-tooltip={visibleLabel}
-          data-tooltip-tap=""
+          // Phones name it in a toast instead, shown afresh on each tap.
+          onClick={
+            isMobile
+              ? () => {
+                  if (visibleToast.current) dismiss(visibleToast.current);
+                  visibleToast.current = notify(visibleLabel, { info: true });
+                }
+              : undefined
+          }
         >
           <Eye size={15} aria-hidden="true" />
           {shown}
@@ -2285,7 +2297,9 @@ export default memo(function Explorer({
         {isMobile ? filterSheet : filterPopover}
         {/* One line: the order and views beside the count. */}
         <div
-          className="flex min-h-12 items-center justify-between gap-x-3 border-b border-border py-1.5"
+          // Phones: close under the filters, its counts still below what
+          // the folded drawer shows of the list.
+          className="flex min-h-12 items-center justify-between gap-x-3 border-b border-border py-1.5 max-md:min-h-11 max-md:py-1"
         >
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
             <h1 className="sr-only">Prosjekter</h1>

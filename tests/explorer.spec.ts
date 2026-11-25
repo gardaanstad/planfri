@@ -3554,19 +3554,24 @@ test.describe("the place follows the map", () => {
       userAgent: devices["Pixel 7"].userAgent,
     });
 
-    test("a tap on what's in view names it for a moment", async ({ page }) => {
+    test("a tap on what's in view names it in a toast", async ({ page }) => {
       await page.goto("/?kart=59.9100,10.7500,14");
       const drawer = page.locator("[data-explorer-drawer]");
       const visible = drawer.getByRole("status", {
         name: /^\d+ synlige? prosjekte?r? på kartet$/,
       });
       await expect(visible).toHaveText(/^\d+$/);
-      const tooltip = page.locator("[role=tooltip][popover]");
+      const label = (await visible.getAttribute("aria-label"))!;
+      const toast = page.getByRole("region", { name: "Varsler" });
       await visible.tap();
-      await expect(tooltip).toHaveText(
-        (await visible.getAttribute("aria-label"))!,
-      );
-      await expect(tooltip).toBeHidden({ timeout: 4000 });
+      await expect(toast.getByText(label, { exact: true })).toBeVisible();
+      // Tapped again, it shows once, not twice.
+      await visible.tap();
+      await expect(toast.getByText(label, { exact: true })).toHaveCount(1);
+      await expect(page.locator("[role=tooltip][popover]")).toBeHidden();
+      await expect(toast.getByText(label, { exact: true })).toBeHidden({
+        timeout: 5000,
+      });
       // The place's count unfolds those out of view, as on desktop, and
       // takes the drawer from the middle height to the full one for them.
       const toggle = drawer.getByRole("button", {
