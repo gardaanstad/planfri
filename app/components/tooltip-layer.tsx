@@ -9,13 +9,16 @@ const showDelay = 200;
 const longDelay = 600;
 // Moving between tooltipped controls skips the delay for this long.
 const warmWindow = 500;
+// A tooltip opened by a tap (`data-tooltip-tap`) stays this long.
+const tapHold = 2500;
 const gap = 6;
 const edge = 8;
 
 /**
  * One shared tooltip for every element with `data-tooltip`. It renders in the
  * top layer, so scroll containers and dialogs never clip it. Touch input is
- * ignored; keyboard focus shows it for focus-visible controls.
+ * ignored, except a tap on `data-tooltip-tap`, which shows it for a moment;
+ * keyboard focus shows it for focus-visible controls.
  */
 export default function TooltipLayer() {
   const tipRef = useRef<HTMLDivElement>(null);
@@ -26,6 +29,7 @@ export default function TooltipLayer() {
     let target: HTMLElement | null = null;
     let timer = 0;
     let hiddenAt = 0;
+    let lastPointer = "";
     const isOpen = () => tip.matches(":popover-open");
 
     function place(element: HTMLElement) {
@@ -43,7 +47,7 @@ export default function TooltipLayer() {
       tip!.dataset.side = below ? "bottom" : "top";
     }
 
-    function show(element: HTMLElement) {
+    function show(element: HTMLElement, tapped = false) {
       const text = element.dataset.tooltip;
       if (!text) return hide();
       // A name shown inside the control makes its tooltip redundant; once a
@@ -69,8 +73,9 @@ export default function TooltipLayer() {
           if (isOpen()) tip!.hidePopover();
           tip!.showPopover();
           place(element);
+          if (tapped) timer = window.setTimeout(hide, tapHold);
         },
-        warm
+        warm || tapped
           ? 0
           : element.dataset.tooltipDelay === "long"
             ? longDelay
@@ -105,13 +110,23 @@ export default function TooltipLayer() {
     const key = (event: KeyboardEvent) => {
       if (event.key === "Escape") hide();
     };
+    const down = (event: PointerEvent) => {
+      lastPointer = event.pointerType;
+      hide();
+    };
+    const tap = (event: MouseEvent) => {
+      if (lastPointer !== "touch") return;
+      const element = tooltipped(event.target);
+      if (element?.hasAttribute("data-tooltip-tap")) show(element, true);
+    };
     const leave = (event: PointerEvent) => {
       if (!event.relatedTarget) hide();
     };
 
     document.addEventListener("pointerover", over);
     document.addEventListener("pointerout", leave);
-    document.addEventListener("pointerdown", hide, true);
+    document.addEventListener("pointerdown", down, true);
+    document.addEventListener("click", tap);
     document.addEventListener("focusin", focus);
     document.addEventListener("focusout", hide);
     document.addEventListener("keydown", key, true);
@@ -121,7 +136,8 @@ export default function TooltipLayer() {
       window.clearTimeout(timer);
       document.removeEventListener("pointerover", over);
       document.removeEventListener("pointerout", leave);
-      document.removeEventListener("pointerdown", hide, true);
+      document.removeEventListener("pointerdown", down, true);
+      document.removeEventListener("click", tap);
       document.removeEventListener("focusin", focus);
       document.removeEventListener("focusout", hide);
       document.removeEventListener("keydown", key, true);

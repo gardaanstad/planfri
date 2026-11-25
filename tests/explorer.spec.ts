@@ -347,39 +347,35 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     expect(await firstMoveCancelled(gallery, 12, 2)).toBe(true);
   });
 
-  test("the views are chosen from a sheet, beside a count that wraps on its own", async ({
+  test("the views are chosen from a sheet, beside the count", async ({
     page,
   }) => {
-    // Zoomed in on central Oslo: the count names the view, Oslo and all.
+    // Zoomed in on central Oslo: the count names the view and Oslo.
     await page.goto("/?kart=59.9100,10.7500,14");
     await page
       .getByRole("button", { name: "Utvid prosjektlisten", exact: true })
       .click();
     const list = page.getByRole("region", { name: "Prosjektliste", exact: true });
-    const inOslo = list.getByRole("button", { name: /^\d+ i Oslo, vis Oslo/ });
+    const inOslo = list.getByRole("button", {
+      name: /^\d+ prosjekte?r? i Oslo$/,
+    });
     await expect(inOslo).toBeVisible();
     await expect(page.getByRole("group", { name: "Visning" })).toHaveCount(0);
     const views = page.getByRole("button", { name: /^Visning/ });
     await expect(views).toHaveText("Kompakt");
     const sort = page.getByRole("button", { name: /^Sorter prosjekter:/ });
 
-    // The count, the order and the views share a row; the count wraps
-    // within its own room, and no line of it starts with a dot.
-    const [viewsBox, sortBox, rowBox] = await Promise.all([
+    // The count, the order and the views share one line.
+    const [viewsBox, sortBox, countBox] = await Promise.all([
       views.boundingBox(),
       sort.boundingBox(),
-      inOslo.locator("xpath=ancestor::span[contains(@class,'overflow-hidden')][1]").boundingBox(),
+      inOslo.boundingBox(),
     ]);
+    const middle = (box: { y: number; height: number }) =>
+      box.y + box.height / 2;
     expect(Math.abs(viewsBox!.y - sortBox!.y)).toBeLessThan(1);
-    expect(rowBox!.x + rowBox!.width).toBeLessThanOrEqual(sortBox!.x);
-    const lineStarts = await inOslo.evaluate((link) => {
-      const clip = link.closest(".overflow-hidden")!.getBoundingClientRect();
-      return [...link.closest(".flex-wrap")!.querySelectorAll("[aria-hidden]")]
-        .filter((dot) => dot.textContent?.trim() === "·")
-        .filter((dot) => Math.abs(dot.getBoundingClientRect().left - clip.left) < 1)
-        .length;
-    });
-    expect(lineStarts).toBe(0);
+    expect(Math.abs(middle(countBox!) - middle(sortBox!))).toBeLessThan(1);
+    expect(countBox!.x + countBox!.width).toBeLessThanOrEqual(sortBox!.x);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(320);
@@ -1480,90 +1476,29 @@ test.describe("desktop explorer", () => {
   test("matches outside the map are counted beside the list's own", async ({
     page,
   }) => {
-    await page.goto(oslo);
-    await expect(
-      page.getByRole("status", { name: /^\d+ synlige? prosjekte?r?$/ }),
-    ).toBeVisible();
-    const total = page.getByRole("button", {
-      name: /^\d+ totalt, vis alle på kartet$/,
-    });
-    await expect(total).toBeVisible();
-    // Given the room beside the others, the count names what it counts:
-    // dragged wider a pixel at a time, it shows once, never flipping back
-    // and forth where it only just fits.
-    const word = page.locator("[data-count-word]");
-    await expect(word).toBeHidden();
-    await word.evaluate((element) => {
-      const counted = window as unknown as { wordFlips: number };
-      counted.wordFlips = 0;
-      new MutationObserver(() => counted.wordFlips++).observe(element, {
-        attributeFilter: ["class"],
-      });
-    });
-    const handle = (await page
-      .getByRole("separator", { name: "Bredde på prosjektlisten" })
-      .boundingBox())!;
-    const x = handle.x + handle.width / 2;
-    const y = handle.y + handle.height / 2;
-    await page.mouse.move(x, y);
-    await page.mouse.down();
-    for (let step = 1; step <= 200; step++) await page.mouse.move(x + step, y);
-    await page.mouse.up();
-    await expect(word).toBeVisible();
-    expect(
-      await page.evaluate(
-        () => (window as unknown as { wordFlips: number }).wordFlips,
-      ),
-    ).toBe(1);
-    await expect(
-      page
-        .getByRole("region", { name: "Filtrer prosjekter", exact: true })
-        .getByRole("button", { name: /^Sted: / }),
-    ).not.toHaveText("Hele Norge");
-    await shot(page, "list-count-outside");
-    await total.click();
-    // Framed on every match, nothing is left outside.
-    await expect(total).toHaveCount(0);
-    await expect(
-      page.getByRole("status", { name: /^\d+ prosjekter$/ }),
-    ).toBeVisible();
-    await expect(
-      page
-        .getByRole("region", { name: "Filtrer prosjekter", exact: true })
-        .getByRole("button", { name: /^Sted: / }),
-    ).toHaveText("Hele Norge");
-  });
-
-  test("a place in view is counted too, and frames the map on it", async ({
-    page,
-  }) => {
-    // Zoomed in on central Oslo: fewer in view than in Oslo, fewer there
-    // than in all.
+    // Zoomed in on central Oslo: fewer in view than in Oslo.
     await page.goto("/?kart=59.9100,10.7500,14");
-    const inOslo = page.getByRole("button", {
-      name: /^\d+ i Oslo, vis Oslo på kartet$/,
+    const visible = page.getByRole("status", {
+      name: /^\d+ synlige? prosjekte?r? på kartet$/,
     });
-    // The count keeps to one line: too narrow for all three, the place
-    // gives way first, and returns once the list has the room.
-    await expect(inOslo).toHaveCount(0);
-    await expect(
-      page.getByRole("button", { name: /^\d+ totalt, vis alle på kartet$/ }),
-    ).toBeVisible();
-    // The word gives way before the place.
-    const word = page.locator("[data-count-word]");
-    await expect(word).toBeHidden();
-    await page
-      .getByRole("separator", { name: "Bredde på prosjektlisten" })
-      .focus();
-    await page.keyboard.press("End");
-    await expect(inOslo).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /^\d+ totalt, vis alle på kartet$/ }),
-    ).toBeVisible();
+    const inOslo = page.getByRole("button", {
+      name: /^\d+ prosjekte?r? i Oslo$/,
+    });
+    await expect(visible).toHaveText(/^\d+$/);
+    await expect(inOslo).toHaveText(/^\d+$/);
+    await expect(page.getByText(/totalt/)).toHaveCount(0);
+    // Each names what it counts when hovered.
+    const tooltip = page.locator("[role=tooltip][popover]");
+    await visible.hover();
+    await expect(tooltip).toHaveText(
+      (await visible.getAttribute("aria-label"))!,
+    );
+    await inOslo.hover();
+    await expect(tooltip).toHaveText(/^\d+ prosjekte?r? i Oslo$/);
+    await shot(page, "list-count-place");
     const count = Number(
       (await inOslo.getAttribute("aria-label"))!.match(/^\d+/)![0],
     );
-    await shot(page, "list-count-place");
     // "Nytt" shows every project in the place, not just those in view.
     const nytt = page
       .getByRole("group", { name: "Visning" })
@@ -1580,9 +1515,31 @@ test.describe("desktop explorer", () => {
       }),
     ).toBeVisible();
     await expect(inOslo).toHaveCount(0);
+    await page
+      .getByRole("group", { name: "Visning" })
+      .getByRole("button", { name: "Kompakt" })
+      .click();
+    // A press on the place unfolds those out of view and scrolls to them,
+    // the toggle kept clear of the list's top; the map stays put.
+    const list = page.getByRole("region", { name: "Prosjektliste" });
+    const toggle = list.getByRole("button", { name: "Ikke synlige på kartet" });
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    const url = page.url();
+    await inOslo.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
     await expect(
-      page.getByRole("button", { name: /totalt, vis alle på kartet$/ }),
-    ).toHaveCount(0);
+      list.getByRole("list", { name: "Utenfor kartet i Oslo" }),
+    ).toBeVisible();
+    await expect(async () => {
+      const [region, button] = await Promise.all([
+        list.boundingBox(),
+        toggle.boundingBox(),
+      ]);
+      expect(button!.y - region!.y).toBeGreaterThan(80);
+      expect(button!.y - region!.y).toBeLessThan(110);
+    }).toPass();
+    expect(page.url()).toBe(url);
   });
 
   test("the place's projects out of view follow the list's, muted until hovered", async ({
@@ -1600,7 +1557,9 @@ test.describe("desktop explorer", () => {
     await expect(async () => {
       visible = Number(
         (await page
-          .getByRole("status", { name: /^\d+ synlige? prosjekte?r?$/ })
+          .getByRole("status", {
+            name: /^\d+ synlige? prosjekte?r? på kartet$/,
+          })
           .getAttribute("aria-label"))!.match(/^\d+/)![0],
       );
       expect(visible).toBeGreaterThan(0);
@@ -1627,7 +1586,7 @@ test.describe("desktop explorer", () => {
     await page.goto("/?kart=59.9900,10.8600,16");
     const list = page.getByRole("region", { name: "Prosjektliste" });
     await expect(
-      page.getByRole("status", { name: "0 synlige prosjekter" }),
+      page.getByRole("status", { name: "0 synlige prosjekter på kartet" }),
     ).toBeVisible();
     const offMap = list.getByRole("list", { name: "Utenfor kartet i Oslo" });
     await expect(offMap).toBeVisible();
@@ -1662,7 +1621,7 @@ test.describe("desktop explorer", () => {
   });
 
   for (const motion of ["reduce", "no-preference"] as const) {
-    test(`unfolding the projects out of view scrolls them in, as far as the toggle at the top (${motion})`, async ({
+    test(`unfolding the projects out of view scrolls them in, as far as the toggle near the top (${motion})`, async ({
       page,
     }) => {
       await page.emulateMedia({ reducedMotion: motion });
@@ -1692,25 +1651,21 @@ test.describe("desktop explorer", () => {
           region!.y + region!.height + 1,
         );
       }).toPass();
-      // At the list's end, it stays there, with room before the toggle
-      // reaches the top.
+      // With a row and a half of them in sight once open, it stays put,
+      // even at the list's end.
       await page.setViewportSize({ width: 1280, height: 1100 });
       await toggle.click();
       await expect(toggle).toHaveAttribute("aria-expanded", "false");
+      // Once folded away.
+      await expect(offMap).toBeHidden();
       await list.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+      const before = await list.evaluate((el) => el.scrollTop);
       await toggle.click();
       await expect(toggle).toHaveAttribute("aria-expanded", "true");
-      await expect(async () => {
-        expect(
-          await list.evaluate(
-            (el) => el.scrollHeight - el.scrollTop - el.clientHeight,
-          ),
-        ).toBeLessThan(2);
-      }).toPass();
-      await expect(
-        list.getByRole("button", { name: "Foreslå prosjekt" }),
-      ).toBeInViewport({ ratio: 1 });
-      // Too little: it stops with the toggle at the top.
+      await page.waitForTimeout(300);
+      expect(await list.evaluate((el) => el.scrollTop)).toBe(before);
+      // Too little: it stops with the toggle near the top, clear of the
+      // fade there.
       await page.setViewportSize({ width: 1280, height: 420 });
       await unfold();
       await expect(async () => {
@@ -1718,7 +1673,7 @@ test.describe("desktop explorer", () => {
           list.boundingBox(),
           toggle.boundingBox(),
         ]);
-        expect(Math.abs(button!.y - region!.y)).toBeLessThan(2);
+        expect(Math.abs(button!.y - region!.y - 96)).toBeLessThan(2);
       }).toPass();
     });
   }
@@ -2707,17 +2662,14 @@ test.describe("desktop explorer", () => {
       exact: true,
     });
     const place = filters.getByRole("button", { name: /^Sted: / });
-    const total = page.getByRole("button", {
-      name: /^\d+ totalt, vis alle på kartet$/,
-    });
     const count = page.getByRole("status", {
-      name: /^\d+ synlige? prosjekte?r?$/,
+      name: /^\d+ synlige? prosjekte?r? på kartet$/,
     });
     const viewLabel = page
       .getByRole("group", { name: "Visning" })
       .getByRole("button", { name: "Kompakt" })
       .locator("[data-view-label]");
-    const full = [theme, maximize, loginLabel, categoryPill, statusPill, total];
+    const full = [theme, maximize, loginLabel, categoryPill, statusPill];
     const narrow = [menu, filterButton];
     // At its default width, everything shows.
     await expect(count).toBeVisible();
@@ -2733,7 +2685,7 @@ test.describe("desktop explorer", () => {
     await expect(viewLabel).toBeHidden();
     await expect(login).toBeVisible();
     await expect(place).toBeVisible();
-    await expect(count).toHaveText(/^\d+ synlige? prosjekte?r?$/);
+    await expect(count).toBeVisible();
     // One step back, everything is back.
     await page.keyboard.press("ArrowRight");
     for (const control of full) await expect(control).toBeVisible();
@@ -3550,6 +3502,33 @@ test.describe("the place follows the map", () => {
       isMobile: true,
       hasTouch: true,
       userAgent: devices["Pixel 7"].userAgent,
+    });
+
+    test("a tap on what's in view names it for a moment", async ({ page }) => {
+      await page.goto("/?kart=59.9100,10.7500,14");
+      const drawer = page.locator("[data-explorer-drawer]");
+      const visible = drawer.getByRole("status", {
+        name: /^\d+ synlige? prosjekte?r? på kartet$/,
+      });
+      await expect(visible).toHaveText(/^\d+$/);
+      const tooltip = page.locator("[role=tooltip][popover]");
+      await visible.tap();
+      await expect(tooltip).toHaveText(
+        (await visible.getAttribute("aria-label"))!,
+      );
+      await expect(tooltip).toBeHidden({ timeout: 4000 });
+      // The place's count unfolds those out of view, as on desktop.
+      const toggle = drawer.getByRole("button", {
+        name: "Ikke synlige på kartet",
+      });
+      await toggle.tap();
+      await expect(toggle).toHaveAttribute("aria-expanded", "false");
+      await drawer
+        .getByRole("button", { name: /^\d+ prosjekte?r? i Oslo$/ })
+        .tap();
+      await expect(tooltip).toBeHidden();
+      await expect(toggle).toHaveAttribute("aria-expanded", "true");
+      await expect(toggle).toBeInViewport();
     });
 
     test("a picked place keeps the drawer's height, coming down from full, framed above it", async ({

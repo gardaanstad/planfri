@@ -34,6 +34,7 @@ import {
   MapPin,
   Plus,
   Moon,
+  Eye,
   Search,
   SearchX,
   SlidersHorizontal,
@@ -73,7 +74,7 @@ import {
   type ListDensity,
 } from "../lib/explore-state";
 import type { MapApi, MapViewChange } from "./project-map";
-import OffMapGroup from "./off-map-group";
+import OffMapGroup, { showOffMapEvent } from "./off-map-group";
 import {
   extentPoints,
   findPlace,
@@ -2027,7 +2028,6 @@ export default memo(function Explorer({
   );
 
   const shown = listedProjects.length;
-  const total = shown + outsideHits;
   // Beside the map, the place the view is on, and how many match there.
   const countPlace = listBounds && place ? place : "";
   const inPlace = useMemo(
@@ -2040,61 +2040,6 @@ export default memo(function Explorer({
     [countPlace, placesOf, searchHits],
   );
   const showInPlace = !!countPlace && inPlace !== shown;
-  const showTotal = total !== (showInPlace ? inPlace : shown);
-  // Beside the map, the count keeps to one line beside the order and views:
-  // where it would not fit, the place gives way first, as in a narrow
-  // sidebar. Measured whether shown or not, so it returns once there's room.
-  const countRowRef = useRef<HTMLDivElement>(null);
-  const [placeFits, setPlaceFits] = useState(true);
-  // With room to spare, the count names what it counts, as when alone.
-  const [wordFits, setWordFits] = useState(false);
-  useLayoutEffect(() => {
-    const row = countRowRef.current;
-    const parts = row?.querySelector<HTMLElement>("[data-count-parts]");
-    const actions = row?.lastElementChild as HTMLElement | null;
-    if (isMobile || !row || !parts || !actions) return;
-    const fit = () => {
-      // Hidden in a narrow sidebar, it counts as not fitting, so widening
-      // brings it back only once measured, rather than showing it for a
-      // frame first.
-      const place = parts.querySelector<HTMLElement>("[data-count-place]");
-      if (place && getComputedStyle(place).display === "none")
-        return flushSync(() => {
-          setPlaceFits(false);
-          setWordFits(true);
-        });
-      // The word gives way before the place does.
-      const word = parts.querySelector<HTMLElement>("[data-count-word]");
-      // Fractional widths, so rounding never tips it back and forth.
-      const width = (element: Element) =>
-        element.getBoundingClientRect().width;
-      const wordWidth = word ? width(word) : 0;
-      const wordInLine =
-        !!word && getComputedStyle(word).position !== "absolute";
-      // Every part at its own width, less the first dot, clipped.
-      const needed =
-        Array.from(parts.children).reduce(
-          (sum, part) => sum + width(part),
-          0,
-        ) -
-        16 -
-        (wordInLine ? wordWidth : 0);
-      const room =
-        row.clientWidth -
-        width(actions) -
-        (parseFloat(getComputedStyle(row).columnGap) || 0);
-      // Before the next paint, so it never shows where it won't fit.
-      flushSync(() => {
-        setPlaceFits(needed <= room + 0.5);
-        setWordFits(needed + wordWidth <= room + 0.5);
-      });
-    };
-    const observer = new ResizeObserver(fit);
-    observer.observe(row);
-    observer.observe(actions);
-    for (const part of parts.children) observer.observe(part);
-    return () => observer.disconnect();
-  }, [isMobile, showInPlace, showTotal, countPlace, density]);
   // "Nytt" shows the news of every match in the place, not just those in
   // view; with no place, all of Norway.
   const feedProjects = useMemo(
@@ -2115,92 +2060,48 @@ export default memo(function Explorer({
       {feedLabel}
     </span>
   );
-  // Words that frame the map on what they count. Their press area reaches
-  // past the line, as tall as a finger needs.
-  const countLink =
-    "relative text-ink-soft underline decoration-border-strong underline-offset-3 transition-[text-decoration-color,color] duration-120 hover:text-ink hover:decoration-current after:absolute after:-inset-x-1 after:-inset-y-1.5 pointer-coarse:after:-inset-y-3";
-  // Every part leads with a dot, clipped where the part starts a line: the
-  // first, and any wrapped onto a new one, so no line starts with a dot.
-  const countSeparator = (
-    <span aria-hidden="true" className="w-4 shrink-0 text-center">
-      ·
-    </span>
-  );
-  // With matches outside the map: what's in view, in the place the view is
-  // on, then all of them; a press on either of the last frames them. The
-  // padding keeps the links' press areas clear of the clip.
+  // With matches outside the map: an eye on what's in view, then a pin on
+  // the place the view is on, which shows the rest of them below. Side by
+  // side with no gap, so the space between them belongs to one or the
+  // other; the pin's wash, instant like a list row's, reaches past the
+  // text, so the row pulls it back to line up with the list.
+  const countItem =
+    "relative inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-ink-soft select-none pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-2";
+  const inPlaceLabel = `${inPlace} ${inPlace === 1 ? "prosjekt" : "prosjekter"} i ${countPlace}`;
+  const visibleLabel = `${shown} ${shown === 1 ? "synlig prosjekt" : "synlige prosjekter"} på kartet`;
   const listCount =
     density === "feed" ? (
       <span className="text-ui min-w-0 truncate text-muted tabular-nums">
         {feedCount}
       </span>
     ) : outsideHits > 0 ? (
-      <span className="relative -my-3 min-w-0 overflow-hidden py-3">
+      <span className="text-ui -mx-2.5 flex items-center tabular-nums">
         <span
-          className="text-ui -ml-4 flex min-w-0 flex-wrap items-center gap-y-1 text-muted tabular-nums md:flex-nowrap"
-          data-count-parts=""
+          className={countItem}
+          role="status"
+          aria-label={visibleLabel}
+          data-tooltip={visibleLabel}
+          data-tooltip-tap=""
         >
-          <span className="inline-flex min-w-0 items-center md:shrink-0">
-            {countSeparator}
-            <span
-              className="whitespace-nowrap"
-              role="status"
-              aria-label={`${shown} ${shown === 1 ? "synlig prosjekt" : "synlige prosjekter"}`}
-            >
-              {shown} {shown === 1 ? "synlig" : "synlige"}
-              {/* Alone, in a narrow sidebar, or with room beside the others,
-                  the whole of it; otherwise the shorter words. Out of the
-                  line, but still measured, until it fits. */}
-              <span
-                // Its leading space kept out of the line too, so it
-                // measures the same either way.
-                className={cn(
-                  "whitespace-pre max-md:hidden",
-                  !wordFits && "invisible absolute",
-                )}
-                data-count-word=""
-              >
-                {shown === 1 ? " prosjekt" : " prosjekter"}
-              </span>
-            </span>
-          </span>
-          {showInPlace && (
-            <span
-              className={cn(
-                "inline-flex min-w-0 items-center whitespace-nowrap narrow:hidden md:shrink-0",
-                // Out of the line, but still measured, until it fits.
-                !placeFits && "md:invisible md:absolute",
-              )}
-              data-count-place=""
-            >
-              {countSeparator}
-              <button
-                type="button"
-                className={cn(countLink, "flex min-w-0")}
-                aria-label={`${inPlace} i ${countPlace}, vis ${countPlace} på kartet`}
-                onClick={() => goToPlace(countPlace)}
-              >
-                {/* A long name gives way; the press area stays whole. */}
-                <span className="max-w-[12rem] truncate">
-                  {inPlace} i {countPlace}
-                </span>
-              </button>
-            </span>
-          )}
-          {showTotal && (
-            <span className="inline-flex items-center whitespace-nowrap narrow:hidden md:shrink-0">
-              {countSeparator}
-              <button
-                type="button"
-                className={countLink}
-                aria-label={`${total} totalt, vis alle på kartet`}
-                onClick={showSearchHits}
-              >
-                {total} totalt
-              </button>
-            </span>
-          )}
+          <Eye size={15} aria-hidden="true" />
+          {shown}
         </span>
+        {showInPlace && (
+          <button
+            type="button"
+            className={cn(countItem, "hover:bg-surface-muted/65 hover:text-ink")}
+            aria-label={inPlaceLabel}
+            data-tooltip={inPlaceLabel}
+            onClick={() =>
+              listRef.current
+                ?.querySelector("[data-off-map-toggle]")
+                ?.dispatchEvent(new Event(showOffMapEvent))
+            }
+          >
+            <MapPin size={15} aria-hidden="true" />
+            {inPlace}
+          </button>
+        )}
       </span>
     ) : (
       <span
@@ -2389,11 +2290,8 @@ export default memo(function Explorer({
       >
         {isMobile ? mobileFilters : desktopFilters}
         {isMobile ? filterSheet : filterPopover}
-        {/* One line: the order and views beside the count, which gives up
-            its place where it would not fit (see `placeFits`); on phones it
-            wraps instead. */}
+        {/* One line: the order and views beside the count. */}
         <div
-          ref={countRowRef}
           className="flex min-h-12 items-center justify-between gap-x-3 border-b border-border py-1.5"
         >
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">

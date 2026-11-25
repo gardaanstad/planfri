@@ -1,6 +1,8 @@
 "use client";
 import { ChevronDown, EyeOff } from "lucide-react";
 import {
+  useEffect,
+  useEffectEvent,
   useId,
   useRef,
   useState,
@@ -17,6 +19,11 @@ import {
 } from "../lib/explore-state";
 
 const duration = 250;
+// Revealing the rows, the toggle stays this far below the list's top: clear
+// of the fade there, with a row or so above it to show where it is.
+const keep = 96;
+/** Sent to the toggle (`data-off-map-toggle`) to open the rows and show them. */
+export const showOffMapEvent = "off-map-show";
 // The app's --ease-out-soft.
 const easing = "cubic-bezier(0.22, 1, 0.36, 1)";
 
@@ -75,19 +82,43 @@ export default function OffMapGroup({
   // Ends the fold playing, if any, at its end.
   const settle = useRef<(() => void) | null>(null);
 
-  function fold(close: boolean) {
-    settle.current?.();
-    const rows = list.current!;
-    let scroller = rows.parentElement;
+  /** Scrolls the list, if need be, for the rows to show. */
+  function scrollerOf() {
+    let scroller = list.current!.parentElement;
     while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY))
       scroller = scroller.parentElement;
+    return scroller;
+  }
+
+  // Asked from elsewhere: open, taking the toggle up as far as it can go.
+  const show = useEffectEvent(() => {
+    if (!open) return fold(false, true);
+    const scroller = scrollerOf();
+    if (!scroller) return;
+    scroller.scrollBy({
+      top: reveal(scroller, false, true),
+      behavior: reducedMotion() ? "instant" : "smooth",
+    });
+  });
+  useEffect(() => {
+    const element = toggle.current!;
+    const listener = () => show();
+    element.addEventListener(showOffMapEvent, listener);
+    return () => element.removeEventListener(showOffMapEvent, listener);
+  }, []);
+
+  function fold(close: boolean, toToggle = false) {
+    settle.current?.();
+    const rows = list.current!;
+    const scroller = scrollerOf();
     // Scrolled to the list's end, opening keeps it there.
     const atEnd =
       !!scroller &&
       scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 2;
     if (!scroller || reducedMotion()) {
       flushSync(() => storeOffMapCollapsed(close));
-      if (!close && scroller) scroller.scrollTop += reveal(scroller, atEnd);
+      if (!close && scroller)
+        scroller.scrollTop += reveal(scroller, atEnd, toToggle);
       return;
     }
     const box = frame.current!;
@@ -115,7 +146,7 @@ export default function OffMapGroup({
       const folded = tops();
       flushSync(() => storeOffMapCollapsed(false));
       shifts = tops().map((top, i) => folded[i] - top);
-      by = reveal(scroller, atEnd);
+      by = reveal(scroller, atEnd, toToggle);
     }
     const options = { duration, easing, fill: "both" } as const;
     // Clipped at the toggle, but not at the sides, past which the hover
@@ -159,16 +190,28 @@ export default function OffMapGroup({
   }
 
   /**
-   * How far to scroll for the opened rows, as far as taking the toggle to
-   * the list's top; at the list's end, to its new end.
+   * How far to scroll for the opened rows, as far as taking the toggle near
+   * the list's top (see `keep`); at the list's end, to its new end. Asked
+   * `toToggle`, as far as it goes whatever the rows need. With a row and a
+   * half of them, or all, already in sight, not at all.
    */
-  function reveal(scroller: HTMLElement, atEnd: boolean) {
+  function reveal(scroller: HTMLElement, atEnd: boolean, toToggle = false) {
     const view = scroller.getBoundingClientRect();
-    const below = atEnd
-      ? scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
-      : list.current!.getBoundingClientRect().bottom -
-        Math.min(view.bottom, window.innerHeight);
-    const above = toggle.current!.getBoundingClientRect().top - view.top;
+    const rows = list.current!;
+    const shown =
+      Math.min(view.bottom, window.innerHeight) -
+      toggle.current!.getBoundingClientRect().bottom;
+    const first = rows.firstElementChild?.getBoundingClientRect().height ?? 0;
+    if (shown >= Math.min(first * 1.5, rows.offsetHeight)) return 0;
+    const below =
+      atEnd || toToggle
+        ? scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
+        : rows.getBoundingClientRect().bottom -
+          Math.min(view.bottom, window.innerHeight);
+    const above =
+      toggle.current!.getBoundingClientRect().top -
+      Math.max(view.top, 0) -
+      keep;
     return Math.max(0, Math.min(below, above));
   }
 
