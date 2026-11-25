@@ -2042,14 +2042,25 @@ export default memo(function Explorer({
         {showInPlace && (
           <button
             type="button"
-            className={cn(countItem, "hover:bg-surface-muted/65 hover:text-ink")}
+            className={cn(
+              countItem,
+              // A touch shows the wash a pointer's hover does.
+              "hover:bg-surface-muted/65 hover:text-ink pointer-coarse:active:bg-surface-muted/65 pointer-coarse:active:text-ink",
+            )}
             aria-label={inPlaceLabel}
             data-tooltip={inPlaceLabel}
-            onClick={() =>
-              listRef.current
-                ?.querySelector("[data-off-map-toggle]")
-                ?.dispatchEvent(new Event(showOffMapEvent))
-            }
+            onClick={() => {
+              const show = () =>
+                listRef.current
+                  ?.querySelector("[data-off-map-toggle]")
+                  ?.dispatchEvent(new Event(showOffMapEvent));
+              if (!isMobile || snapPoint === 1) return show();
+              // The drawer rises to full height first, and its list takes
+              // that height (see `restOffset`) before it scrolls, the two
+              // moving together.
+              setSnapPoint(1);
+              requestAnimationFrame(() => requestAnimationFrame(show));
+            }}
           >
             <MapPin size={15} aria-hidden="true" />
             {inPlace}

@@ -3511,18 +3511,35 @@ test.describe("the place follows the map", () => {
         (await visible.getAttribute("aria-label"))!,
       );
       await expect(tooltip).toBeHidden({ timeout: 4000 });
-      // The place's count unfolds those out of view, as on desktop.
+      // The place's count unfolds those out of view, as on desktop, and
+      // takes the drawer from the middle height to the full one for them.
       const toggle = drawer.getByRole("button", {
         name: "Ikke synlige på kartet",
       });
       await toggle.tap();
       await expect(toggle).toHaveAttribute("aria-expanded", "false");
-      await drawer
-        .getByRole("button", { name: /^\d+ prosjekte?r? i Oslo$/ })
-        .tap();
-      await expect(tooltip).toBeHidden();
+      await expectDrawerHeight(page, 0.58);
+      const inPlace = drawer.getByRole("button", {
+        name: /^\d+ prosjekte?r? i Oslo$/,
+      });
+      // Pressed, it shows the wash a pointer's hover would.
+      const box = (await inPlace.boundingBox())!;
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await expect(inPlace).not.toHaveCSS(
+        "background-color",
+        "rgba(0, 0, 0, 0)",
+      );
+      // Let go, it acts.
+      await page.mouse.up();
       await expect(toggle).toHaveAttribute("aria-expanded", "true");
-      await expect(toggle).toBeInViewport();
+      await expectDrawerHeight(page, 1);
+      await expect(
+        drawer
+          .getByRole("list", { name: "Utenfor kartet i Oslo" })
+          .locator("[data-card-id]")
+          .first(),
+      ).toBeInViewport({ ratio: 1 });
     });
 
     test("a picked place keeps the drawer's height, coming down from full, framed above it", async ({
