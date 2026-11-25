@@ -1111,8 +1111,15 @@ export default memo(function Explorer({
     // Mid-pan the list catches up between frames instead of holding one up:
     // rendering it inside a frame stalled the pan, worst in Safari.
     if (view.moving) return startTransition(follow);
-    follow();
-    if (!postView.current && !backToFullList.current) setFrozenBounds(null);
+    const settle = () => {
+      follow();
+      if (!postView.current && !backToFullList.current) setFrozenBounds(null);
+    };
+    // On phones the list was folded out of sight while the map moved, so
+    // it lands a frame or two later as well: rendered at the gesture's end
+    // with the map's own redraw, it held up that frame.
+    if (isMobile) startTransition(settle);
+    else settle();
     syncSoon();
   }
   /**
