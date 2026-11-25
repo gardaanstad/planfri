@@ -127,6 +127,7 @@ import {
   type DrawerSnapPoint,
 } from "./drawer";
 import {
+  CoveredLayer,
   DrawerGrip,
   mobileDrawerClasses,
   Panel,
@@ -2797,10 +2798,10 @@ export default memo(function Explorer({
   }
   const drawerBody = (
     <>
-      <div
+      <CoveredLayer
         className="flex min-h-0 flex-1 flex-col"
         // Under the panels it stays in place, ready to swipe back to.
-        inert={liveLayers.length > 0}
+        covered={liveLayers.length > 0}
         aria-hidden={liveLayers.length > 0 || undefined}
       >
         {projectResults(
@@ -2814,7 +2815,7 @@ export default memo(function Explorer({
             </div>
           </div>,
         )}
-      </div>
+      </CoveredLayer>
     </>
   );
   const drawerShell = isMobile && !drawerReady && (
@@ -3022,7 +3023,7 @@ export default memo(function Explorer({
             {sidebarToggle}
           </div>
           {/* The base layer: stays mounted under panels, so it keeps its scroll. */}
-          <div
+          <CoveredLayer
             className={cn(
               // The container `narrow:` measures (see globals.css).
               "@container/sidebar absolute inset-y-0 left-0 flex flex-col bg-surface",
@@ -3036,7 +3037,7 @@ export default memo(function Explorer({
             data-explorer-layer=""
             // Live again as soon as a panel starts sliding away, so focus
             // can return to the card it was opened from.
-            inert={sidebarMode === "collapsed" || liveLayers.length > 0}
+            covered={sidebarMode === "collapsed" || liveLayers.length > 0}
             aria-hidden={liveLayers.length > 0 || undefined}
           >
             <header
@@ -3113,7 +3114,7 @@ export default memo(function Explorer({
                 {projectResults()}
               </div>
             </div>
-          </div>
+          </CoveredLayer>
           {layers.map((layer, index) => (
             // Panels cover the whole sidebar, header included, and slide
             // out from its left edge. Maximized, they cover the map too.

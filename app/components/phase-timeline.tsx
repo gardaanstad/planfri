@@ -3,10 +3,12 @@ import { X } from "lucide-react";
 import {
   type CSSProperties,
   Fragment,
+  useEffectEvent,
   useLayoutEffect,
   useRef,
   useState,
 } from "react";
+import { flushSync } from "react-dom";
 import {
   finishYear,
   formatPhaseDate,
@@ -243,21 +245,39 @@ export default function PhaseTimeline({
   const listRef = useRef<HTMLOListElement>(null);
   const [layout, setLayout] = useState<Layout | null>(null);
   // Labels can only be fitted once they're laid out; until then they wait
-  // unseen. Every render, as typing changes their widths, and on resize.
+  // unseen. Fitted as the line is first laid out and on resize, from the
+  // observer, which reads layout the frame has done anyway; then again
+  // whenever what it lays out changes, as typing changes their widths.
+  const fit = useEffectEvent(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const next = measure(list);
+    setLayout((layout) => (layout && sameLayout(layout, next) ? layout : next));
+  });
   useLayoutEffect(() => {
     const list = listRef.current;
     if (!list) return;
-    const update = () => {
-      const next = measure(list);
-      setLayout((layout) =>
-        layout && sameLayout(layout, next) ? layout : next,
-      );
-    };
-    update();
-    const observer = new ResizeObserver(update);
+    // Before the frame paints, so labels show fitted from the first.
+    const observer = new ResizeObserver(() => flushSync(fit));
     observer.observe(list);
     return () => observer.disconnect();
-  });
+  }, []);
+  const shape = JSON.stringify([
+    texts,
+    milestones.map(({ id, label, date }) => [id, label, date]),
+    places,
+    track.weights,
+    track.minimums,
+    track.open,
+    current,
+    Boolean(edit),
+  ]);
+  const shaped = useRef(shape);
+  useLayoutEffect(() => {
+    if (shaped.current === shape) return;
+    shaped.current = shape;
+    fit();
+  }, [shape]);
   const rows = Math.max(
     0,
     ...Object.values(layout?.labels ?? {}).map(({ row }) => row),

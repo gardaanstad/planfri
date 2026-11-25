@@ -93,6 +93,31 @@ export function ScrollFade({ shown }: { shown: boolean }) {
   );
 }
 
+/**
+ * What panels cover: inert under them. Setting `inert` restyles all it
+ * holds, so it waits until a covering panel has drawn its first frame and
+ * started to slide; it lifts at once, so focus can return as one closes.
+ */
+export function CoveredLayer({
+  covered,
+  ...props
+}: ComponentProps<"div"> & { covered: boolean }) {
+  const [inert, setInert] = useState(covered);
+  if (inert && !covered) setInert(false);
+  useEffect(() => {
+    if (!covered || inert) return;
+    let timer = 0;
+    const frame = requestAnimationFrame(() => {
+      timer = window.setTimeout(() => setInert(true));
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [covered, inert]);
+  return <div {...props} inert={inert} />;
+}
+
 // Each panel drawer stacks above the one before it.
 /**
  * Takes the panel's drawer to its full height when it rests lower, so

@@ -1,10 +1,13 @@
 "use client";
 import {
+  useDeferredValue,
   useEffect,
   useEffectEvent,
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
+  type ComponentProps,
   type ReactNode,
 } from "react";
 import { flushSync } from "react-dom";
@@ -426,6 +429,28 @@ function ProjectMeta({ project }: { project: Project }) {
       <PhaseTimeline project={project} className="mt-5 max-md:mt-4" />
     </div>
   );
+}
+
+const noSubscription = () => () => {};
+
+/**
+ * What the tabs hold, under the fold as a project opens: it follows the
+ * panel in, rendered in the background once its top is up. The page's own
+ * render has it at once, as does a panel opened at an update, a comment or
+ * the tabs.
+ */
+function BelowTabs({
+  now,
+  children,
+  ...props
+}: ComponentProps<"div"> & { now: boolean }) {
+  const hydrating = useSyncExternalStore(
+    noSubscription,
+    () => false,
+    () => true,
+  );
+  const shown = useDeferredValue(true, now || hydrating);
+  return <div {...props}>{shown && children}</div>;
 }
 
 /** The description's paragraphs; none when it's empty. */
@@ -1255,9 +1280,13 @@ export default function ProjectPost({
     },
   ];
   useEffect(() => {
-    document
-      .getElementById("project-card-title")
-      ?.focus({ preventScroll: true });
+    // In the frame it first draws in, so the style it asks for is the
+    // frame's own rather than one more on the way.
+    const frame = requestAnimationFrame(() =>
+      document
+        .getElementById("project-card-title")
+        ?.focus({ preventScroll: true }),
+    );
     if (initialUpdateId)
       requestAnimationFrame(() =>
         document
@@ -1270,6 +1299,7 @@ export default function ProjectPost({
           .getElementById("project-sections")
           ?.scrollIntoView({ block: "start" }),
       );
+    return () => cancelAnimationFrame(frame);
   }, [project.id, initialUpdateId, initialSection]);
   const onEscape = useEffectEvent((event: KeyboardEvent) => {
     if (
@@ -1446,7 +1476,13 @@ export default function ProjectPost({
                 !wide && "px-4.5 md:px-gutter-scroll",
               )}
             >
-              <div className="min-w-0" hidden={Boolean(draft)}>
+              <BelowTabs
+                className="min-w-0"
+                hidden={Boolean(draft)}
+                now={Boolean(
+                  initialUpdateId || initialCommentId || initialSection,
+                )}
+              >
                 <div
                   id="project-panel-discussion"
                   hidden={tab !== "discussion"}
@@ -1606,7 +1642,7 @@ export default function ProjectPost({
                     </div>
                   )}
                 </section>
-              </div>
+              </BelowTabs>
             </div>
           </div>
           {draft && (
