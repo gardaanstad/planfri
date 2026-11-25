@@ -98,9 +98,6 @@ import { errorMessage } from "../lib/api-client";
 import { profileHref } from "../lib/profiles";
 import { useAuth } from "./auth-provider";
 import { useCommunity } from "./community-provider";
-import AccountPanel from "./account-panel";
-import { AccountSettingsSheet } from "./account-settings";
-import SignOutPrompt from "./sign-out-prompt";
 import AccountMenu from "./account-menu";
 import ProfileAvatar from "./profile-avatar";
 import ChoiceSelect from "./choice-select";
@@ -109,14 +106,12 @@ import FilterSheet, {
   type FilterSection,
 } from "./filter-sheet";
 import CategoryIcon from "./category-icon";
-import ProjectEditor from "./project-editor";
-import { OsmPanel, useOsmModeStored, useOsmReview } from "./osm-review";
+import { useOsmModeStored, useOsmReview } from "./osm-review";
 import ProjectPost from "./project-post";
 import ProjectCard, { type CardTarget } from "./project-card";
 import { FeedRow, feedEntries, type FeedTarget } from "./activity-feed";
 import { useListMotion } from "./use-list-motion";
 import PanelResizer from "./panel-resizer";
-import SavedProjects from "./saved-projects";
 import { useUnread } from "./unread-provider";
 import EmptyState, { EmptyAction } from "./empty-state";
 import { dismiss, notify } from "./toast";
@@ -157,8 +152,6 @@ import { mobileQuery, useMediaQuery } from "../lib/media";
 import ThemeToggle, { toggleTheme, useTheme } from "./theme-toggle";
 import { OverflowMenu, type OverflowAction } from "./header-overflow";
 import { openProfileEvent } from "../lib/profile-overlay";
-import ProfileOverlay from "./profile-overlay";
-import SuggestionList from "./suggestion-list";
 import { MaximizeButton, type SidebarMode } from "./sidebar-panel";
 import {
   iconButton,
@@ -522,6 +515,69 @@ const mobileDrawerInnerClasses = [
   "pb-[env(safe-area-inset-bottom)]",
 ].join(" ");
 
+// Panels closed at first paint load apart, after the page is up (see
+// `usePreloadPanels`), or at once when the URL opens one: server-rendered,
+// a panel's code comes with the page.
+const AccountPanel = dynamic(() => import("./account-panel"));
+const AccountSettingsSheet = dynamic(() =>
+  import("./account-settings").then((m) => m.AccountSettingsSheet),
+);
+const SignOutPrompt = dynamic(() => import("./sign-out-prompt"));
+const ProjectEditor = dynamic(() => import("./project-editor"));
+const SavedProjects = dynamic(() => import("./saved-projects"));
+const ProfileOverlay = dynamic(() => import("./profile-overlay"));
+const SuggestionList = dynamic(() => import("./suggestion-list"));
+// Moderators' OSM mode, only while it is on.
+const OsmPanel = dynamic(() =>
+  import("./osm-panel").then((m) => m.OsmPanel),
+);
+const panelModules = [
+  () => import("./saved-projects"),
+  () => import("./profile-overlay"),
+  () => import("./account-panel"),
+  () => import("./account-settings"),
+  () => import("./sign-out-prompt"),
+  () => import("./project-editor"),
+  () => import("./suggestion-list"),
+  () => import("./login-prompt"),
+];
+let panelsPreloaded = false;
+/**
+ * Loads the panels' code one at a time when the browser is idle, from the
+ * first input or a while after the page has loaded, so opening one later
+ * doesn't wait on the network and the first paint doesn't wait on them.
+ */
+function usePreloadPanels() {
+  useEffect(() => {
+    if (panelsPreloaded) return;
+    panelsPreloaded = true;
+    const idle = (run: () => void) =>
+      "requestIdleCallback" in window
+        ? requestIdleCallback(run, { timeout: 2000 })
+        : setTimeout(run, 50);
+    const queue = [...panelModules];
+    const next = () => {
+      const load = queue.shift();
+      if (load) idle(() => void load().catch(() => {}).then(next));
+    };
+    // Or at once on the first input, which may be on its way to a panel.
+    const intents = ["pointermove", "pointerdown", "keydown"] as const;
+    let started = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const begin = () => {
+      if (started) return;
+      started = true;
+      clearTimeout(timer);
+      for (const type of intents) window.removeEventListener(type, begin);
+      next();
+    };
+    const start = () => (timer = setTimeout(begin, 4000));
+    for (const type of intents)
+      window.addEventListener(type, begin, { passive: true });
+    if (document.readyState === "complete") start();
+    else window.addEventListener("load", start, { once: true });
+  }, []);
+}
 const ProjectMap = dynamic(() => import("./project-map"), {
   ssr: false,
   loading: () => (
@@ -552,6 +608,7 @@ export default memo(function Explorer({
   /** From the request's user agent, so phones render mobile on the server. */
   mobileHint?: boolean;
 }) {
+  usePreloadPanels();
   const isMobile = useMediaQuery(mobileQuery, mobileHint);
   // The drawer lives in a portal that only mounts in the browser. Until it
   // does, a static copy in the same place shows its contents, then both swap
@@ -2480,7 +2537,9 @@ export default memo(function Explorer({
 
   const drawerPopupRef = (node: HTMLDivElement | null) => {
     drawerContentRef.current = node;
-    if (node) setDrawerReady(true);
+    // A transition: the list renders into the drawer in slices while its
+    // static copy still shows, then both swap in one commit.
+    if (node) startTransition(() => setDrawerReady(true));
   };
   function signedOut(everywhere = false) {
     setSignOutOpen(false);
@@ -2764,7 +2823,10 @@ export default memo(function Explorer({
       className={cn(
         explorerDrawerClasses,
         sheetShadowClasses,
-        "fixed inset-x-0 bottom-0 z-[900] flex flex-col",
+        // Its own layer, like the drawer's popup, so its contents snap to
+        // the same pixels: in place, the drawer's copy draws nothing larger,
+        // and its first paint stays the page's largest.
+        "fixed inset-x-0 bottom-0 z-[900] flex flex-col will-change-transform",
         snapPoint === 1
           ? "h-[calc(100dvh-12px-env(safe-area-inset-top))]"
           : "inset-x-2 bottom-2 rounded-b-sheet",
@@ -3155,13 +3217,15 @@ export default memo(function Explorer({
               });
             }}
           />
-          <OsmPanel
-            review={osm}
-            keyboard={liveLayers.length === 0}
-            onCreate={openEditor}
-            onOpenProject={(id) => openPost(id)}
-            className="absolute top-3 left-1/2 z-[660] -translate-x-1/2 max-md:right-17 max-md:left-3 max-md:w-auto max-md:translate-x-0"
-          />
+          {osm.on && (
+            <OsmPanel
+              review={osm}
+              keyboard={liveLayers.length === 0}
+              onCreate={openEditor}
+              onOpenProject={(id) => openPost(id)}
+              className="absolute top-3 left-1/2 z-[660] -translate-x-1/2 max-md:right-17 max-md:left-3 max-md:w-auto max-md:translate-x-0"
+            />
+          )}
         </section>
       </main>
 

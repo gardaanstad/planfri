@@ -10,7 +10,10 @@ import {
 import { authClient } from "../lib/auth-client";
 import { storeLoginIntent, type LoginIntent } from "../lib/login-intent";
 import { storeMemberView } from "../lib/member-view";
-import LoginPrompt from "./login-prompt";
+import dynamic from "next/dynamic";
+
+// Only once asked for, and then it is drawn with its sign-in button.
+const LoginPrompt = dynamic(() => import("./login-prompt"));
 
 type User = typeof authClient.$Infer.Session.user;
 type AuthContext = {

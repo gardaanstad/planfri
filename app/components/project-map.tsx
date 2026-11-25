@@ -4,7 +4,6 @@ import { createPortal } from "react-dom";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { maplibreGL } from "@maplibre/maplibre-gl-leaflet";
 import type maplibregl from "maplibre-gl";
 import "./project-map.css";
 import { useTheme } from "./theme-toggle";
@@ -582,6 +581,13 @@ type GlLayerInternals = {
  * software WebGL is slow there and loads them over the network. A spec that
  * needs the base map opts in with `localStorage["planfri:basemap"] = "on"`.
  */
+/**
+ * MapLibre and its Leaflet bridge, loaded once the map is up: the projects
+ * draw without waiting on the base map's code, as they never waited on its
+ * tiles.
+ */
+let basemapCode: Promise<typeof import("@maplibre/maplibre-gl-leaflet")> | null = null;
+const loadBasemap = () => (basemapCode ??= import("@maplibre/maplibre-gl-leaflet"));
 function basemapEnabled() {
   if (process.env.NEXT_PUBLIC_BASEMAP !== "off") return true;
   try {
@@ -740,6 +746,8 @@ export default function ProjectMap({
   // Restyles one candidate for the current selection.
   const osmStyle = useRef<(id: string | null) => void>(() => {});
   const [ready, setReady] = useState(false);
+  // Counts base maps made, so the style follows each one.
+  const [glCount, setGlCount] = useState(0);
   const [layersOpen, setLayersOpen] = useState(false);
   const [layer, setLayer] = useState<MapLayer>(draw ? "osm" : "standard");
   const [mapMessage, setMapMessage] = useState("");
@@ -957,56 +965,67 @@ export default function ProjectMap({
       idle(true);
       return;
     }
-    // The style follows below, so a theme change restyles this map in place.
-    const base = maplibreGL({
-      attributionControl: { customAttribution: mapAttribution },
-      // Draws a margin around the view, so panning shows map, not blank.
-      padding: 0.15,
-    } as L.LeafletMaplibreGLOptions) as L.MaplibreGL & GlLayerInternals;
-    // The bridge follows a resize a frame later and lets MapLibre redraw
-    // after another: for a frame or two the base map sat in the wrong place
-    // or blank, a flicker whenever a panel resized the map. Instead its
-    // canvas is resized, placed and drawn at once, before the next paint.
-    const transitionEnd = base._transitionEnd;
-    const refresh = () => {
-      const glMap = base.getMaplibreMap();
-      if (!glMap || base._zooming) return false;
-      base._resizeContainer();
-      base._update();
-      glMap.resize();
-      glMap.redraw();
-      return true;
-    };
-    base._resize = function () {
-      // The container sync places and draws it once it's done.
-      if (syncing.current) return;
-      if (!refresh()) transitionEnd.call(base);
-    };
-    refreshBase.current = refresh;
-    base.addTo(mapRef.current);
-    let failures = 0;
-    const gl = base.getMaplibreMap();
-    glRef.current = gl;
-    glStyle.current = null;
-    gl.on("styleimagemissing", ({ id }: { id: string }) => addShield(gl, id));
-    gl.on("error", () => {
-      if (++failures > 4)
-        setMapMessage("Kartet kunne ikke lastes. Prøv et annet kartlag.");
-    });
+    const map = mapRef.current;
+    let removed = false;
+    let remove = () => {};
     idle(false);
-    gl.on("dataloading", () => idle(false));
-    gl.on("movestart", () => idle(false));
-    gl.on("idle", () => idle(true));
-    // Only after failures, so loading tiles doesn't touch React state.
-    gl.on("data", () => {
-      if (!failures) return;
-      failures = 0;
-      setMapMessage("");
+    void loadBasemap().then(({ maplibreGL }) => {
+      if (removed) return;
+      // The style follows below, so a theme change restyles this map in place.
+      const base = maplibreGL({
+        attributionControl: { customAttribution: mapAttribution },
+        // Draws a margin around the view, so panning shows map, not blank.
+        padding: 0.15,
+      } as L.LeafletMaplibreGLOptions) as L.MaplibreGL & GlLayerInternals;
+      // The bridge follows a resize a frame later and lets MapLibre redraw
+      // after another: for a frame or two the base map sat in the wrong place
+      // or blank, a flicker whenever a panel resized the map. Instead its
+      // canvas is resized, placed and drawn at once, before the next paint.
+      const transitionEnd = base._transitionEnd;
+      const refresh = () => {
+        const glMap = base.getMaplibreMap();
+        if (!glMap || base._zooming) return false;
+        base._resizeContainer();
+        base._update();
+        glMap.resize();
+        glMap.redraw();
+        return true;
+      };
+      base._resize = function () {
+        // The container sync places and draws it once it's done.
+        if (syncing.current) return;
+        if (!refresh()) transitionEnd.call(base);
+      };
+      refreshBase.current = refresh;
+      base.addTo(map);
+      let failures = 0;
+      const gl = base.getMaplibreMap();
+      glRef.current = gl;
+      glStyle.current = null;
+      gl.on("styleimagemissing", ({ id }: { id: string }) => addShield(gl, id));
+      gl.on("error", () => {
+        if (++failures > 4)
+          setMapMessage("Kartet kunne ikke lastes. Prøv et annet kartlag.");
+      });
+      gl.on("dataloading", () => idle(false));
+      gl.on("movestart", () => idle(false));
+      gl.on("idle", () => idle(true));
+      // Only after failures, so loading tiles doesn't touch React state.
+      gl.on("data", () => {
+        if (!failures) return;
+        failures = 0;
+        setMapMessage("");
+      });
+      setGlCount((count) => count + 1);
+      remove = () => {
+        refreshBase.current = () => false;
+        glRef.current = null;
+        base.remove();
+      };
     });
     return () => {
-      refreshBase.current = () => false;
-      glRef.current = null;
-      base.remove();
+      removed = true;
+      remove();
     };
   }, [ready, layer]);
   // The overview's two tones share their tiles, so switching between them
@@ -1021,7 +1040,7 @@ export default function ProjectMap({
       transformStyle: (_, next) => localize(next, standard, baseTone),
     });
     glStyle.current = { style: baseStyle, tone: baseTone };
-  }, [ready, layer, baseStyle, baseTone]);
+  }, [ready, layer, baseStyle, baseTone, glCount]);
   useEffect(() => {
     projectsRef.current = projects;
   }, [projects]);
