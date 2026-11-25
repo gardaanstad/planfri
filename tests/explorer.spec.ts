@@ -1954,6 +1954,31 @@ test.describe("desktop explorer", () => {
     ).toHaveAttribute("aria-pressed", "true");
   });
 
+  test("the strip between two cards opens the card it hovers", async ({
+    page,
+  }) => {
+    await page.goto(oslo);
+    const row = listRegion(page).locator(`[data-card-id="${project.id}"]`);
+    const box = (await row.boundingBox())!;
+    // Above the card link's reach, just under the border of the card before.
+    const x = box.x + box.width / 2;
+    const y = box.y + 3;
+    await page.mouse.move(x, y);
+    // Its shape lights up once the page is hydrated.
+    await expect(
+      page.locator(`path[data-project-id="${project.id}"]`),
+    ).toHaveAttribute("stroke-width", "4");
+    expect(
+      await page.evaluate(
+        ([x, y]) => document.elementFromPoint(x, y)?.hasAttribute("data-card-gap"),
+        [x, y],
+      ),
+    ).toBe(true);
+    await page.mouse.down();
+    await page.mouse.up();
+    await expect(page).toHaveURL(new RegExp(`/prosjekt/${project.id}`));
+  });
+
   test("the sort sits beside the count, and status shows what it hides", async ({
     page,
   }) => {

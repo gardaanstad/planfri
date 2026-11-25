@@ -243,6 +243,15 @@ export default memo(function ProjectCard({
           onHover?.(project.id, false);
       }}
     >
+      {/* The card link and its wash stop short of the row's edges; this
+          catches presses on the strip between cards, which hovers them. */}
+      <span
+        aria-hidden="true"
+        className="absolute inset-x-[-12px] inset-y-0 cursor-pointer max-md:inset-x-[-8px]"
+        data-card-gap=""
+        data-press=""
+        onClick={() => onOpen(project.id)}
+      />
       {/* The photos of both views stay mounted, hidden in the other, so
           switching shows them as they were rather than loading them anew. */}
       {expanded && (
