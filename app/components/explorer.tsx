@@ -2004,51 +2004,35 @@ export default memo(function Explorer({
       options={densityChoices}
     />
   );
+  // Desktop: the views as a pair of icon buttons after the sort, a rule
+  // between, square as the search and filter buttons above them. The row's
+  // 6px gap sits on both sides of the rule, so the washes on either side
+  // stand 6px from it in any state; the two views sit 4px apart.
   const densitySwitch = (
-    <div
-      className="flex shrink-0 rounded-lg bg-ink/[0.05] p-0.5"
-      role="group"
-      aria-label="Visning"
-    >
-      {densityOptions.map(({ value, label, Icon }) => (
-        <button
-          key={value}
-          type="button"
-          className={cn(
-            // As tall as the sort beside it; the pressed pill moves with the
-            // press, as the list does.
-            "relative inline-flex h-8 min-w-8 items-center justify-center rounded-md px-[8.5px] text-muted",
-            "hover:text-ink aria-pressed:bg-surface aria-pressed:text-ink aria-pressed:shadow-xs",
-          )}
-          aria-label={label}
-          aria-pressed={density === value}
-          data-tooltip={label}
-          data-press=""
-          onClick={() => storeDensity(value)}
-        >
-          <Icon size={16} className="shrink-0" aria-hidden="true" />
-          {/* The pressed view names itself: the name opens out beside its
-              symbol as the last one folds away. */}
-          <span
+    <>
+      <span aria-hidden="true" className="h-4 w-px shrink-0 bg-border" />
+      <div className="flex shrink-0 gap-1" role="group" aria-label="Visning">
+        {densityOptions.map(({ value, label, Icon }) => (
+          <button
+            key={value}
+            type="button"
             className={cn(
-              "grid transition-[grid-template-columns,opacity,visibility] duration-180 ease-out-soft motion-reduce:transition-none",
-              density === value
-                ? // A narrow sidebar keeps the symbols alone.
-                  "grid-cols-[1fr] opacity-100 narrow:invisible narrow:grid-cols-[0fr] narrow:opacity-0"
-                : "grid-cols-[0fr] opacity-0",
+              "inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted",
+              // Hover tints at once, as the sort beside it.
+              "hover:bg-ink/[0.05] hover:text-ink",
+              "aria-pressed:bg-ink/[0.08] aria-pressed:text-ink",
             )}
-            aria-hidden="true"
-            data-view-label=""
-            // Named here while pressed, so no tooltip unless this is hidden.
-            data-tooltip-label={density === value ? "" : undefined}
+            aria-label={label}
+            aria-pressed={density === value}
+            data-tooltip={label}
+            data-press=""
+            onClick={() => storeDensity(value)}
           >
-            <span className="min-w-0 overflow-hidden whitespace-nowrap">
-              <span className="pl-1.5 text-xs font-medium">{label}</span>
-            </span>
-          </span>
-        </button>
-      ))}
-    </div>
+            <Icon size={16} aria-hidden="true" />
+          </button>
+        ))}
+      </div>
+    </>
   );
   const placeFilter = (
     <PlaceSelect

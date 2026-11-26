@@ -2804,15 +2804,12 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     await page.keyboard.press("Home");
     const min = Number(await handle.getAttribute("aria-valuemin"));
     await expect.poll(width).toBe(min);
-    // Narrow, the pressed view keeps its symbol alone.
-    const viewLabel = page
+    // The views are symbols alone; a tooltip names them.
+    const tooltip = page.locator("[role=tooltip][popover]");
+    await page
       .getByRole("group", { name: "Visning" })
       .getByRole("button", { name: "Kompakt" })
-      .locator("[data-view-label]");
-    await expect(viewLabel).toBeHidden();
-    // Its tooltip names it instead.
-    const tooltip = page.locator("[role=tooltip][popover]");
-    await viewLabel.locator("..").hover();
+      .hover();
     await expect(tooltip).toBeVisible();
     await expect(tooltip).toHaveText("Kompakt");
     await page.mouse.move(0, 0);
@@ -2837,14 +2834,6 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     // A double click returns to the default width.
     await handle.dblclick();
     await expect.poll(width).toBe(start);
-    await expect(viewLabel).toBeVisible();
-    // Named in place, it needs no tooltip: from a view whose tooltip shows,
-    // moving onto it puts the tooltip away.
-    const views = page.getByRole("group", { name: "Visning" });
-    await views.getByRole("button", { name: "Utvidet" }).hover();
-    await expect(tooltip).toHaveText("Utvidet");
-    await viewLabel.locator("..").hover();
-    await expect(tooltip).toBeHidden();
   });
 
   test("a narrow sidebar folds its controls away together, at one width", async ({
@@ -2870,11 +2859,7 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     });
     const place = filters.getByRole("button", { name: /^Sted: / });
     const searchButton = filters.getByRole("button", { name: "Åpne søk" });
-    const viewLabel = page
-      .getByRole("group", { name: "Visning" })
-      .getByRole("button", { name: "Kompakt" })
-      .locator("[data-view-label]");
-    const full = [loginLabel, viewLabel];
+    const full = [loginLabel];
     // No menu of extras: dark mode is in the account menu.
     await expect(header.getByRole("button", { name: "Flere valg" })).toHaveCount(0);
     await expect(header.getByRole("switch", { name: "Mørk modus" })).toHaveCount(0);
