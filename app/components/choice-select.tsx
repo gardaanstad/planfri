@@ -975,7 +975,7 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
           className={cn(
             "relative flex min-h-0 flex-col",
             sheet && [
-              "max-h-[min(66dvh,500px)] overflow-hidden rounded-t-sheet border-t border-border bg-surface shadow-bar",
+              "max-h-[40dvh] overflow-hidden rounded-t-sheet border-t border-border bg-surface shadow-bar",
               "motion-safe:animate-sheet-in",
             ],
           )}
