@@ -973,8 +973,9 @@ export default function ProjectMap({
     // While the map is dragged its shapes take no pointer (see
     // project-map.css): hit testing every path on each move held up the
     // frames of a pan. The pointer rides the same spot of the map, so the
-    // shape it was over stays lit with its tooltip, as if still under it,
-    // until the pointer moves after the drag.
+    // shape it was over stays lit, as if still under it, until the pointer
+    // moves after the drag. Its tooltip goes away for the pan, and comes back
+    // as the pointer moves over a shape again.
     const draggedOver = container.current;
     const targets = (map as unknown as { _targets: Record<number, L.Layer> })
       ._targets;
@@ -995,6 +996,9 @@ export default function ProjectMap({
     const pointer = window.matchMedia("(hover: hover) and (pointer: fine)");
     map.on("dragstart", () => {
       release();
+      map.eachLayer((layer) => {
+        layer.closeTooltip();
+      });
       if (!pointer.matches) return;
       const element = draggedOver.querySelector(
         ".leaflet-overlay-pane path.leaflet-interactive:hover",
@@ -1012,6 +1016,17 @@ export default function ProjectMap({
     });
     draggedOver.addEventListener("mouseover", quiet, true);
     draggedOver.addEventListener("mouseout", quiet, true);
+    // Leaflet opens a shape's tooltip at its middle when the shape takes
+    // focus. That's for the keyboard: a press focuses the shape too, and its
+    // tooltip would jump from the pointer to the middle and back.
+    const pressFocus = (event: FocusEvent) => {
+      if (
+        event.target !== draggedOver &&
+        document.documentElement.hasAttribute("data-pointer")
+      )
+        event.stopPropagation();
+    };
+    draggedOver.addEventListener("focus", pressFocus, true);
     // The container grows and shrinks as panels beside it open, close and
     // resize. The geography on screen stays where it is: the edge that moves
     // uncovers or covers map, it doesn't drag it along. Run before paint, so
@@ -1109,6 +1124,7 @@ export default function ProjectMap({
       element.removeEventListener("keydown", keyMove);
       draggedOver.removeEventListener("mouseover", quiet, true);
       draggedOver.removeEventListener("mouseout", quiet, true);
+      draggedOver.removeEventListener("focus", pressFocus, true);
       document.removeEventListener("mousemove", release, true);
       syncRef.current = () => {};
       mapRef.current = null;

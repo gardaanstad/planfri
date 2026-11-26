@@ -2324,6 +2324,44 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     await expect(tooltip).toHaveCount(0);
   });
 
+  test("a shape's tooltip goes away while the map is dragged", async ({
+    page,
+  }) => {
+    await page.goto(oslo);
+    const tooltip = page.locator(".project-tooltip");
+    const shape = page.locator(`path[data-project-id="${project.id}"]`);
+    const box = (await shape.boundingBox())!;
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await expect(tooltip).toContainText(project.title);
+    await page.mouse.down();
+    await page.mouse.move(x - 60, y - 40, { steps: 6 });
+    await expect(tooltip).toHaveCount(0);
+    // Released over the shape, which rode along with the pointer, it's back.
+    await page.mouse.up();
+    await page.mouse.move(x - 58, y - 38);
+    await expect(tooltip).toContainText(project.title);
+  });
+
+  test("pressing a shape keeps its tooltip at the pointer", async ({ page }) => {
+    await page.goto(oslo);
+    const tooltip = page.locator(".project-tooltip");
+    const shape = page.locator(`path[data-project-id="${project.id}"]`);
+    const box = (await shape.boundingBox())!;
+    // Off its middle, where a tooltip opened by focus would sit.
+    const x = box.x + box.width * 0.3;
+    const y = box.y + box.height * 0.6;
+    await page.mouse.move(x, y);
+    await expect(tooltip).toContainText(project.title);
+    const at = (await tooltip.boundingBox())!;
+    await page.mouse.down();
+    await expect(shape).toBeFocused();
+    expect(await tooltip.boundingBox()).toEqual(at);
+    await page.mouse.up();
+    await expect(page).toHaveURL(atProject);
+  });
+
   test("hovering a card shows no tooltip while most of its shape is out of sight", async ({
     page,
   }) => {
