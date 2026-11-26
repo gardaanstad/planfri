@@ -252,6 +252,12 @@ test.describe("map menu", () => {
     const menu = page.locator("[data-map-menu]");
     await expect(menu).toBeVisible();
     await shot(page, "map-menu");
+    const google = menu.getByRole("menuitem", { name: "Åpne Google Maps her" });
+    await expect(google).toHaveAttribute("target", "_blank");
+    await expect(google).toHaveAttribute(
+      "href",
+      /^https:\/\/www\.google\.com\/maps\/@\?api=1&map_action=map&center=60\.39\d*,5\.32\d*&zoom=13$/,
+    );
     await menu.getByRole("menuitem", { name: "Legg til prosjekt her" }).click();
     await expect(menu).toHaveCount(0);
     const editor = page.locator("[data-project-editor]");
