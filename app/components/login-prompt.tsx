@@ -118,7 +118,7 @@ export default function LoginPrompt({
       >
         <div
           aria-hidden="true"
-          className="flex justify-center pt-2 pb-1 md:hidden"
+          className="flex justify-center pt-2 md:hidden"
         >
           <SheetGrip />
         </div>
@@ -136,7 +136,7 @@ export default function LoginPrompt({
         </button>
         <h2
           id="login-prompt-title"
-          className="text-title md:pr-10 max-md:mt-3"
+          className="text-title md:pr-10"
         >
           Logg inn
         </h2>

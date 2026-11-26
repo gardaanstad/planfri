@@ -96,7 +96,7 @@ A sheet is a non-modal drawer that holds a page and rests at set heights.
 - **Heights**: `middle` (58% of the screen, map above) and `full`, for
   pages that go with the map: the list, a project opened from the map, a
   profile, the account. A sheet that sits over the map may also **fold**
-  down to its header (the list to its filters at 136px, a project to its
+  down to its header (the list to its filters at 124px, a project to its
   header and phase timeline) when the map is touched; a tap on a folded
   sheet unfolds it a step.
 - **Full height only** for pages that stand on their own: Lagret, Forslag,
@@ -106,9 +106,14 @@ A sheet is a non-modal drawer that holds a page and rests at set heights.
   whole page (a deep link, "Les mer", writing a comment), which takes it to
   `full`.
 - **Grip** (`SheetGrip`, the same as every drawer's), centred in a 20px
-  strip.
+  strip (`gripStrip`) that the content rises 12px under, the grip drawn over
+  it; only the grip's middle takes a press.
 - **Header** (`PanelHeader`): back (if any), the title, the panel's actions,
-  close. Its bottom border shows only once content has scrolled under it.
+  close. Its ink stands as far below the sheet's top edge as it is in from
+  the sides: the title's capitals and the close glyph alike. It has no
+  surface of its own, since it reaches into the sheet's rounded corners;
+  nothing that does may paint one. Its bottom border shows only once content
+  has scrolled under it.
 - Below full height, a swipe on the content moves the sheet; at full height
   it scrolls. A fade along the bottom edge says there is more.
 - Swiping below the lowest height closes it. Never a scrim: the map stays
@@ -126,7 +131,8 @@ components built on it).
   question ("Logg ut?", "Slette kommentaren?") or a form
   ("Kontoinnstillinger"). The title is an `h2` under the grip, left-aligned
   (`sheetTitle`: `text-heading`, full ink), passed as `BottomSheet`'s
-  `title`.
+  `title`. Its capitals stand as far below the top edge as they are in from
+  the side (`sheetTitleGap` from the grip).
 - **Untitled when it's a menu of actions** from a control that names it
   (a project's ⋯, the account avatar, a comment's ⋯).
 - **Grip** (`SheetGrip`): 36×4px, `ink/15`, darkening under a pointer. No

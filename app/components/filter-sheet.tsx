@@ -12,7 +12,12 @@ import { ChevronDown } from "lucide-react";
 import { cn } from "../lib/cn";
 import { reducedMotion, sheetLeave } from "../lib/media";
 import { useBackgroundPush } from "../lib/background-push";
-import { SheetGrip, openedByKeyboard, sheetTitle } from "./action-sheet";
+import {
+  SheetGrip,
+  openedByKeyboard,
+  sheetTitle,
+  sheetTitleGap,
+} from "./action-sheet";
 import { useSwipeDismiss } from "./use-swipe-dismiss";
 
 export type FilterSection = {
@@ -334,7 +339,7 @@ export default function FilterSheet({
             <SheetGrip />
             <span
               data-slot="filter-title"
-              className={cn(sheetTitle, "mt-3 self-stretch px-1")}
+              className={cn(sheetTitle, sheetTitleGap, "self-stretch px-1")}
             >
               {title}
             </span>

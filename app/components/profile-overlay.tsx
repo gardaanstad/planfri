@@ -50,7 +50,7 @@ export default function ProfileOverlay({
 
   return (
     <article
-      className="flex h-full min-h-0 flex-1 flex-col bg-surface"
+      className="flex h-full min-h-0 flex-1 flex-col"
       aria-labelledby="profile-title"
       data-profile-overlay=""
     >

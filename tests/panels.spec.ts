@@ -297,6 +297,45 @@ test.describe("mobile panels", () => {
     expect(long.gap).toBe(short.gap);
   });
 
+  test("a sheet's header stands as far below its top as it is in from its sides", async ({
+    page,
+  }) => {
+    await page.goto(projectPath);
+    const drawer = page.locator('[data-panel-drawer="project"]');
+    await expect(drawer.locator("[data-project-post]")).toBeVisible();
+    const edges = await drawer.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return { top: rect.top, left: rect.left, right: rect.right };
+    });
+    const title = await capitals(drawer.locator("#project-card-title"));
+    expect(Math.abs(title.top - edges.top - (title.left - edges.left))).toBeLessThanOrEqual(1);
+    // The close glyph's ink: lucide's X spans the middle 12 of its 24 units.
+    const close = await drawer
+      .locator("[data-project-close] svg")
+      .evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        const inset = rect.width / 4;
+        return { top: rect.top + inset, right: rect.right - inset };
+      });
+    expect(
+      Math.abs(close.top - edges.top - (edges.right - close.right)),
+    ).toBeLessThanOrEqual(1);
+
+    // A drawer's title, under its grip, the same.
+    await drawer.getByRole("button", { name: "Handlinger" }).click();
+    await page
+      .getByRole("dialog", { name: "Handlinger" })
+      .getByRole("button", { name: "Lagre, krever innlogging" })
+      .click();
+    const prompt = page.getByRole("dialog", { name: "Logg inn" });
+    const sheet = await prompt.locator("> div").evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return { top: rect.top, left: rect.left };
+    });
+    const heading = await capitals(prompt.getByRole("heading", { name: "Logg inn" }));
+    expect(Math.abs(heading.top - sheet.top - (heading.left - sheet.left))).toBeLessThanOrEqual(1.5);
+  });
+
   test("project actions are a sheet; locked ones ask to log in, with the reason", async ({ page }) => {
     await page.goto(projectPath);
     const drawer = page.locator('[data-panel-drawer="project"]');

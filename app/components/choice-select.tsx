@@ -17,7 +17,7 @@ import { cn } from "../lib/cn";
 import { mobileQuery, reducedMotion, sheetLeave } from "../lib/media";
 import { useBackgroundPush } from "../lib/background-push";
 import { useSwipeDismiss } from "./use-swipe-dismiss";
-import { SheetGrip, sheetTitle } from "./action-sheet";
+import { SheetGrip, sheetTitle, sheetTitleGap } from "./action-sheet";
 import { Radio } from "./choice-mark";
 
 type Option = {
@@ -999,7 +999,7 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
                   className="pointer-events-none absolute inset-x-0 top-full h-(--fade-height) bg-[linear-gradient(to_top,transparent,var(--color-surface))] opacity-0 [--fade-height:40px]"
                 />
                 <SheetGrip />
-                <div className="mt-3 flex items-center self-stretch">
+                <div className={cn(sheetTitleGap, "flex items-center self-stretch")}>
                   {/* Above the options' 15px: larger, heavier and in full ink. */}
                   <span
                     aria-hidden="true"

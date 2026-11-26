@@ -282,14 +282,15 @@ export default function ProjectPostHeader({
     return (
       <header
         className={cn(
-          "z-20 flex shrink-0 items-start gap-2 border-b bg-surface px-4.5 pt-0 pb-1",
+          // No surface of its own: it rises into the sheet's rounded corners.
+          "z-20 flex shrink-0 items-start gap-2 border-b px-4.5 pt-0 pb-1",
           border,
         )}
         data-compact={compact}
       >
         {title}
-        {/* The close glyph sits a little inside the content edge, clear of the corner. */}
-        <div className="-mr-3 flex shrink-0 items-center">
+        {/* The close glyph stands as far in from the side as it is below the top. */}
+        <div className="-mr-2.25 flex shrink-0 items-center">
           {!edit && <MobileActions {...actions} />}
           {close}
         </div>

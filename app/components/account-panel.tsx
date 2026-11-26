@@ -66,7 +66,7 @@ export default function AccountPanel({
   return (
     <div
       data-account-panel
-      className="relative flex h-full min-h-0 flex-col bg-surface"
+      className="relative flex h-full min-h-0 flex-col"
     >
       <div className={shown("signin")}>
         <PanelHeader title="Logg inn" />

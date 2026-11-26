@@ -58,12 +58,23 @@ export const panelDrawerInnerClasses =
 /** The same grip as every other sheet's. */
 export const DrawerGrip = SheetGrip;
 
+/**
+ * The strip a sheet's grip is centred in. The content rises under its lower
+ * part, so a header's title and buttons stand as far below the sheet's top
+ * edge as they are in from its sides, the grip drawn over them. Only the
+ * grip's middle takes a press; beside it, presses go to the header.
+ */
+export const gripStrip =
+  "pointer-events-none relative z-30 -mb-3 flex h-5 w-full shrink-0 justify-center";
+/** The part of `gripStrip` that takes a press or a drag. */
+export const gripTarget =
+  "pointer-events-auto flex h-full w-24 touch-none cursor-grab items-center justify-center active:cursor-grabbing";
+
 const gripBar = (
-  <div
-    aria-hidden="true"
-    className="flex h-5 w-full shrink-0 touch-none cursor-grab items-center justify-center active:cursor-grabbing"
-  >
-    <DrawerGrip />
+  <div aria-hidden="true" className={gripStrip}>
+    <span className={gripTarget}>
+      <DrawerGrip />
+    </span>
   </div>
 );
 
@@ -382,10 +393,12 @@ export function PanelHeader({
   return (
     <header
       className={cn(
-        "z-20 flex shrink-0 items-start gap-2 border-b bg-surface",
+        "z-20 flex shrink-0 items-start gap-2 border-b",
         "transition-[border-color] duration-200 motion-reduce:transition-none",
         frame.scrolled ? "border-border" : "border-transparent",
-        mobile ? "px-4.5 pt-0 pb-1" : "pt-2.5 pr-3 pb-1 pl-6",
+        // On phones it rises under the grip into the sheet's rounded
+        // corners (see `gripStrip`), so it leaves the sheet's own surface.
+        mobile ? "px-4.5 pt-0 pb-1" : "bg-surface pt-2.5 pr-3 pb-1 pl-6",
       )}
       data-panel-header=""
     >
@@ -420,11 +433,11 @@ export function PanelHeader({
           {title}
         </h1>
       </div>
-      {/* The close glyph sits a little inside the content edge, clear of the corner. */}
+      {/* The close glyph stands as far in from the side as it is below the top. */}
       <div
         className={cn(
           "flex shrink-0 items-center",
-          mobile ? "-mr-3" : "gap-0.5",
+          mobile ? "-mr-2.25" : "gap-0.5",
         )}
       >
         {actions && (
@@ -544,7 +557,7 @@ export function Panel({
       );
     return (
       <div
-        className="flex h-full min-h-0 flex-1 flex-col bg-surface"
+        className="flex h-full min-h-0 flex-1 flex-col"
         data-sidebar-panel={name}
       >
         {content}
@@ -564,7 +577,7 @@ export function Panel({
     );
   return (
     <div
-      className="flex h-full min-h-0 flex-1 flex-col bg-surface"
+      className="flex h-full min-h-0 flex-1 flex-col"
       data-sidebar-panel={name}
     >
       <div className="-mt-1 flex h-11 shrink-0 items-center px-1.5">

@@ -128,6 +128,8 @@ import {
 import {
   CoveredLayer,
   DrawerGrip,
+  gripStrip,
+  gripTarget,
   mobileDrawerClasses,
   Panel,
   PanelDrawer,
@@ -190,7 +192,7 @@ type PostTarget = {
 // so does the list as the page opens (its static shell is sized to match).
 const middleSnapPoint = 0.58;
 // The compact drawer shows just the header and filters along the bottom edge.
-const compactSnapPoint = "136px";
+const compactSnapPoint = "124px";
 /**
  * The window's height, kept from its last resize. Chrome lays the page out
  * to answer `innerHeight`, and the drawer's motion asks on every write to
@@ -501,7 +503,7 @@ const explorerDrawerClasses = cn(
 // `restOffset` on DrawerContent.
 const mobileDrawerInnerClasses = [
   "min-h-0 flex-none overflow-hidden",
-  "h-[calc(100%_-_24px_-_var(--drawer-rest-offset)_-_var(--sheet-gap,0px))]",
+  "h-[calc(100%_-_12px_-_var(--drawer-rest-offset)_-_var(--sheet-gap,0px))]",
   "pb-[env(safe-area-inset-bottom)]",
 ].join(" ");
 
@@ -2816,11 +2818,13 @@ export default memo(function Explorer({
           ? "h-[calc(100dvh-12px-env(safe-area-inset-top))]"
           : "inset-x-2 bottom-2 rounded-b-sheet",
         snapPoint === middleSnapPoint && "h-[calc(58dvh-8px)]",
-        snapPoint === compactSnapPoint && "h-[128px]",
+        snapPoint === compactSnapPoint && "h-[116px]",
       )}
     >
-      <div className="flex h-5 shrink-0 items-center justify-center">
-        <DrawerGrip />
+      <div className={gripStrip}>
+        <span className={gripTarget}>
+          <DrawerGrip />
+        </span>
       </div>
       <div
         data-slot="drawer-content"
@@ -3277,24 +3281,27 @@ export default memo(function Explorer({
                   setSnapPoint(1);
                 }}
                 handle={
-                  <button
-                    ref={drawerHandleRef}
-                    className={cn(
-                      "group/handle flex h-5 w-full shrink-0 touch-none cursor-grab items-center justify-center p-0 active:cursor-grabbing",
-                      "transition-[color,opacity] duration-150 hover:text-accent active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100",
-                      "group-data-panel-open/drawer-popup:opacity-0",
-                    )}
-                    aria-label={
-                      snapPoint === 1
-                        ? "Vis mer av kartet"
-                        : "Utvid prosjektlisten"
-                    }
-                    onClick={() =>
-                      snapPoint === 1 ? minimizeDrawer() : setSnapPoint(1)
-                    }
-                  >
-                    <DrawerGrip />
-                  </button>
+                  <div className={gripStrip}>
+                    <button
+                      ref={drawerHandleRef}
+                      className={cn(
+                        gripTarget,
+                        "group/handle p-0",
+                        "transition-[color,opacity] duration-150 hover:text-accent active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100",
+                        "group-data-panel-open/drawer-popup:opacity-0",
+                      )}
+                      aria-label={
+                        snapPoint === 1
+                          ? "Vis mer av kartet"
+                          : "Utvid prosjektlisten"
+                      }
+                      onClick={() =>
+                        snapPoint === 1 ? minimizeDrawer() : setSnapPoint(1)
+                      }
+                    >
+                      <DrawerGrip />
+                    </button>
+                  </div>
                 }
               >
                 <DrawerTitle className="sr-only">

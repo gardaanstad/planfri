@@ -62,6 +62,11 @@ export function SheetGrip() {
 
 /** A drawer's title, under its grip: what is being chosen or acted on. */
 export const sheetTitle = "text-heading text-ink";
+/**
+ * From the grip down to a drawer's title: its capitals stand as far below
+ * the drawer's top edge as they are in from its side.
+ */
+export const sheetTitleGap = "mt-0.5";
 
 /** The track and knob of an on/off switch, for a row that is one. */
 export function SwitchTrack({ on }: { on: boolean }) {
@@ -197,7 +202,7 @@ export function BottomSheet({
         <div className="flex shrink-0 flex-col items-center px-1 pt-2 pb-3">
           <SheetGrip />
           {title && (
-            <h2 className={cn(sheetTitle, "mt-3 self-start px-2")}>{title}</h2>
+            <h2 className={cn(sheetTitle, sheetTitleGap, "self-start px-2")}>{title}</h2>
           )}
         </div>
         <SheetCloseContext value={close}>{children}</SheetCloseContext>

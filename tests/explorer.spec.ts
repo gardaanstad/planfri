@@ -37,7 +37,7 @@ async function expectDrawerHeight(
   drawer: "explorer" | "project" | "saved" = "explorer",
 ) {
   if (fraction === compact)
-    fraction = 136 / (await page.evaluate(() => window.innerHeight));
+    fraction = 124 / (await page.evaluate(() => window.innerHeight));
   // Panels other than projects are drawers named by `data-panel-drawer`.
   const selector =
     drawer === "saved"
@@ -1233,7 +1233,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       page,
       page.getByRole("button", { name: "Utvid prosjektlisten", exact: true }),
     );
-    await expectDrawerHeight(page, 136 / viewport.height);
+    await expectDrawerHeight(page, 124 / viewport.height);
     await filters
       .getByRole("button", { name: "Åpne søk", exact: true })
       .click();
@@ -3759,7 +3759,7 @@ test.describe("the list holds what the uncovered map shows", () => {
       await page.goto("/");
       await expectDrawerHeight(page, 0.58);
       // The list holds what the folded drawer leaves in sight, at every height.
-      const top = 844 - 136;
+      const top = 844 - 124;
       const south = area.geometry.reduce((a, b) => (b[0] < a[0] ? b : a));
       await show(page, await viewWith(page, north, [195, top + 8]));
       await expect(listed(page, area.title)).toHaveCount(0);

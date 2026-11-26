@@ -1412,7 +1412,7 @@ export default function ProjectPost({
   const content = (
     <ProjectEditContext value={edit}>
       <article
-        className="relative flex h-full min-h-0 flex-col bg-surface"
+        className="relative flex h-full min-h-0 flex-col"
         data-project-post=""
       >
         <ProjectPostHeader
