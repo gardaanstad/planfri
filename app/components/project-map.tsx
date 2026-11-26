@@ -1537,8 +1537,11 @@ export default function ProjectMap({
       const shape = line
         ? L.polyline(project.geometry, {
             ...options,
+            // Square ends for square dashes; a road's band is solid.
             lineCap:
-              project.status === "planned" || mode === "rail" ? "butt" : "round",
+              (project.status === "planned" && !mode) || mode === "rail"
+                ? "butt"
+                : "round",
             lineJoin: "round",
             // Rail and road keep their pattern; colour tells the status.
             dashArray: mode ? options.dashArray : dashes[project.status]?.line,
