@@ -1423,6 +1423,37 @@ function nearView(a: string, b: string) {
 }
 const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
 
+  test("an open dropdown keeps the list from hovering, and a click on it only closes the menu", async ({
+    page,
+  }) => {
+    await page.goto(oslo);
+    const first = listRegion(page).locator("[data-card-id] a").first();
+    await expect(first).toBeVisible();
+    await page.getByRole("button", { name: /^Sorter prosjekter:/ }).click();
+    const sort = page.getByRole("listbox", {
+      name: "Sorter prosjekter",
+      exact: true,
+    });
+    await expect(sort).toBeVisible();
+    const url = page.url();
+    // Nothing in the list is under the pointer while the menu is open.
+    const box = (await first.boundingBox())!;
+    const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
+    await page.mouse.move(x, y);
+    expect(
+      await page.evaluate(
+        ([x, y]) => document.elementFromPoint(x, y)?.getAttribute("data-slot"),
+        [x, y],
+      ),
+    ).toBe("choice-backdrop");
+    await page.mouse.click(x, y);
+    await expect(sort).toBeHidden();
+    expect(page.url()).toBe(url);
+    // Closed, the list is back to hand.
+    await first.click();
+    await expect(page).not.toHaveURL(url);
+  });
+
   test("Nytt in two places the map shows lists the news of both", async ({
     page,
   }) => {

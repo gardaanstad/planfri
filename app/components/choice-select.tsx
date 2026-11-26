@@ -178,6 +178,7 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
   // The width it last rested at, for `smoothWidth`.
   const restingWidth = useRef<number | null>(null);
   const menu = useRef<HTMLDivElement>(null);
+  const backdrop = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const sheetPanel = useRef<HTMLDivElement>(null);
@@ -226,6 +227,10 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
     // Phones get a bottom sheet instead of an anchored menu.
     const asSheet = window.matchMedia(mobileQuery).matches;
     setSheet(asSheet);
+    // Under the anchored menu, a clear layer takes the pointer: nothing
+    // behind it hovers, and a click there only closes the menu.
+    const shield = asSheet ? null : backdrop.current;
+    shield?.showPopover();
     // The top layer keeps menus clear of the drawer's clipped content.
     popup.showPopover();
     const positionMenu = () => {
@@ -273,6 +278,7 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
     window.addEventListener("scroll", positionMenu, true);
     return () => {
       popup.hidePopover();
+      shield?.hidePopover();
       popup.removeAttribute("style");
       document.removeEventListener("pointerdown", dismiss);
       window.removeEventListener("resize", positionMenu);
@@ -930,6 +936,22 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
           className="ml-auto shrink-0 transition-transform duration-150 motion-reduce:transition-none max-md:transition-none md:group-aria-expanded/trigger:rotate-180"
         />
       </button>
+      <div
+        ref={backdrop}
+        popover="manual"
+        aria-hidden="true"
+        data-slot="choice-backdrop"
+        className="fixed inset-0 m-0 h-auto w-auto border-0 bg-transparent p-0"
+        // Closes as the mouse goes down, like the menus open, and the
+        // release's click is spent; focus stays for the trigger.
+        data-press=""
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => close()}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          close();
+        }}
+      />
       {/* Anchored menu; on phones, a scrim holding a bottom sheet. */}
       <div
         ref={menu}
