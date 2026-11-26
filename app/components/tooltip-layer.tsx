@@ -50,6 +50,9 @@ export default function TooltipLayer() {
     function show(element: HTMLElement, tapped = false) {
       const text = element.dataset.tooltip;
       if (!text) return hide();
+      // A trigger whose menu, sheet or popover is open needs no tooltip.
+      if (element.matches('[aria-expanded="true"], [data-popup-open]'))
+        return hide();
       // A name shown inside the control makes its tooltip redundant; once a
       // narrow layout hides that name, the tooltip stands in for it.
       const label = element.querySelector("[data-tooltip-label]");

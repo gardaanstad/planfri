@@ -621,6 +621,25 @@ test.describe("desktop headers", () => {
     );
   });
 
+  test("a menu button shows no tooltip while its menu is open", async ({
+    page,
+  }) => {
+    await page.goto(photolessPath);
+    const menu = page
+      .locator("[data-project-actions]")
+      .getByRole("button", { name: "Flere valg" });
+    const tooltip = page.locator('[role="tooltip"]:popover-open');
+    await menu.hover();
+    await expect(tooltip).toHaveText("Flere valg");
+    await menu.click();
+    await expect(page.getByRole("menu")).toBeVisible();
+    // Leaving and coming back over the button keeps it quiet.
+    await page.mouse.move(0, 0);
+    await menu.hover();
+    await page.waitForTimeout(400);
+    await expect(tooltip).toHaveCount(0);
+  });
+
   test("a project's menu keeps the panel from hovering, its button aside", async ({
     page,
   }) => {
