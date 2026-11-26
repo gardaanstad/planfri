@@ -39,10 +39,22 @@ else {
 // ---------------------------------------------------------------------------
 // Preview: make sure the hub and this worktree's dev server run, then switch.
 
+/**
+ * Migrates the worktree's local.db and refills its sample data if the
+ * production copy or sample files changed, or something replaced the rows.
+ * Skipped in checkouts whose db:sample predates --if-stale.
+ */
+function refreshDevData(dir: string) {
+  const script = join(dir, "scripts", "sample.ts");
+  if (!existsSync(script) || !readFileSync(script, "utf8").includes("--if-stale")) return;
+  spawnSync("bun", [script, "--if-stale"], { cwd: dir, stdio: "inherit" });
+}
+
 async function preview() {
   const dir = worktree();
   const name = displayName(dir);
   await ensureHub();
+  refreshDevData(dir);
 
   let server = runningDevServer(dir);
   const log = join(dir, ".next", "preview.log");

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "bun scripts/seed-dev-cache.ts && next dev",
+    "dev": "bun scripts/sample.ts --if-stale; bun scripts/seed-dev-cache.ts && next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

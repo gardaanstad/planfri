@@ -35,7 +35,7 @@ Writing specs:
 
 # Development data
 
-`local.db` holds a copy of production's projects plus fictional updates and comments (`bun run db:sample`). When a change needs projects of a particular kind to try out (a long title, no photo, a line, many updates, a deep thread), write a `local-samples/<name>.ts` in your worktree using `localProject()` from `scripts/local-samples.ts`, with ids starting `local-`, and run `bun run db:sample`. The folder is gitignored and only reaches your worktree's database; delete the file and rerun to remove its rows. Specs use `scripts/seed-data.ts`, not this.
+`local.db` holds a copy of production's projects plus fictional updates and comments (`bun run db:sample`, rerun with `--if-stale` and migrations by `bun dev` and Preview). When a change needs projects of a particular kind to try out (a long title, no photo, a line, many updates, a deep thread), write a `local-samples/<name>.ts` in your worktree using `localProject()` from `scripts/local-samples.ts`, with ids starting `local-`, and run `bun run db:sample`. The folder is gitignored and only reaches your worktree's database; delete the file and rerun to remove its rows. Specs use `scripts/seed-data.ts`, not this.
 
 # Landing
 
