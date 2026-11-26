@@ -182,7 +182,8 @@ export default memo(function ProjectCard({
     </span>
   );
   const commentWord = commentCount === 1 ? "kommentar" : "kommentarer";
-  const commentLabel = `${commentCount} ${commentWord}`;
+  const commentLabel =
+    commentCount === 0 ? "Ingen kommentarer" : `${commentCount} ${commentWord}`;
   const updatesTooltip =
     updates.length > 0
       ? `${updates.length} ${updates.length === 1 ? "oppdatering" : "oppdateringer"} · sist ${formatDate(updates[0].date)}`
@@ -299,17 +300,28 @@ export default memo(function ProjectCard({
       />
       {expanded && (
         <div key="actions" className="mt-3 flex items-center gap-4">
-          {commentCount > 0 && (
-            <button
-              type="button"
-              className={action}
-              aria-label={commentLabel}
-              data-press=""
-              // Named here, or in its tooltip where the word gives way.
-              data-tooltip={commentLabel}
-              onClick={() => onOpen(project.id, "discussion")}
-            >
-              <MessageCircle size={16} aria-hidden="true" />
+          {/* Shown with none too, as a way into the discussion. */}
+          <button
+            type="button"
+            className={action}
+            aria-label={commentLabel}
+            data-press=""
+            // Named here, or in its tooltip where the word gives way.
+            data-tooltip={commentLabel}
+            onClick={() => onOpen(project.id, "discussion")}
+          >
+            <MessageCircle size={16} aria-hidden="true" />
+            {commentCount === 0 ? (
+              <span>
+                <span className="hidden max-[359px]:inline narrow:inline">0</span>
+                <span
+                  className="max-[359px]:hidden narrow:hidden"
+                  data-tooltip-label=""
+                >
+                  Ingen kommentarer
+                </span>
+              </span>
+            ) : (
               <span>
                 {commentCount}
                 <span
@@ -317,8 +329,8 @@ export default memo(function ProjectCard({
                   data-tooltip-label=""
                 >{` ${commentWord}`}</span>
               </span>
-            </button>
-          )}
+            )}
+          </button>
           {updates.length > 0 && (
             <button
               type="button"

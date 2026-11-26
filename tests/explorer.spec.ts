@@ -1894,6 +1894,13 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     ]);
     expect(commentsBox!.y).toBeGreaterThan(galleryBox!.y + galleryBox!.height);
     await expect(first.getByRole("button", { name: "Lagre" })).toBeVisible();
+    // A project with none says so, still a way into its discussion.
+    await expect(
+      list
+        .locator("[data-card-id]:not([data-off-map])")
+        .getByRole("button", { name: "Ingen kommentarer", exact: true })
+        .first(),
+    ).toContainText("Ingen kommentarer");
     // The comment count opens the project at its discussion.
     await comments.click();
     await expect(
