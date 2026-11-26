@@ -6,6 +6,7 @@ import { safeReturnPath } from "../lib/account-rules";
 import { cn } from "../lib/cn";
 
 import { useAuth } from "./auth-provider";
+import DevSignIn from "./dev-sign-in";
 
 function GoogleMark() {
   return (
@@ -38,7 +39,7 @@ export default function GoogleSignIn({
   reauthenticate?: boolean;
   label?: string;
 }) {
-  const { googleEnabled } = useAuth();
+  const { googleEnabled, devLogin } = useAuth();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -102,6 +103,7 @@ export default function GoogleSignIn({
           {error}
         </p>
       )}
+      {devLogin && !reauthenticate && <DevSignIn next={safeReturnPath(next)} />}
     </div>
   );
 }

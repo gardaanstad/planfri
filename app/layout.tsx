@@ -6,6 +6,7 @@ import "./globals.css";
 import { parseTheme, themeCookie, themeColors } from "./lib/theme";
 import { getPageSession, googleConfigured } from "./lib/auth";
 import { isModerator } from "./lib/server/http";
+import { devLoginEnabled } from "./lib/server/dev-login";
 import { AuthProvider } from "./components/auth-provider";
 import TooltipLayer from "./components/tooltip-layer";
 import { Toaster } from "./components/toast";
@@ -105,6 +106,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           isModerator={!!session && isModerator(session.user)}
           initialMemberView={viewAsMember}
           googleEnabled={googleConfigured()}
+          devLogin={devLoginEnabled()}
         >
           {children}
         </AuthProvider>

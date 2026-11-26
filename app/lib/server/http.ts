@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { ZodError } from "zod";
 import { readSession, siteURL } from "../auth";
 import { memberViewOn } from "../member-view";
+import { isDevModerator } from "./dev-login";
 
 export class HttpError extends Error {
   constructor(
@@ -90,11 +91,12 @@ export async function requireUser(request: Request, onboarded = true) {
 export function isModerator(user: { email: string; emailVerified: boolean }) {
   return (
     user.emailVerified &&
-    (process.env.MODERATOR_EMAILS || "")
+    ((process.env.MODERATOR_EMAILS || "")
       .split(",")
       .map((email) => email.trim().toLowerCase())
       .filter(Boolean)
-      .includes(user.email.toLowerCase())
+      .includes(user.email.toLowerCase()) ||
+      isDevModerator(user.email))
   );
 }
 /**

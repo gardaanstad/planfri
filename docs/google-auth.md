@@ -93,6 +93,8 @@ bun run test
 bun run build
 ```
 
-Tests run on a port derived from the checkout path (3100–3999, override with `TEST_PORT`) with a separate `test-auth.db` and `.next-test` build directory. Test sessions are inserted directly into that isolated database; there is no development-login endpoint or authentication bypass in the application.
+Tests run on a port derived from the checkout path (3100–3999, override with `TEST_PORT`) with a separate `test-auth.db` and `.next-test` build directory. Test sessions are inserted directly into that isolated database.
+
+`bun dev` against a local SQLite file also offers **Moderator** and **Medlem** buttons under the Google button. They sign in as fixed local accounts (`dev_moderator`, `dev_medlem`) through `/api/dev-login`, without Google. Production builds inline `NODE_ENV`, so there the endpoint answers 404, the buttons are absent and the dev moderator's email grants nothing; it is also off on Vercel and against a remote database.
 
 Automated coverage includes username races and validation, server-side authorization, forged/expired sessions, CSRF rejection, profile privacy, per-account persistence, moderator enforcement, account deletion, OAuth initiation/state rejection, and desktop/mobile onboarding. A real Google authorization-code exchange still requires the configured credentials and an interactive Google login.

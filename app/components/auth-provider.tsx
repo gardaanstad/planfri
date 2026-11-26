@@ -26,6 +26,8 @@ type AuthContext = {
   memberView: boolean;
   setMemberView: (on: boolean) => void;
   googleEnabled: boolean;
+  /** Development offers signing in as a moderator or a member. */
+  devLogin: boolean;
   /**
    * True for a member with a username. A guest is asked to log in, told
    * why by `reason`; `intent` is picked up again after they return.
@@ -41,12 +43,14 @@ export function AuthProvider({
   isModerator,
   initialMemberView,
   googleEnabled,
+  devLogin = false,
   children,
 }: {
   initialUser: User | null;
   isModerator: boolean;
   initialMemberView: boolean;
   googleEnabled: boolean;
+  devLogin?: boolean;
   children: ReactNode;
 }) {
   const { data, isPending, error } = authClient.useSession();
@@ -90,6 +94,7 @@ export function AuthProvider({
         memberView: moderator && memberView,
         setMemberView,
         googleEnabled,
+        devLogin,
         requireLogin,
       }}
     >

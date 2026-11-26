@@ -351,6 +351,32 @@ test("only configured moderators can publish projects", async ({ request }) => {
   ).toBe(200);
 });
 
+test("production offers no dev sign-in and the dev moderator has no rights", async ({
+  page,
+  request,
+}) => {
+  for (const role of ["moderator", "member"])
+    expect(
+      (await mutation(request, "/api/dev-login", { role })).status(),
+    ).toBe(404);
+  const devModerator = await member({
+    username: uniqueName(),
+    email: "moderator@dev.planfri.invalid",
+  });
+  expect(
+    (
+      await mutation(
+        request,
+        "/api/community",
+        { action: "project", project, create: false },
+        devModerator,
+      )
+    ).status(),
+  ).toBe(403);
+  await page.goto("/logg-inn");
+  await expect(page.getByRole("button", { name: /Google/ })).toBeVisible();
+  await expect(page.locator("[data-dev-login]")).toHaveCount(0);
+});
 test("sign-out revokes the actual session and deletion removes account-owned records", async ({
   request,
 }) => {
