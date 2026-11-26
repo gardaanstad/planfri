@@ -8,9 +8,9 @@
  * Preview fails unless the hub is running. The hub owns port 3000 and proxies it, websockets included, to the dev server
  * of the worktree previewed last. Each worktree keeps its own `next dev` on a
  * port of its own, so switching back is instant, until Ctrl-C in its Preview
- * terminal stops it. Open tabs reload when the hub switches, keep their path,
- * and show the thread's name in their title. The hub stops dev servers whose
- * worktree has been removed.
+ * terminal stops it. Open tabs never reload on their own: refresh them after a
+ * switch, or once a starting server is up. They show the thread's name in
+ * their title. The hub stops dev servers whose worktree has been removed.
  */
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -169,22 +169,10 @@ async function hub() {
   const sites = new Map<string, Site>();
   let active: Site | null = null;
   let ready = false;
-  const listeners = new Set<ReadableStreamDefaultController<Uint8Array>>();
-  const encoder = new TextEncoder();
 
   const state = () => ({ dir: active?.dir ?? null, name: active?.name ?? null, ready });
-  const broadcast = () => {
-    const message = encoder.encode(`data: ${JSON.stringify(state())}\n\n`);
-    for (const listener of listeners) {
-      try {
-        listener.enqueue(message);
-      } catch {
-        listeners.delete(listener);
-      }
-    }
-  };
 
-  // Watch the active server until it answers, then tell waiting tabs.
+  // Watch the active server until it answers, so the waiting page can tell starting from stuck.
   let checking = false;
   setInterval(async () => {
     if (!active || ready || checking) return;
@@ -195,10 +183,7 @@ async function hub() {
       .then(() => true)
       .catch(() => false);
     checking = false;
-    if (up && active === site && !ready) {
-      ready = true;
-      broadcast();
-    }
+    if (up && active === site) ready = true;
   }, 300);
 
   // Stop the servers of removed worktrees.
@@ -208,23 +193,9 @@ async function hub() {
       if (site.pgid) killGroup(site.pgid);
       sites.delete(site.dir);
       console.log(`Stopped ${site.name}'s server: its worktree is gone.`);
-      if (active?.dir === site.dir) {
-        active = null;
-        broadcast();
-      }
+      if (active?.dir === site.dir) active = null;
     }
   }, 30_000);
-
-  // Keep EventSource connections open through idle proxies.
-  setInterval(() => {
-    for (const listener of listeners) {
-      try {
-        listener.enqueue(encoder.encode(": ping\n\n"));
-      } catch {
-        listeners.delete(listener);
-      }
-    }
-  }, 20_000);
 
   Bun.serve<Socket["data"]>({
     port: hubPort,
@@ -233,26 +204,11 @@ async function hub() {
       const url = new URL(request.url);
 
       if (url.pathname === "/__preview/health") return Response.json({ version, ...state() });
-      if (url.pathname === "/__preview/events") {
-        let self: ReadableStreamDefaultController<Uint8Array>;
-        const stream = new ReadableStream<Uint8Array>({
-          start(controller) {
-            self = controller;
-            listeners.add(controller);
-            controller.enqueue(encoder.encode(`retry: 1000\ndata: ${JSON.stringify(state())}\n\n`));
-          },
-          cancel() {
-            listeners.delete(self);
-          },
-        });
-        return new Response(stream, { headers: { "content-type": "text/event-stream", "cache-control": "no-store" } });
-      }
       if (request.method === "POST" && url.pathname === "/__preview/switch") {
         const site = (await request.json()) as Site;
         sites.set(site.dir, site);
         active = site;
         ready = false;
-        broadcast();
         console.log(`Switched to ${site.name}'s server.`);
         return Response.json(state());
       }
@@ -261,10 +217,7 @@ async function hub() {
         const site = sites.get(dir);
         if (site) console.log(`${site.name}'s server stopped.`);
         sites.delete(dir);
-        if (active?.dir === dir) {
-          active = null;
-          broadcast();
-        }
+        if (active?.dir === dir) active = null;
         return Response.json(state());
       }
 
@@ -303,7 +256,7 @@ async function hub() {
         return new Response(response.body, { status: response.status, statusText: response.statusText, headers: responseHeaders });
       }
       responseHeaders.delete("content-length");
-      return new Response(injectClient(response.body, client(site, false)), {
+      return new Response(injectClient(response.body, client(site)), {
         status: response.status,
         statusText: response.statusText,
         headers: responseHeaders,
@@ -364,29 +317,20 @@ function injectClient(body: ReadableStream<Uint8Array>, script: string) {
   );
 }
 
-/** Keeps the tab's title prefixed and reloads it when the hub switches. */
-function client(site: Site | null, waiting: boolean) {
-  const config = JSON.stringify({ dir: site?.dir ?? null, name: site?.name ?? null, waiting });
+/** Keeps the tab's title prefixed with the thread's name. */
+function client(site: Site) {
   return `<script>(() => {
-  const config = ${config.replace(/</g, "\\u003c")};
-  if (config.name) {
-    const prefix = "[" + config.name + "] ";
-    const fix = () => {
-      if (!document.title.startsWith(prefix)) document.title = prefix + document.title.replace(/^\\[[^\\]]*\\] /, "");
-    };
-    // After hydration, so React's <title> still matches what the server sent.
-    addEventListener("load", () => {
-      setTimeout(() => {
-        fix();
-        new MutationObserver(fix).observe(document.head, { subtree: true, childList: true, characterData: true });
-      }, 500);
-    });
-  }
-  const events = new EventSource("/__preview/events");
-  events.onmessage = (event) => {
-    const state = JSON.parse(event.data);
-    if (state.dir !== config.dir || (config.waiting && state.ready)) location.reload();
+  const prefix = ${JSON.stringify(`[${site.name}] `).replace(/</g, "\\u003c")};
+  const fix = () => {
+    if (!document.title.startsWith(prefix)) document.title = prefix + document.title.replace(/^\\[[^\\]]*\\] /, "");
   };
+  // After hydration, so React's <title> still matches what the server sent.
+  addEventListener("load", () => {
+    setTimeout(() => {
+      fix();
+      new MutationObserver(fix).observe(document.head, { subtree: true, childList: true, characterData: true });
+    }, 500);
+  });
 })();</script>`;
 }
 
@@ -394,7 +338,7 @@ function page(site: Site | null, message: string) {
   const escape = (text: string) => text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
   const title = site ? `[${site.name}] ${message}` : "Preview";
   return new Response(
-    `<!doctype html><html><head><meta charset="utf-8"><title>${escape(title)}</title>${client(site, true)}
+    `<!doctype html><html><head><meta charset="utf-8"><title>${escape(title)}</title>
 <style>body{font:16px system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;color:#444;background:#fafafa}
 @media (prefers-color-scheme:dark){body{color:#ccc;background:#171717}}p{margin:.25rem;text-align:center}</style></head>
 <body><main>${site ? `<p><strong>${escape(site.name)}</strong></p>` : ""}<p>${escape(message)}</p></main></body></html>`,
