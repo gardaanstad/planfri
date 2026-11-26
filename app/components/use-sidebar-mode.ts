@@ -1,11 +1,7 @@
 "use client";
 import { useLayoutEffect, useState, type RefObject } from "react";
 import { reducedMotion } from "../lib/media";
-import {
-  animateVisibleWidth,
-  type SidebarMode,
-  sidebarTiming,
-} from "./sidebar-panel";
+import { animateVisibleWidth, type SidebarMode } from "./sidebar-panel";
 
 /** The width panels take beside the map: as resized, or a share of the window. */
 export function panelWidth(aside: HTMLElement | null) {
@@ -51,30 +47,6 @@ export function useSidebarMode({
         visible(sidebarMode, explorer),
       );
     });
-    // Collapsing or expanding, the toggle rides the list's edge, so it is
-    // never left over the map, and waits in the corner tab. Keyframe offsets
-    // are in eased progress, the same the edge moves by.
-    const toggle = aside.querySelector<HTMLElement>("[data-explorer-toggle]");
-    const rest = aside.querySelector<HTMLElement>("[data-toggle-rest]");
-    const slot = aside.querySelector<HTMLElement>("[data-toggle-slot]");
-    if (toggle && rest && slot) {
-      // Its place at the header's end.
-      const slotLeft =
-        slot.getBoundingClientRect().left - aside.getBoundingClientRect().left;
-      const end = `${slotLeft}px`;
-      const left = `${rest.offsetLeft}px`;
-      const meet = Math.min(
-        1,
-        Math.max(0, (slotLeft - rest.offsetLeft) / sidebar),
-      );
-      const frames =
-        sidebarMode === "collapsed"
-          ? [{ left: end }, { left, offset: meet }, { left }]
-          : [{ left }, { left, offset: 1 - meet }, { left: end }];
-      animations.push(
-        toggle.animate(frames, { ...sidebarTiming, fill: "forwards" }),
-      );
-    }
     Promise.all(animations.map((animation) => animation.finished)).then(
       () => setModeFrom(null),
       () => {

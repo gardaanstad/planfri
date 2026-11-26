@@ -3091,6 +3091,10 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
       exact: true,
     });
     const before = await toggle.boundingBox();
+    const brandBefore = await page
+      .locator("[data-explorer-brand]")
+      .getByRole("link", { name: "Planfri hjem", exact: true })
+      .boundingBox();
     const mapWidth = async () =>
       Math.round(
         (await page.getByRole("region", { name: "Prosjektkart" }).first().boundingBox())!
@@ -3103,7 +3107,8 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     await expect.poll(mapWidth).toBe(1280);
     await expect(listRegion(page)).toBeHidden();
     expect(narrow).toBeLessThan(1280);
-    // The toggle glides from the header's end to just right of the logo.
+    await shot(page, "sidebar-collapsed");
+    // The toggle stays put, left of the logo, which stays put too.
     const expand = page.getByRole("button", {
       name: "Vis prosjektlisten",
       exact: true,
@@ -3116,9 +3121,17 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     await expect
       .poll(async () => {
         const [box, mark] = [await expand.boundingBox(), await logo.boundingBox()];
-        return box && mark && [box.x < before!.x, box.x >= mark.x + mark.width - 1];
+        return (
+          box &&
+          mark && [
+            Math.round(box.x) === Math.round(before!.x),
+            Math.round(box.y) === Math.round(before!.y),
+            box.x + box.width <= mark.x,
+            Math.round(mark.x) === Math.round(brandBefore!.x),
+          ]
+        );
       })
-      .toEqual([true, true]);
+      .toEqual([true, true, true, true]);
     // A project picked on the map opens as the usual sidebar panel...
     // Other tests' projects can lie on top of it, so no pointer here.
     await page

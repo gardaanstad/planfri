@@ -24,8 +24,8 @@ import {
   ArrowDownUp,
   Construction,
   List as ListIcon,
+  PanelLeft,
   PanelLeftClose,
-  PanelLeftOpen,
   GalleryVertical,
   LayoutList,
   LogIn,
@@ -470,7 +470,6 @@ function useControlsSlot() {
 }
 const primaryCta = cn(primaryButton, "rounded-lg px-4 text-xs");
 const quietAction = cn(textButton, "min-h-11 text-xs");
-const compactIconAction = cn(iconButton, "rounded-lg");
 /**
  * Marks the avatar when a member's suggestions have been reviewed, or, for a
  * moderator, when suggestions wait in the queue in its menu.
@@ -1570,8 +1569,6 @@ export default memo(function Explorer({
     }
   }
 
-  /** Where the collapsed toggle rests: just right of the corner tab's logo. */
-  const [toggleRest, setToggleRest] = useState(128);
   function toggleCollapsed() {
     animateFrom();
     storeCollapsed(sidebarMode !== "collapsed");
@@ -1678,7 +1675,8 @@ export default memo(function Explorer({
         showList();
       }}
     >
-      <BrandMark className={isMobile ? "size-6" : "size-7"} />
+      {/* On desktop as tall as the toggle's wash and the log-in button. */}
+      <BrandMark className={isMobile ? "size-6" : "size-8"} />
       <span>Planfri</span>
     </Link>
   );
@@ -2609,8 +2607,8 @@ export default memo(function Explorer({
   const profileButtonClass = cn(
     "inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-transparent text-xs font-semibold text-muted",
     "hover:bg-ink/[0.05] hover:text-ink active:scale-[0.97] data-popup-open:bg-ink/[0.05] motion-reduce:transition-none motion-reduce:active:scale-100",
-    // On phones the avatar, not its hit area, meets the content's edge.
-    isMobile && "-mr-1",
+    // The avatar, not its hit area, meets the content's edge.
+    "-mr-1",
   );
   const profileButton = user?.username ? (
     <AccountMenu
@@ -2674,9 +2672,9 @@ export default memo(function Explorer({
         className={cn(
           // The logo's own background, light and dark (see `BrandMark`).
           "inline-flex items-center bg-[#245b46] px-3 text-ui font-semibold text-white dark:bg-[#25423a]",
-          "transition-colors duration-150 md:group-hover/login:bg-[#1c4a39] md:dark:group-hover/login:bg-[#2d5045] motion-reduce:transition-none",
+          "md:group-hover/login:bg-[#1c4a39] md:dark:group-hover/login:bg-[#2d5045]",
           "narrow:px-2",
-          // The logo's corner: 23% of its size, 28px on desktop and 24px on
+          // The logo's corner: 23% of its size, 32px on desktop and 24px on
           // phones. A phone's also nests in the sheet's top right corner,
           // which wants the sheet's radius less the gap between them: 22px
           // less 5.5px leaves 16.5px, from the sheet's 1px border, the grip
@@ -2684,7 +2682,7 @@ export default memo(function Explorer({
           // button is 29px tall. The margins above match it on the right.
           isMobile
             ? "h-[29px] rounded-[calc(1.5rem*0.23)]"
-            : "h-8 rounded-[calc(1.75rem*0.23)]",
+            : "h-8 rounded-[calc(2rem*0.23)]",
         )}
         data-login-pill=""
       >
@@ -2702,7 +2700,13 @@ export default memo(function Explorer({
   const sidebarToggle = (
     <button
       type="button"
-      className={cn(compactIconAction, "text-muted hover:text-ink")}
+      // The 44px hit area holds a wash the logo's size and corner (see
+      // `BrandMark`), as tall as the log-in button too. It shows at once on
+      // hover, as the log-in button's does.
+      className={cn(
+        "group/toggle inline-flex size-11 shrink-0 items-center justify-center text-muted hover:text-ink",
+        "transition-transform duration-150 active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100",
+      )}
       aria-label={
         sidebarMode === "collapsed"
           ? "Vis prosjektlisten"
@@ -2719,11 +2723,13 @@ export default memo(function Explorer({
       data-press=""
       onClick={toggleCollapsed}
     >
-      {sidebarMode === "collapsed" ? (
-        <PanelLeftOpen size={18} />
-      ) : (
-        <PanelLeftClose size={18} />
-      )}
+      <span className="inline-flex size-8 items-center justify-center rounded-[calc(2rem*0.23)] group-hover/toggle:bg-ink/[0.05]">
+        {sidebarMode === "collapsed" ? (
+          <PanelLeft size={18} />
+        ) : (
+          <PanelLeftClose size={18} />
+        )}
+      </span>
     </button>
   );
   /** What closes each panel: its close button, Escape, or a swipe down. */
@@ -3025,47 +3031,37 @@ export default memo(function Explorer({
             data-sidebar-mode={sidebarMode}
           >
             {(sidebarMode === "collapsed" || modeFrom === "collapsed") && (
-              // Where the header has them, so the toggle never moves: a tab
-              // in the corner of the page, its shadow fading with the list.
+              // Where the header has them, so neither the toggle nor the logo
+              // moves: a tab in the corner of the page, its shadow fading with
+              // the list.
               <div
                 className={cn(
-                  "absolute top-0 left-0 z-30 flex h-16 items-center gap-2 rounded-br-2xl bg-surface pl-6",
+                  "absolute top-0 left-0 z-30 flex h-16 items-center gap-1.5 rounded-br-2xl bg-surface pr-6",
                   // Without the toggle, the logo gets the same room each side.
-                  osmFocus ? "pr-6" : "pr-2",
+                  osmFocus ? "pl-6" : "pl-3",
                   "transition-shadow duration-320 ease-out-soft starting:shadow-none",
                   sidebarMode === "collapsed" &&
                     "shadow-[2px_2px_16px_rgb(20_28_24/0.12)]",
                 )}
                 data-sidebar-tab=""
               >
-                {brand}
-                {/* Where the toggle comes to rest, right of the logo. */}
+                {/* The sidebar toggle stands here (see below). */}
                 <span
                   hidden={osmFocus}
-                  ref={(node) => {
-                    if (node) setToggleRest(node.offsetLeft);
-                  }}
                   aria-hidden="true"
                   className="size-11 shrink-0"
-                  data-toggle-rest=""
                 />
+                {brand}
               </div>
             )}
             {/*
-            The sidebar toggle: at the header's end, where a panel has its
-            close button, and in the corner tab when collapsed. It glides
-            between the two with the sidebar's edge. Panels cover it.
-          */}
+              The sidebar toggle: before the logo, where a panel has its back
+              button, in the header and the corner tab alike, so it stays put
+              while the sidebar collapses or expands. One button for both keeps
+              focus on it. Panels cover it.
+            */}
             <div
-              className={cn(
-                "absolute top-2.5 z-[35] motion-reduce:transition-none",
-                // It tracks the edge as the sidebar resizes.
-                sidebarMode !== "collapsed" &&
-                  "left-[calc(var(--sidebar-width)-0.75rem-2.75rem)]",
-              )}
-              style={
-                sidebarMode === "collapsed" ? { left: toggleRest } : undefined
-              }
+              className="absolute top-2.5 left-3 z-[35]"
               hidden={osmFocus}
               data-explorer-toggle=""
             >
@@ -3086,26 +3082,25 @@ export default memo(function Explorer({
               aria-hidden={liveLayers.length > 0 || undefined}
             >
               <header
-                className="flex h-16 shrink-0 items-center justify-between gap-2 pr-3 pl-6"
+                // The toggle's glyph and the log-in button or avatar meet
+                // the list's edges, 24px in, as a panel's back and close
+                // buttons do.
+                className="flex h-16 shrink-0 items-center gap-1.5 pr-6 pl-3"
                 data-explorer-header=""
               >
+                {/* The sidebar toggle stands here (see above). */}
+                <span
+                  aria-hidden="true"
+                  className="size-11 shrink-0"
+                  data-toggle-slot=""
+                />
                 <div data-explorer-brand="">{brand}</div>
                 <nav
-                  className="flex items-center gap-0.5"
+                  className="ml-auto flex items-center"
                   aria-label="Konto"
                   data-explorer-nav=""
                 >
                   {profileButton}
-                  <span
-                    aria-hidden="true"
-                    className="mx-1.5 h-5 w-px shrink-0 bg-border"
-                  />
-                  {/* The sidebar toggle stands here (see below). */}
-                  <span
-                    aria-hidden="true"
-                    className="size-11 shrink-0"
-                    data-toggle-slot=""
-                  />
                 </nav>
               </header>
               <div className="relative min-h-0 flex-1">
