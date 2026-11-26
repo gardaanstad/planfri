@@ -29,6 +29,7 @@ import {
   storedSuggestHintDismissed,
   subscribeSuggestHint,
 } from "../lib/explore-state";
+import { foldAway, useFoldAway } from "../lib/use-fold-away";
 import {
   arrangePhotos,
   getProjectUpdates,
@@ -443,7 +444,8 @@ const noDismissed: string[] = [];
 
 /**
  * "Ser du noe som er feil eller mangler? Foreslå endring", under a
- * project's intro, until its ✕ closes it for that project in this browser.
+ * project's intro, until its ✕ folds it away for that project in this
+ * browser.
  */
 function SuggestChangeHint({
   projectId,
@@ -457,32 +459,40 @@ function SuggestChangeHint({
     storedSuggestHintDismissed,
     () => noDismissed,
   );
+  const [closing, close] = useFoldAway(() => dismissSuggestHint(projectId));
   if (dismissed.includes(projectId)) return null;
   return (
     <div
-      className="mt-4 mb-1 flex items-center gap-2 text-xs leading-4.5 text-muted"
+      className={cn(foldAway.base, closing ? foldAway.closed : foldAway.open)}
+      inert={closing}
       data-suggest-change=""
     >
-      <p className="min-w-0 flex-1">
-        Ser du noe som er feil eller mangler?{" "}
-        <button
-          type="button"
-          className="relative font-medium text-ink underline decoration-border-strong decoration-1 underline-offset-3 transition-[text-decoration-color] duration-120 hover:decoration-current pointer-coarse:after:absolute pointer-coarse:after:-inset-2"
-          onClick={onSuggest}
-        >
-          Foreslå endring
-        </button>
-      </p>
-      <button
-        type="button"
-        className="-my-1.5 -mr-1.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted hover:bg-ink/[0.06] hover:text-ink pointer-coarse:size-9"
-        aria-label="Skjul forslag om endring"
-        data-tooltip="Skjul"
-        data-press=""
-        onClick={() => dismissSuggestHint(projectId)}
-      >
-        <X size={14} aria-hidden="true" />
-      </button>
+      {/* Clips only while it folds, so the ✕'s wash isn't cut at rest; the
+          gaps around it are padding so they fold too. */}
+      <div className={cn("min-h-0", closing && "overflow-hidden")}>
+        <div className="flex items-center gap-2 pt-4 pb-1 text-xs leading-4.5 text-muted">
+          <p className="min-w-0 flex-1">
+            Ser du noe som er feil eller mangler?{" "}
+            <button
+              type="button"
+              className="relative font-medium text-ink underline decoration-border-strong decoration-1 underline-offset-3 transition-[text-decoration-color] duration-120 hover:decoration-current pointer-coarse:after:absolute pointer-coarse:after:-inset-2"
+              onClick={onSuggest}
+            >
+              Foreslå endring
+            </button>
+          </p>
+          <button
+            type="button"
+            className="-my-1.5 -mr-1.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted hover:bg-ink/[0.06] hover:text-ink pointer-coarse:size-9"
+            aria-label="Skjul forslag om endring"
+            data-tooltip="Skjul"
+            data-press=""
+            onClick={close}
+          >
+            <X size={14} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1471,6 +1481,7 @@ export default function ProjectPost({
                       from the menu. */}
                   {!canModerate && (
                     <SuggestChangeHint
+                      key={project.id}
                       projectId={project.id}
                       onSuggest={startEditing}
                     />

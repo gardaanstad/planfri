@@ -7,13 +7,15 @@ import {
   subscribeWelcome,
 } from "../lib/explore-state";
 import { cn } from "../lib/cn";
+import { foldAway, useFoldAway } from "../lib/use-fold-away";
 
 /**
  * The first visit's welcome, at the top of the list, laid out like a
  * project's row: a title and a few words. Its wash is a row's
  * hover, in the accent's soft tint, and it stays until closed. Shown once
  * the browser says it hasn't been closed, unfolding into place the first
- * time; coming back to it from "Nytt", it's simply there.
+ * time; coming back to it from "Nytt", it's simply there. Closed, it
+ * folds away.
  */
 let unfolded = false;
 
@@ -27,14 +29,18 @@ export default function WelcomeRow() {
   useEffect(() => {
     if (!dismissed) unfolded = true;
   }, [dismissed]);
+  const [closing, close] = useFoldAway(dismissWelcome);
   if (dismissed) return null;
   return (
     <div
       className={cn(
         "grid grid-rows-[1fr] opacity-100",
         unfold &&
+          !closing &&
           "transition-[grid-template-rows,opacity] duration-320 ease-out-soft starting:grid-rows-[0fr] starting:opacity-0 motion-reduce:transition-none",
+        closing && [foldAway.base, foldAway.closed],
       )}
+      inert={closing}
       data-welcome=""
     >
       {/* Clips while it folds, reaching as far past the row as its wash
@@ -68,7 +74,7 @@ export default function WelcomeRow() {
             aria-label="Lukk velkomsten"
             data-tooltip="Lukk"
             data-press=""
-            onClick={dismissWelcome}
+            onClick={close}
           >
             <X size={16} aria-hidden="true" />
           </button>
