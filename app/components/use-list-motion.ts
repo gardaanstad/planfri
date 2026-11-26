@@ -51,6 +51,14 @@ function overlaps(rect: DOMRect, view: Sight) {
 /** A copy of a row that left the list, fading where the row was. */
 type Ghost = { node: HTMLElement; rect: DOMRect; opacity: number };
 
+/** A copy of `row` to fade, without what finds it as a row or by id. */
+function copyOf(row: HTMLElement, attribute: string) {
+  const node = row.cloneNode(true) as HTMLElement;
+  node.removeAttribute(attribute);
+  node.querySelectorAll("[id]").forEach((el) => el.removeAttribute("id"));
+  return node;
+}
+
 /**
  * Lifts a leaving row's copy into `list`, whose box is `origin`, over where
  * the row was.
@@ -129,33 +137,44 @@ export function useListMotion<T>(
       running.forEach((animation) => animation.cancel());
     const landed = Array.from(rows, (row) => row.getBoundingClientRect());
     const entering = animationsOf(rows, [enterId]);
-    if (list) {
-      const origin = list.getBoundingClientRect();
-      for (const { node, rect, opacity } of left) {
-        place(node, rect, list, origin);
-        fading.current.add(node);
-        const fade = node.animate(
-          { opacity: [opacity, 0], scale: [1, 0.985] },
-          { duration: exitMs, easing: "ease-out", fill: "forwards" },
-        );
-        fade.onfinish = fade.oncancel = () => {
-          node.remove();
-          fading.current.delete(node);
-        };
-      }
-    }
+    const origin = list?.getBoundingClientRect();
+    const fadeOut = ({ node, rect, opacity }: Ghost) => {
+      if (!list || !origin) return;
+      place(node, rect, list, origin);
+      fading.current.add(node);
+      const fade = node.animate(
+        { opacity: [opacity, 0], scale: [1, 0.985] },
+        { duration: exitMs, easing: "ease-out", fill: "forwards" },
+      );
+      fade.onfinish = fade.oncancel = () => {
+        node.remove();
+        fading.current.delete(node);
+      };
+    };
+    left.forEach(fadeOut);
 
     let moved = false;
-    const arrivals: HTMLElement[] = [];
+    /** Rows coming in, and whether they wait for the room to open. */
+    const arrivals: [HTMLElement, boolean][] = [];
     for (const [index, row] of rows.entries()) {
       const to = landed[index];
       const was = rects.get(row.getAttribute(attribute)!);
       const inSight = overlaps(to, view);
-      if (!was) {
-        if (inSight) arrivals.push(row);
+      // A row folded away with the rows off the map was nowhere: its box
+      // reads as the screen's corner, and it would glide down from the
+      // list's top over the tabs. It fades in at its place, at once, as
+      // soon as it would have started gliding.
+      if (!was || was.height === 0) {
+        if (inSight) arrivals.push([row, !was]);
         continue;
       }
       const wasInSight = overlaps(was, view);
+      // Folded away in turn, it fades where it was, as a row leaving does.
+      if (to.height === 0) {
+        if (wasInSight)
+          fadeOut({ node: copyOf(row, attribute), rect: was, opacity: 1 });
+        continue;
+      }
       const dx = was.left - to.left;
       let dy = was.top - to.top;
       if (
@@ -176,14 +195,14 @@ export function useListMotion<T>(
         { duration: moveMs, easing: easeOutSoft, id: moveId },
       );
     }
-    // Arrivals follow the glide a beat behind, so the room opens first.
-    for (const row of arrivals) {
+    // New rows follow the glide a beat behind, so the room opens first.
+    for (const [row, waits] of arrivals) {
       entering.get(row)?.forEach((animation) => animation.cancel());
       row.animate(
         { opacity: [0, 1], translate: ["0 6px", "0 0"] },
         {
           duration: enterMs,
-          delay: moved ? 60 : 0,
+          delay: moved && waits ? 60 : 0,
           easing: "ease-out",
           fill: "backwards",
           id: enterId,
@@ -225,12 +244,7 @@ export function useListMotion<T>(
             opacity: Number(getComputedStyle(row).opacity),
           });
       }
-      for (const ghost of left) {
-        const node = ghost.node.cloneNode(true) as HTMLElement;
-        node.removeAttribute(attribute);
-        node.querySelectorAll("[id]").forEach((el) => el.removeAttribute("id"));
-        ghost.node = node;
-      }
+      for (const ghost of left) ghost.node = copyOf(ghost.node, attribute);
       // The rows glide on until the swap: cancelled here, a row coming in
       // stood at its place, unmoved, until the swap set it going again.
       from.current = rects;

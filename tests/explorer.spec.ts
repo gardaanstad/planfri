@@ -1731,6 +1731,46 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     await expect(offMap).toBeVisible();
   });
 
+  test("projects coming into view from the folded rows fade in at their places", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto("/?kart=59.9100,10.7500,16");
+    const list = page.getByRole("region", { name: "Prosjektliste" });
+    const toggle = list.getByRole("button", { name: "Ikke synlige på kartet" });
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    const inView = list.locator("[data-card-id]:not([data-off-map])");
+    const before = await inView.count();
+    // Every frame, the highest any row in view reaches, against the line
+    // under the count, which none should cross on its way.
+    await list.evaluate((region) => {
+      const record = { line: 0, highest: Infinity };
+      Object.assign(window, { record });
+      const count = region.querySelector("[data-list-count]")!;
+      const frame = () => {
+        record.line = count.getBoundingClientRect().bottom;
+        for (const row of region.querySelectorAll(
+          "[data-list-motion] > [data-card-id]",
+        ))
+          record.highest = Math.min(record.highest, row.getBoundingClientRect().top);
+        requestAnimationFrame(frame);
+      };
+      frame();
+    });
+    const zoomOut = page.getByRole("button", { name: "Zoom ut", exact: true });
+    await zoomOut.click();
+    await expect.poll(() => mapParam(page)).toMatch(/,15$/);
+    await zoomOut.click();
+    await expect.poll(() => mapParam(page)).toMatch(/,14$/);
+    await expect.poll(() => inView.count()).toBeGreaterThan(before);
+    await page.waitForTimeout(500);
+    const record = await page.evaluate(
+      () => (window as unknown as { record: { line: number; highest: number } }).record,
+    );
+    expect(record.highest).toBeGreaterThanOrEqual(record.line - 1);
+  });
+
   for (const motion of ["reduce", "no-preference"] as const) {
     test(`unfolding the projects out of view scrolls them in, as far as the toggle near the top (${motion})`, async ({
       page,
