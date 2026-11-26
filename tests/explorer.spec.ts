@@ -196,6 +196,31 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expect(page).toHaveURL(/\/prosjekt\/rogfast\?/);
   });
 
+  test("the list is hidden under a project only once focus has left its card", async ({
+    page,
+  }) => {
+    // Chrome only checks aria-hidden against focus with its accessibility
+    // tree on, as when DevTools or a screen reader is open.
+    const blocked: string[] = [];
+    const cdp = await page.context().newCDPSession(page);
+    cdp.on("Log.entryAdded", ({ entry }) => {
+      if (entry.text.includes("aria-hidden")) blocked.push(entry.text);
+    });
+    await cdp.send("Log.enable");
+    await cdp.send("Accessibility.enable");
+    await page.goto("/?kart=59.9100,10.7500,13");
+    // The drawer, past the static copy that stands in for it until it mounts.
+    const list = page.getByRole("region", { name: "Prosjektliste", exact: true });
+    const card = list.locator("[data-card-link]").first();
+    await expect(card).toBeVisible();
+    await card.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.locator("#project-card-title")).toBeFocused();
+    // The list under it is still hidden from assistive technology.
+    await expect(list).toHaveCount(0);
+    expect(blocked).toEqual([]);
+  });
+
   test("projects open in their own drawer over the map and preserve map, history, and reading space", async ({
     page,
   }) => {

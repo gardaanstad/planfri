@@ -107,9 +107,12 @@ export function ScrollFade({ shown }: { shown: boolean }) {
  * What panels cover: inert under them. Setting `inert` restyles all it
  * holds, so it waits until a covering panel has drawn its first frame and
  * started to slide; it lifts at once, so focus can return as one closes.
+ * `aria-hidden` waits with it: set earlier, it would hide the card that
+ * opened the panel while that card still has focus.
  */
 export function CoveredLayer({
   covered,
+  "aria-hidden": hidden,
   ...props
 }: ComponentProps<"div"> & { covered: boolean }) {
   const [inert, setInert] = useState(covered);
@@ -125,7 +128,9 @@ export function CoveredLayer({
       window.clearTimeout(timer);
     };
   }, [covered, inert]);
-  return <div {...props} inert={inert} />;
+  return (
+    <div {...props} inert={inert} aria-hidden={(inert && hidden) || undefined} />
+  );
 }
 
 // Each panel drawer stacks above the one before it.
