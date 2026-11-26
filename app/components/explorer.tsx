@@ -2559,14 +2559,19 @@ export default memo(function Explorer({
       <User size={18} />
     </button>
   ) : (
-    // Signed out, logging in is the header's one action: a label in the
-    // icon row, borderless like its neighbours so it doesn't echo the filter
-    // pills. A narrow sidebar folds the label into its icon.
+    // Signed out, logging in is the header's one action: filled in the
+    // logo's green, rather than outlined so it doesn't echo the filter pills,
+    // with a body of its own beside the larger brand. The button keeps the row's
+    // 44px hit area around it. A narrow sidebar folds the label into its icon.
     <button
       type="button"
       className={cn(
-        compactIconAction,
-        "w-auto px-3 text-ui font-medium text-ink",
+        "group/login inline-flex h-11 shrink-0 items-center justify-center",
+        "active:scale-[0.97] motion-reduce:active:scale-100",
+        // On phones it nests in the sheet's top right corner: as far in
+        // from the right edge (18px or 14px of padding) as down from the
+        // top (see the pill below).
+        isMobile && "-mr-[1.5px] max-xs:mr-[2.5px]",
       )}
       aria-label="Logg inn"
       aria-haspopup="dialog"
@@ -2575,13 +2580,32 @@ export default memo(function Explorer({
       data-tooltip="Logg inn"
       onClick={() => requireLogin()}
     >
-      <span className="fold folded narrow:unfolded" aria-hidden="true">
-        <span>
-          <LogIn size={18} />
+      <span
+        className={cn(
+          // The logo's own background, light and dark (see `BrandMark`).
+          "inline-flex items-center bg-[#245b46] px-3 text-ui font-semibold text-white dark:bg-[#25423a]",
+          "transition-colors duration-150 md:group-hover/login:bg-[#1c4a39] md:dark:group-hover/login:bg-[#2d5045] motion-reduce:transition-none",
+          "narrow:px-2",
+          // The logo's corner: 23% of its size, 28px on desktop and 24px on
+          // phones. A phone's also nests in the sheet's top right corner,
+          // which wants the sheet's radius less the gap between them: 22px
+          // less 5.5px leaves 16.5px, from the sheet's 1px border, the grip
+          // strip's 8px and half of the 15px the row has to spare once the
+          // button is 29px tall. The margins above match it on the right.
+          isMobile
+            ? "h-[29px] rounded-[calc(1.5rem*0.23)]"
+            : "h-8 rounded-[calc(1.75rem*0.23)]",
+        )}
+        data-login-pill=""
+      >
+        <span className="fold folded narrow:unfolded" aria-hidden="true">
+          <span>
+            <LogIn size={16} />
+          </span>
         </span>
-      </span>
-      <span className="fold unfolded narrow:folded" data-tooltip-label="">
-        <span className="whitespace-nowrap">Logg inn</span>
+        <span className="fold unfolded narrow:folded" data-tooltip-label="">
+          <span className="whitespace-nowrap">Logg inn</span>
+        </span>
       </span>
     </button>
   );
