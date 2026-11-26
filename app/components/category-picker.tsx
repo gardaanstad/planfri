@@ -12,7 +12,7 @@ import ChoiceSelect from "./choice-select";
 
 /**
  * The category menu's options, from the tree: main categories, their
- * subcategories under them. The filter uses the same.
+ * subcategories under them.
  */
 export const categoryOptions = categoryTree.map((node) => ({
   value: node.name,
@@ -23,7 +23,7 @@ export const categoryOptions = categoryTree.map((node) => ({
 
 /**
  * A project's categories: main categories, each narrowed to subcategories
- * that open underneath it once it's chosen. The same menu as the filter.
+ * that open underneath it once it's chosen.
  */
 export default function CategoryPicker({
   value,

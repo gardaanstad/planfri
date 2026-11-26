@@ -96,7 +96,7 @@ import { BrandMark } from "./brand-mark";
 import ProfileAvatar from "./profile-avatar";
 import ChoiceSelect from "./choice-select";
 import FilterSheet, { FilterPopover, type FilterSection } from "./filter-sheet";
-import { categoryOptions } from "./category-picker";
+import CategoryFilter from "./category-filter";
 import { useOsmModeStored, useOsmReview } from "./osm-review";
 import ProjectPost from "./project-post";
 import ProjectCard, { type CardTarget } from "./project-card";
@@ -1905,14 +1905,10 @@ export default memo(function Explorer({
       label: "Kategori",
       summary: category.length ? categorySummary(category) : null,
       content: (
-        <ChoiceSelect
-          inline
+        <CategoryFilter
           compact={!isMobile}
-          label="Kategori"
-          multiple
           value={category}
           onChange={setCategory}
-          options={categoryOptions}
         />
       ),
     },

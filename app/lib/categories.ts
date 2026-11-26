@@ -43,7 +43,7 @@ export const categoryTree = [
     ],
   },
   {
-    name: "Annen infrastruktur",
+    name: "Annet",
     subcategories: [
       "Kraftproduksjon",
       "Strømnett",
@@ -60,11 +60,12 @@ export const categoryTree = [
  * Names no longer in the tree, and the names they read as now. Energi and
  * Vann og avløp became Annen infrastruktur, Offentlige bygg part of
  * Byutvikling (migration `0011_category_merge`); their subcategories kept
- * their names.
+ * their names. Annen infrastruktur is now Annet.
  */
 export const retiredCategories: Record<string, readonly Category[]> = {
-  Energi: ["Annen infrastruktur"],
-  "Vann og avløp": ["Annen infrastruktur"],
+  "Annen infrastruktur": ["Annet"],
+  Energi: ["Annet"],
+  "Vann og avløp": ["Annet"],
   "Offentlige bygg": ["Byutvikling"],
 };
 

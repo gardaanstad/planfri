@@ -19,11 +19,11 @@ test("three main categories, public buildings under Byutvikling", () => {
   expect(categoryTree.map((node) => node.name)).toEqual([
     "Samferdsel",
     "Byutvikling",
-    "Annen infrastruktur",
+    "Annet",
   ]);
   expect(normalizeCategories(["Helse"])).toEqual(["Byutvikling", "Helse"]);
   expect(normalizeCategories(["Strømnett", "Drikkevann"])).toEqual([
-    "Annen infrastruktur",
+    "Annet",
     "Strømnett",
     "Drikkevann",
   ]);
@@ -34,19 +34,21 @@ test("retired names read as what they became", () => {
     "Byutvikling",
     "Skole",
   ]);
-  expect(normalizeCategories(["Energi", "Vann og avløp", "Avløp"])).toEqual([
-    "Annen infrastruktur",
+  expect(
+    normalizeCategories(["Energi", "Annen infrastruktur", "Avløp"]),
+  ).toEqual([
+    "Annet",
     "Avløp",
   ]);
   // Old links filter by the new names.
   expect(
     parseExploreState(new URLSearchParams("kategori=Energi,Offentlige%20bygg"))
       .category,
-  ).toEqual(["Byutvikling", "Annen infrastruktur"]);
+  ).toEqual(["Byutvikling", "Annet"]);
   // Saving with an old name stores the new one; unknown names are refused.
   const fields = projectFields.shape.categories;
   expect(fields.parse(["Vann og avløp", "Overvann"])).toEqual([
-    "Annen infrastruktur",
+    "Annet",
     "Overvann",
   ]);
   expect(fields.safeParse(["Romfart"]).success).toBe(false);

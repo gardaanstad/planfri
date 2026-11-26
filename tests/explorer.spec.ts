@@ -2130,7 +2130,7 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     await page.keyboard.press("Escape");
     const categoryMenu = await openFilter(page, "Kategori");
     // Every main category shows; none waits under "Vis flere".
-    for (const name of ["Samferdsel", "Byutvikling", "Annen infrastruktur"])
+    for (const name of ["Samferdsel", "Byutvikling", "Annet"])
       await expect(
         categoryMenu.getByRole("option", { name: new RegExp(`^${name}`) }),
       ).toBeVisible();

@@ -205,7 +205,7 @@ export const seedProjects: Project[] = [
     title: "Ny vannforsyning Oslo",
     district: "Holsfjorden – Huseby",
     city: "Oslo",
-    categories: ["Annen infrastruktur", "Drikkevann"],
+    categories: ["Annet", "Drikkevann"],
     status: "construction",
     image: "",
     description:
@@ -296,7 +296,7 @@ export const seedProjects: Project[] = [
     title: "Northern Lights",
     district: "Øygarden",
     city: "Bergen",
-    categories: ["Annen infrastruktur", "CO₂-lagring"],
+    categories: ["Annet", "CO₂-lagring"],
     status: "completed",
     image: "",
     description:

@@ -42,7 +42,7 @@ const icons: Partial<Record<Category, React.ComponentType<LucideProps>>> = {
   "Sykkel og gange": Bike,
   Havn: Ship,
   Luftfart: Plane,
-  "Annen infrastruktur": Cable,
+  Annet: Cable,
   Kraftproduksjon: Wind,
   Strømnett: UtilityPole,
   Fjernvarme: Flame,

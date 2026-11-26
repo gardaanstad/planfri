@@ -401,6 +401,13 @@ variant); never use `@media (hover)` by hand.
   shown, filled when chosen; the chosen row in `font-medium`.
 - **Multiple choice** (category, status): a check at the row's end, shown
   only when chosen; chosen rows in `font-medium`.
+- **The category filter** (`CategoryFilter`): a chosen main becomes a
+  card outlined in `border`, holding its subcategories as bare chips that
+  wash `surface-muted` under the pointer. A chosen chip fills with
+  `inverse`, a check before its label; the whole main reads as such a chip
+  the card's width, a check at its end where an unchosen main has a
+  chevron. An unchosen main hovers as a menu row does, and rounds into a
+  pill as it opens. Narrowed to some chips, the main row is plain.
 - **On/off settings** (dark mode, moderator mode, map overlays, hiding
   projects): a switch (`SwitchTrack`) at the row's end, in menus and
   drawers alike. Never a check.
