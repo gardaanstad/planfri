@@ -226,11 +226,10 @@
 /*
  * The desktop sidebar has two widths: full, where everything shows, and
  * narrow, where its controls give way all at once, just before the full
- * layout would wrap: Kategori and Status into one filter button, the header's
- * extras into its menu, labels to their icons. The explorer's list layer is
- * the `sidebar` container; `narrow:` styles for its narrow width. Phones
- * have no such container, so `narrow:` never applies there.
- * Keep the width in step with `sidebar-toggle` below.
+ * layout would wrap: Kategori and Status into one filter button, labels to
+ * their icons. The explorer's list layer is the `sidebar` container;
+ * `narrow:` styles for its narrow width. Phones have no such container, so
+ * `narrow:` never applies there.
  */
 @custom-variant narrow {
   @container sidebar (width < 450px) {
@@ -271,20 +270,6 @@
      transitioned, or it would linger there as the sidebar hides. */
   visibility: inherit;
   transition-property: grid-template-columns, opacity;
-}
-
-/*
- * The sidebar toggle stands over the header, outside the `sidebar`
- * container. Left of the maximize button it shifts left by that button and
- * the gap before it; narrow, the button is in the menu and the toggle ends
- * the header. Computed from the sidebar's width, at the same point as
- * `narrow:` (its border makes the container a pixel narrower).
- */
-@utility sidebar-toggle {
-  translate: calc(
-      -1 * clamp(0px, (var(--sidebar-width) - 450.5px) * 1000, 2.875rem)
-    )
-    0;
 }
 
 /*
@@ -567,74 +552,6 @@
 @utility mx-gutter-scroll {
   margin-left: 1.5rem;
   margin-right: max(0.75rem, calc(1.5rem - var(--scrollbar-thin, 0px)));
-}
-
-/*
- * Desktop: maximizing or restoring the sidebar (see `changeMode` in
- * explorer.tsx). The layer in view grows or shrinks from its old box to its
- * new one, its two layouts fading through the surface colour; the page
- * around it holds still, showing the map. Over the list, the logo and the
- * header controls glide to their new places and the sidebar toggle fades.
- */
-:root[data-sidebar-transition] [data-sidebar-transition-layer] {
-  view-transition-name: sidebar-layer;
-}
-/* The toggle sits outside the list's layer, over it. */
-:root[data-sidebar-transition]:has(
-    [data-sidebar-transition-layer][data-explorer-layer]
-  )
-  [data-explorer-toggle] {
-  view-transition-name: sidebar-toggle;
-}
-:root[data-sidebar-transition]
-  [data-sidebar-transition-layer][data-explorer-layer] {
-  & [data-explorer-brand] {
-    view-transition-name: sidebar-brand;
-  }
-  & [data-explorer-nav] {
-    view-transition-name: sidebar-nav;
-  }
-}
-:root[data-sidebar-transition]::view-transition-group(*) {
-  animation-duration: 320ms;
-  animation-timing-function: var(--ease-out-soft);
-}
-/* The map: as it was while maximizing, as it will be while restoring. */
-:root[data-sidebar-transition]::view-transition-old(root),
-:root[data-sidebar-transition]::view-transition-new(root) {
-  animation: none;
-}
-:root[data-sidebar-transition="maximize"]::view-transition-new(root),
-:root[data-sidebar-transition="restore"]::view-transition-old(root) {
-  opacity: 0;
-}
-:root[data-sidebar-transition]::view-transition-group(sidebar-layer) {
-  overflow: clip;
-  background: var(--color-surface);
-}
-/* Each layout at its own size from the top left, clipped by the edge. */
-:root[data-sidebar-transition]::view-transition-old(sidebar-layer),
-:root[data-sidebar-transition]::view-transition-new(sidebar-layer) {
-  inset: 0 auto auto 0;
-  inline-size: auto;
-  block-size: auto;
-  mix-blend-mode: normal;
-}
-:root[data-sidebar-transition]::view-transition-old(sidebar-layer) {
-  animation: sidebar-layout-out 120ms ease-out both;
-}
-:root[data-sidebar-transition]::view-transition-new(sidebar-layer) {
-  animation: sidebar-layout-in 200ms ease-out 70ms both;
-}
-@keyframes sidebar-layout-out {
-  to {
-    opacity: 0;
-  }
-}
-@keyframes sidebar-layout-in {
-  from {
-    opacity: 0;
-  }
 }
 
 /*

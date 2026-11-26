@@ -20,6 +20,7 @@ import {
   mutation,
   openDiscussion,
   openOwnProfile,
+  projectAction,
   origin,
   shot,
   signIn,
@@ -610,9 +611,7 @@ test("a save intent survives login and profile settings update the public page",
   context,
 }) => {
   await page.goto(`/prosjekt/${project.id}`);
-  await page
-    .getByRole("button", { name: "Lagre", exact: true })
-    .click();
+  await projectAction(page, "Lagre");
   await expect(page.getByRole("dialog", { name: "Logg inn" })).toContainText(
     "lagre prosjekter",
   );
@@ -624,9 +623,14 @@ test("a save intent survives login and profile settings update the public page",
   await page.goto(
     `/velkommen?next=${encodeURIComponent(`/prosjekt/${project.id}`)}`,
   );
+  await page
+    .locator("[data-project-actions]")
+    .getByRole("button", { name: "Flere valg" })
+    .click();
   await expect(
-    page.getByRole("button", { name: "Lagret", exact: true, pressed: true }),
-  ).toBeVisible();
+    page.getByRole("menuitemcheckbox", { name: "Fjern fra lagrede" }),
+  ).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
   await page.goto(`/profil/${person.username}`);
   await page
     .getByRole("button", { name: "Rediger profil", exact: true })

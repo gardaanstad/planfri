@@ -1,5 +1,13 @@
 "use client";
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import {
+  use,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import {
   ArrowLeftRight,
@@ -18,6 +26,7 @@ import type { Point } from "../lib/data";
 import type { MapView } from "../lib/explore-state";
 import { cn } from "../lib/cn";
 import { controlBase, fieldControl, iconButton } from "../lib/ui";
+import { DrawSurfaceContext } from "./draw-surface";
 
 const ProjectMap = dynamic(() => import("./project-map"), { ssr: false });
 
@@ -41,7 +50,9 @@ const coordinatePattern = /^\s*(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)\s*
  * than over it: area or route, which end of a route to extend, undo and clear
  * above; the point count and typed coordinates below. Clearing asks first
  * and can be undone. It can take the whole screen for detailed drawing,
- * tools and all; Escape or "Ferdig" brings it back.
+ * tools and all; Escape or "Ferdig" brings it back. On desktop, in the
+ * explorer, the map is the explorer's own map area instead (see
+ * `DrawSurfaceContext`), and the tools stay in the sidebar.
  */
 export default function DrawingMap({
   city,
@@ -72,6 +83,8 @@ export default function DrawingMap({
   const [coordinate, setCoordinate] = useState("");
   const [coordinateError, setCoordinateError] = useState("");
   const [maximized, setMaximized] = useState(false);
+  // Desktop: drawn on the explorer's map area, beside the form.
+  const surface = use(DrawSurfaceContext);
   const keepClear = useRef<HTMLButtonElement>(null);
   const clearButton = useRef<HTMLButtonElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -130,6 +143,19 @@ export default function DrawingMap({
     setCoordinateError("");
   }
 
+  const map = (
+    <ProjectMap
+      city={city}
+      initialView={view}
+      draw
+      // On the explorer's map area there's room for the layer menu.
+      compact={compact && !surface}
+      points={points}
+      geometryType={shape}
+      onPointsChange={change}
+      extendFromStart={fromStart}
+    />
+  );
   const onKeyDown = (event: React.KeyboardEvent) => {
         const target = event.target as HTMLElement;
         if (
@@ -142,167 +168,224 @@ export default function DrawingMap({
           undo();
         }
   };
-  const content = (
+  const clearTool = (
+    <button
+      ref={clearButton}
+      type="button"
+      className={cn(toolButton, "hover:bg-danger-soft hover:text-danger")}
+      disabled={!points.length}
+      onClick={() => setConfirmClear(true)}
+      aria-label="Fjern alle punkter"
+      data-tooltip="Fjern alle punkter"
+    >
+      <Trash2 size={18} aria-hidden="true" />
+    </button>
+  );
+  // The tools: in the form above a small map, or floating over the
+  // explorer's map area on desktop.
+  const toolsInner = (
     <>
-      <div className="flex min-h-10 items-center gap-2" data-draw-tools="">
-        {clearing ? (
-          <div
-            className="flex w-full items-center gap-1.5 motion-safe:animate-preview-in"
-            role="group"
-            aria-labelledby={`${ids}-clear`}
-            onKeyDown={(event) => {
-              if (event.key !== "Escape") return;
-              event.preventDefault();
-              event.stopPropagation();
-              cancelClear();
+      {clearing ? (
+        <div
+          className="flex w-full items-center gap-1.5 motion-safe:animate-preview-in"
+          role="group"
+          aria-labelledby={`${ids}-clear`}
+          onKeyDown={(event) => {
+            if (event.key !== "Escape") return;
+            event.preventDefault();
+            event.stopPropagation();
+            cancelClear();
+          }}
+        >
+          <p
+            id={`${ids}-clear`}
+            className={cn("mr-auto text-xs font-medium text-ink", surface && "pl-2")}
+          >
+            Fjerne alle {points.length} punkter?
+          </p>
+          <button
+            type="button"
+            className={cn(
+              smallButton,
+              "border border-danger/30 text-danger hover:bg-danger-soft",
+            )}
+            onClick={() => {
+              change([]);
+              setConfirmClear(false);
             }}
           >
-            <p id={`${ids}-clear`} className="mr-auto text-xs font-medium text-ink">
-              Fjerne alle {points.length} punkter?
-            </p>
+            Fjern
+          </button>
+          {/* Last, where the trigger was, so a double click lands here. */}
+          <button
+            ref={keepClear}
+            type="button"
+            className={cn(
+              smallButton,
+              "border border-border-strong text-ink hover:bg-surface-muted",
+            )}
+            onClick={cancelClear}
+          >
+            Behold
+          </button>
+        </div>
+      ) : (
+        <>
+          <div
+            className="inline-flex rounded-lg bg-ink/[0.05] p-0.5"
+            role="group"
+            aria-label="Form"
+          >
             <button
               type="button"
-              className={cn(
-                smallButton,
-                "border border-danger/30 text-danger hover:bg-danger-soft",
-              )}
-              onClick={() => {
-                change([]);
-                setConfirmClear(false);
-              }}
+              className={segment}
+              aria-pressed={shape === "area"}
+              onClick={() => onShapeChange("area")}
             >
-              Fjern
+              <Pentagon size={16} aria-hidden="true" /> Område
             </button>
-            {/* Last, where the trigger was, so a double click lands here. */}
             <button
-              ref={keepClear}
               type="button"
-              className={cn(
-                smallButton,
-                "border border-border-strong text-ink hover:bg-surface-muted",
-              )}
-              onClick={cancelClear}
+              className={segment}
+              aria-pressed={shape === "line"}
+              onClick={() => onShapeChange("line")}
             >
-              Behold
+              <Route size={16} aria-hidden="true" /> Trasé
             </button>
           </div>
-        ) : (
-          <>
-            <div
-              className="inline-flex rounded-lg bg-ink/[0.05] p-0.5"
-              role="group"
-              aria-label="Form"
-            >
-              <button
-                type="button"
-                className={segment}
-                aria-pressed={shape === "area"}
-                onClick={() => onShapeChange("area")}
-              >
-                <Pentagon size={16} aria-hidden="true" /> Område
-              </button>
-              <button
-                type="button"
-                className={segment}
-                aria-pressed={shape === "line"}
-                onClick={() => onShapeChange("line")}
-              >
-                <Route size={16} aria-hidden="true" /> Trasé
-              </button>
-            </div>
-            <div className="ml-auto flex items-center gap-0.5">
-              {route && (
-                <>
-                  <button
-                    type="button"
-                    className={toolButton}
-                    onClick={() => setExtendStart(!fromStart)}
-                    aria-label={
-                      fromStart
-                        ? "Tegn videre fra slutten"
-                        : "Tegn videre fra starten"
-                    }
-                    data-tooltip={
-                      fromStart
-                        ? "Tegn videre fra slutten"
-                        : "Tegn videre fra starten"
-                    }
-                  >
-                    <ArrowLeftRight size={18} aria-hidden="true" />
-                  </button>
-                  <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
-                </>
-              )}
-              <button
-                type="button"
-                className={toolButton}
-                disabled={!history.length}
-                onClick={undo}
-                aria-label="Angre"
-                data-tooltip="Angre"
-              >
-                <Undo2 size={18} aria-hidden="true" />
-              </button>
-              <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
-              <button
-                ref={clearButton}
-                type="button"
-                className={cn(toolButton, "hover:bg-danger-soft hover:text-danger")}
-                disabled={!points.length}
-                onClick={() => setConfirmClear(true)}
-                aria-label="Fjern alle punkter"
-                data-tooltip="Fjern alle punkter"
-              >
-                <Trash2 size={18} aria-hidden="true" />
-              </button>
-              <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
-              {maximized ? (
+          <div className="ml-auto flex items-center gap-0.5">
+            {route && (
+              <>
                 <button
-                  type="button"
-                  className={cn(
-                    smallButton,
-                    "ml-1 border border-border-strong bg-surface text-ink hover:bg-surface-muted",
-                  )}
-                  onClick={minimize}
-                >
-                  <Minimize2 size={14} aria-hidden="true" />
-                  Ferdig
-                </button>
-              ) : (
-                <button
-                  ref={maximizeButton}
                   type="button"
                   className={toolButton}
-                  onClick={() => setMaximized(true)}
-                  aria-label="Forstørr kartet"
-                  data-tooltip="Forstørr kartet"
+                  onClick={() => setExtendStart(!fromStart)}
+                  aria-label={
+                    fromStart
+                      ? "Tegn videre fra slutten"
+                      : "Tegn videre fra starten"
+                  }
+                  data-tooltip={
+                    fromStart
+                      ? "Tegn videre fra slutten"
+                      : "Tegn videre fra starten"
+                  }
                 >
-                  <Maximize2 size={18} aria-hidden="true" />
+                  <ArrowLeftRight size={18} aria-hidden="true" />
                 </button>
+                <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+              </>
+            )}
+            <button
+              type="button"
+              className={toolButton}
+              disabled={!history.length}
+              onClick={undo}
+              aria-label="Angre"
+              data-tooltip="Angre"
+            >
+              <Undo2 size={18} aria-hidden="true" />
+            </button>
+            {/* Over the map, clearing stands apart from the band. */}
+            {!surface && (
+              <>
+                <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+                {clearTool}
+                <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+              </>
+            )}
+            {surface ? null : maximized ? (
+              <button
+                type="button"
+                className={cn(
+                  smallButton,
+                  "ml-1 border border-border-strong bg-surface text-ink hover:bg-surface-muted",
+                )}
+                onClick={minimize}
+              >
+                <Minimize2 size={14} aria-hidden="true" />
+                Ferdig
+              </button>
+            ) : (
+              <button
+                ref={maximizeButton}
+                type="button"
+                className={toolButton}
+                onClick={() => setMaximized(true)}
+                aria-label="Forstørr kartet"
+                data-tooltip="Forstørr kartet"
+              >
+                <Maximize2 size={18} aria-hidden="true" />
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </>
+  );
+  const content = (
+    <>
+      {!surface && (
+        <div className="flex min-h-10 items-center gap-2" data-draw-tools="">
+          {toolsInner}
+        </div>
+      )}
+      {surface ? (
+        createPortal(
+          <div
+            className="absolute inset-0 z-[700] bg-surface"
+            data-draw-surface-map=""
+          >
+            {map}
+            {/* The tools hover over the map's top, out of the way;
+                clearing everything is a button of its own beside them. */}
+            <div className="pointer-events-none absolute inset-x-0 top-3 z-[800] flex justify-center gap-2 px-3">
+              <div
+                className="pointer-events-auto flex min-h-11 max-w-full items-center gap-1 rounded-xl border border-border bg-surface py-1 pr-1 pl-1 shadow-popover"
+                role="toolbar"
+                aria-label="Tegneverktøy"
+                data-draw-tools=""
+              >
+                {toolsInner}
+                {!clearing && (
+                  <>
+                    <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+                    <span
+                      className="flex items-center gap-1 pr-2 text-xs whitespace-nowrap text-muted data-[valid=true]:text-accent-strong"
+                      data-valid={enough}
+                    >
+                      {enough && <Check size={14} aria-hidden="true" />}
+                      {points.length === 0
+                        ? "Klikk i kartet"
+                        : `${points.length} ${points.length === 1 ? "punkt" : "punkter"}`}
+                    </span>
+                  </>
+                )}
+              </div>
+              {!clearing && (
+                <div
+                  className="pointer-events-auto flex min-h-11 items-center rounded-xl border border-border bg-surface p-1 shadow-popover"
+                  data-draw-clear=""
+                >
+                  {clearTool}
+                </div>
               )}
             </div>
-          </>
-        )}
-      </div>
-      <div
-        className={cn(
-          "relative overflow-hidden rounded-lg border border-border-strong",
-          maximized ? "min-h-0 flex-1" : "h-80 max-md:h-72",
-          frameClassName,
-        )}
-        data-base-ui-swipe-ignore
-      >
-        <ProjectMap
-          city={city}
-          initialView={view}
-          draw
-          compact={compact}
-          points={points}
-          geometryType={shape}
-          onPointsChange={change}
-          extendFromStart={fromStart}
-        />
-      </div>
+          </div>,
+          surface,
+        )
+      ) : (
+        <div
+          className={cn(
+            "relative overflow-hidden rounded-lg border border-border-strong",
+            maximized ? "min-h-0 flex-1" : "h-80 max-md:h-72",
+            frameClassName,
+          )}
+          data-base-ui-swipe-ignore
+        >
+          {map}
+        </div>
+      )}
       <div className="flex min-h-8 items-center gap-3 text-xs text-muted">
         <span
           className="mr-auto flex items-center gap-1.5 data-[valid=true]:text-accent-strong"
@@ -312,10 +395,14 @@ export default function DrawingMap({
         >
           {enough && <Check size={14} aria-hidden="true" />}
           {points.length === 0 ? (
-            <>
-              <span className="pointer-coarse:hidden">Klikk i kartet for å sette punkter</span>
-              <span className="hidden pointer-coarse:inline">Trykk i kartet for å sette punkter</span>
-            </>
+            surface ? (
+              <span>Tegn i kartet til høyre</span>
+            ) : (
+              <>
+                <span className="pointer-coarse:hidden">Klikk i kartet for å sette punkter</span>
+                <span className="hidden pointer-coarse:inline">Trykk i kartet for å sette punkter</span>
+              </>
+            )
           ) : (
             <>
               {points.length} {points.length === 1 ? "punkt" : "punkter"}

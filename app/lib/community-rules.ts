@@ -1,9 +1,9 @@
 import { z } from "zod";
 import {
   categories,
-  type Category,
   datedPhases,
   type DatedPhase,
+  isCategoryName,
   normalizeCategories,
   skippablePhases,
 } from "./data";
@@ -32,10 +32,11 @@ export const projectFields = z.object({
   title: z.string().trim().min(3).max(160),
   district: z.string().trim().max(100),
   city: z.string().trim().min(1).max(100),
+  // Retired names are accepted and read as what they became.
   categories: z
-    .array(z.enum(categories as [Category, ...Category[]]))
+    .array(z.string().refine(isCategoryName, "Ukjent kategori."))
     .min(1, "Velg minst én kategori.")
-    .max(categories.length)
+    .max(categories.length * 2)
     .transform(normalizeCategories),
   status: z.enum(["proposed", "planned", "construction", "completed"]),
   image: z.union([image, z.literal("")]),

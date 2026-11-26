@@ -10,7 +10,11 @@ import { cn } from "../lib/cn";
 import CategoryIcon from "./category-icon";
 import ChoiceSelect from "./choice-select";
 
-const options = categoryTree.map((node) => ({
+/**
+ * The category menu's options, from the tree: main categories, their
+ * subcategories under them. The filter uses the same.
+ */
+export const categoryOptions = categoryTree.map((node) => ({
   value: node.name,
   label: node.name,
   icon: <CategoryIcon category={node.name} size={16} />,
@@ -39,7 +43,7 @@ export default function CategoryPicker({
       multiple
       value={value}
       onChange={(next) => onChange(normalizeCategories(next))}
-      options={options}
+      options={categoryOptions}
       triggerLabel={labels.join(", ") || "Velg kategori"}
       className={cn(
         // Field labels around it are bold; the menu reads like the filter's.

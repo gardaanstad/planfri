@@ -23,6 +23,17 @@ export default defineConfig({
     // The app skips its animations under reduced motion, so specs needn't wait
     // them out. Specs about motion opt back in with "no-preference".
     contextOptions: { reducedMotion: "reduce" },
+    // The first visit's welcome would push every list down; its own spec
+    // clears this.
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin,
+          localStorage: [{ name: "planfri-welcome-dismissed", value: "1" }],
+        },
+      ],
+    },
   },
   webServer: {
     command:

@@ -542,7 +542,8 @@ test("members suggest new projects; moderators edit and publish them", async ({
   await page.keyboard.press("Escape");
   // Typing narrows the places below; one none match is added as new.
   const place = dialog.getByRole("combobox", { name: "Sted", exact: true });
-  await expect(place).toHaveValue("Oslo");
+  // Opened over all of Norway, there's no place to start in.
+  await expect(place).toHaveValue("");
   await place.click();
   const places = page.getByRole("listbox", { name: "Forslag til sted", exact: true });
   await expect(places.getByRole("option").nth(2)).toHaveText(

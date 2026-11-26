@@ -1,15 +1,6 @@
-import { Fragment, memo } from "react";
+import { Fragment, memo, type MouseEvent } from "react";
 import Image from "next/image";
-import {
-  Bookmark,
-  CarFront,
-  MapPin,
-  Megaphone,
-  MessageCircle,
-  TrainFront,
-  TrainFrontTunnel,
-  TramFront,
-} from "lucide-react";
+import { Bookmark, MapPin, Megaphone, MessageCircle } from "lucide-react";
 import {
   finishYear,
   formatDate,
@@ -18,9 +9,7 @@ import {
   type Project,
   projectPhotos,
   projectPlace,
-  railCategories,
   statuses,
-  transportMode,
 } from "../lib/data";
 import type { CardDensity } from "../lib/explore-state";
 import { type ProjectNews, unreadCount, unreadSummary } from "../lib/unread";
@@ -28,40 +17,34 @@ import { cn } from "../lib/cn";
 import { keyboardFocused, statusTone, wrapTitle } from "../lib/ui";
 import ImageGallery, { thumbSizes } from "./image-gallery";
 
-const modeIcons = {
-  Vei: CarFront,
-  Jernbane: TrainFront,
-  "T-bane": TrainFrontTunnel,
-  Sporvei: TramFront,
-};
-
-/** Where; for rail and road, led by the mode. */
+/** Where the project is. */
 function Place({ project }: { project: Project }) {
-  const mode = transportMode(project.categories);
-  if (!mode)
-    return (
-      <>
-        <MapPin size={14} className="shrink-0" aria-hidden="true" />
-        <span className="min-w-0 truncate">{projectPlace(project)}</span>
-      </>
-    );
-  const label =
-    mode === "road"
-      ? "Vei"
-      : (railCategories.find((category) =>
-          project.categories.includes(category),
-        ) ?? "Jernbane");
-  const Icon = modeIcons[label];
   return (
     <>
-      <span className="inline-flex shrink-0 items-center gap-1 font-medium text-ink-soft">
-        <Icon size={14} className="shrink-0" aria-hidden="true" />
-        {label}
-      </span>
-      <span aria-hidden="true">·</span>
+      <MapPin size={14} className="shrink-0" aria-hidden="true" />
       <span className="min-w-0 truncate">{projectPlace(project)}</span>
     </>
   );
+}
+
+/**
+ * A press on a card's link opens the project in the explorer; with a
+ * modifier key or the middle button, the browser opens its page.
+ */
+export function openInPlace(
+  event: MouseEvent<HTMLAnchorElement>,
+  open: () => void,
+) {
+  if (
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  )
+    return;
+  event.preventDefault();
+  open();
 }
 
 type Section = "discussion" | "updates";
@@ -151,14 +134,15 @@ export default memo(function ProjectCard({
         wrapTitle,
       )}
     >
-      {/* Stretched over the whole card; other controls sit above it. */}
-      <button
-        type="button"
+      {/* Stretched over the whole card; other controls sit above it. A
+          link, so it can open in a new tab or be copied. */}
+      <a
+        href={`/prosjekt/${project.id}`}
         className={cn(
           // Top-aligned: as an inline-block that clips its lines, it would
           // sit on the heading's baseline and add the descent below it,
           // pushing the stats 6px down.
-          "text-left align-top outline-none",
+          "text-left align-top text-inherit no-underline outline-none",
           "after:absolute after:inset-x-[-12px] after:rounded-xl max-md:after:inset-x-[-8px]",
           reach,
           "focus-visible:after:outline-2 focus-visible:after:outline-focus",
@@ -168,7 +152,8 @@ export default memo(function ProjectCard({
         // Whole, when the compact title is cut short.
         data-tooltip={expanded ? undefined : project.title}
         data-tooltip-delay="long"
-        onClick={() => onOpen(project.id)}
+        data-card-link=""
+        onClick={(event) => openInPlace(event, () => onOpen(project.id))}
       >
         {/* Compact: beside the photo, up to three lines, then an ellipsis;
             in a narrow sidebar, two in either view. */}
@@ -181,7 +166,7 @@ export default memo(function ProjectCard({
         >
           {project.title}
         </span>
-      </button>
+      </a>
     </h2>
   );
   const status = (
@@ -289,11 +274,13 @@ export default memo(function ProjectCard({
             onClick={() => onOpen(project.id)}
           >
             {status}
-            <span className={cardStat} data-tooltip={commentLabel}>
-              <MessageCircle size={14} aria-hidden="true" />
-              {commentCount}
-              <span className="sr-only">{` ${commentWord}`}</span>
-            </span>
+            {commentCount > 0 && (
+              <span className={cardStat} data-tooltip={commentLabel}>
+                <MessageCircle size={14} aria-hidden="true" />
+                {commentCount}
+                <span className="sr-only">{` ${commentWord}`}</span>
+              </span>
+            )}
             {updates.length > 0 && (
               <span className={cardStat} data-tooltip={updatesTooltip}>
                 <Megaphone size={14} aria-hidden="true" />
@@ -312,24 +299,26 @@ export default memo(function ProjectCard({
       />
       {expanded && (
         <div key="actions" className="mt-3 flex items-center gap-4">
-          <button
-            type="button"
-            className={action}
-            aria-label={commentLabel}
-            data-press=""
-            // Named here, or in its tooltip where the word gives way.
-            data-tooltip={commentLabel}
-            onClick={() => onOpen(project.id, "discussion")}
-          >
-            <MessageCircle size={16} aria-hidden="true" />
-            <span>
-              {commentCount}
-              <span
-                className="max-[359px]:hidden narrow:hidden"
-                data-tooltip-label=""
-              >{` ${commentWord}`}</span>
-            </span>
-          </button>
+          {commentCount > 0 && (
+            <button
+              type="button"
+              className={action}
+              aria-label={commentLabel}
+              data-press=""
+              // Named here, or in its tooltip where the word gives way.
+              data-tooltip={commentLabel}
+              onClick={() => onOpen(project.id, "discussion")}
+            >
+              <MessageCircle size={16} aria-hidden="true" />
+              <span>
+                {commentCount}
+                <span
+                  className="max-[359px]:hidden narrow:hidden"
+                  data-tooltip-label=""
+                >{` ${commentWord}`}</span>
+              </span>
+            </button>
+          )}
           {updates.length > 0 && (
             <button
               type="button"

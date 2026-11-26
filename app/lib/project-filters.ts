@@ -1,12 +1,5 @@
 import { categoryLabels, type Point, type Project } from "./data";
 
-// Under "Vis flere" in the category filter.
-export const lessUsedCategories = new Set<string>([
-  "Energi",
-  "Vann og avløp",
-  "Offentlige bygg",
-]);
-
 export function categorySummary(values: string[]) {
   const labels = categoryLabels(values);
   return labels.length === 0

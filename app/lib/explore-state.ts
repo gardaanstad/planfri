@@ -9,21 +9,19 @@ export type ExploreState = {
   category: string[];
   sort: string;
   view: MapView | null;
-  /** Desktop: the sidebar maximized over the map (`visning=full`). */
-  full?: boolean;
-  /** The place filter of the maximized sidebar, where the map can't filter. */
+  /** A place a link frames the map on (`sted`), read but never written. */
   place?: string;
 };
 
-// Most people follow what is coming, so finished projects start hidden.
-export const defaultStatus: string[] = ["proposed", "planned", "construction"];
+// Every status shows until filtered.
+export const defaultStatus: string[] = [...statusOrder];
 export const sortOptions = [
   { value: "current", label: "Aktuelt" },
   { value: "added", label: "Nyeste" },
   { value: "title", label: "Alfabetisk" },
 ];
 export const defaultSort = "current";
-/** An empty status filter (every status) needs its own value in the URL. */
+/** Every status, as older links write it. */
 const anyStatus = "alle";
 
 const list = (value: string | null) =>
@@ -57,7 +55,7 @@ export function parseExploreState(
       status === null
         ? defaultStatus
         : status === anyStatus
-          ? []
+          ? [...statusOrder]
           : list(status).filter((value) =>
               (statusOrder as string[]).includes(value),
             ),
@@ -67,7 +65,6 @@ export function parseExploreState(
       ? params.get("sorter")!
       : defaultSort,
     view: parseView(params.get("kart")),
-    full: params.get("visning") === "full",
     place: params.get("sted") ?? "",
   };
 }
@@ -76,18 +73,15 @@ export function parseExploreState(
 export function exploreSearch(state: ExploreState) {
   const params = new URLSearchParams();
   if (state.query.trim()) params.set("q", state.query.trim());
-  if (!sameValues(state.status, defaultStatus))
+  // Every status, or none chosen, is no filter.
+  if (state.status.length && !sameValues(state.status, defaultStatus))
     params.set(
       "status",
-      state.status.length
-        ? statusOrder.filter((value) => state.status.includes(value)).join(",")
-        : anyStatus,
+      statusOrder.filter((value) => state.status.includes(value)).join(","),
     );
   if (state.category.length)
     params.set("kategori", normalizeCategories(state.category).join(","));
   if (state.sort !== defaultSort) params.set("sorter", state.sort);
-  if (state.full) params.set("visning", "full");
-  if (state.full && state.place) params.set("sted", state.place);
   if (state.view) {
     const [lat, lng] = state.view.center;
     params.set(
@@ -117,6 +111,117 @@ export function storeMapView(view: MapView) {
   } catch {
     /* The map still works without browser storage. */
   }
+}
+
+const welcomeKey = "planfri-welcome-dismissed";
+const welcomeEvent = "planfri-welcome-dismissed";
+let welcomeFallback = false;
+
+/** Whether the first visit's welcome has been closed in this browser. */
+export function storedWelcomeDismissed() {
+  try {
+    return localStorage.getItem(welcomeKey) === "1";
+  } catch {
+    return welcomeFallback;
+  }
+}
+
+export function dismissWelcome() {
+  welcomeFallback = true;
+  try {
+    localStorage.setItem(welcomeKey, "1");
+  } catch {
+    /* The fallback above holds it for this visit. */
+  }
+  window.dispatchEvent(new Event(welcomeEvent));
+}
+
+export function subscribeWelcome(callback: () => void) {
+  window.addEventListener(welcomeEvent, callback);
+  window.addEventListener("storage", callback);
+  return () => {
+    window.removeEventListener(welcomeEvent, callback);
+    window.removeEventListener("storage", callback);
+  };
+}
+
+const suggestHintKey = "planfri-suggest-hint-dismissed";
+const suggestHintEvent = "planfri-suggest-hint-dismissed";
+const noProjectIds: string[] = [];
+let suggestHintFallback = noProjectIds;
+let suggestHintCache: { raw: string | null; ids: string[] } = {
+  raw: null,
+  ids: noProjectIds,
+};
+
+/** Projects whose "Foreslå endring" hint has been closed in this browser. */
+export function storedSuggestHintDismissed(): string[] {
+  try {
+    const raw = localStorage.getItem(suggestHintKey);
+    if (raw !== suggestHintCache.raw) {
+      const parsed = JSON.parse(raw || "[]");
+      suggestHintCache = {
+        raw,
+        ids: Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : [],
+      };
+    }
+    return suggestHintCache.ids;
+  } catch {
+    return suggestHintFallback;
+  }
+}
+
+export function dismissSuggestHint(projectId: string) {
+  const ids = [...storedSuggestHintDismissed().filter((id) => id !== projectId), projectId];
+  suggestHintFallback = ids;
+  try {
+    localStorage.setItem(suggestHintKey, JSON.stringify(ids.slice(-500)));
+  } catch {
+    /* The fallback above holds it for this visit. */
+  }
+  window.dispatchEvent(new Event(suggestHintEvent));
+}
+
+export function subscribeSuggestHint(callback: () => void) {
+  window.addEventListener(suggestHintEvent, callback);
+  window.addEventListener("storage", callback);
+  return () => {
+    window.removeEventListener(suggestHintEvent, callback);
+    window.removeEventListener("storage", callback);
+  };
+}
+
+const legendKey = "planfri-map-legend";
+const legendEvent = "planfri-map-legend";
+let legendFallback = false;
+
+/** Whether the map's legend is shown, kept in this browser; hidden at first. */
+export function storedLegend() {
+  try {
+    return localStorage.getItem(legendKey) === "1";
+  } catch {
+    return legendFallback;
+  }
+}
+
+export function storeLegend(shown: boolean) {
+  legendFallback = shown;
+  try {
+    if (shown) localStorage.setItem(legendKey, "1");
+    else localStorage.removeItem(legendKey);
+  } catch {
+    /* The fallback above holds it. */
+  }
+  window.dispatchEvent(new Event(legendEvent));
+}
+
+export function subscribeLegend(callback: () => void) {
+  window.addEventListener(legendEvent, callback);
+  window.addEventListener("storage", callback);
+  return () => {
+    window.removeEventListener(legendEvent, callback);
+    window.removeEventListener("storage", callback);
+  };
 }
 
 const collapsedKey = "planfri-sidebar-collapsed";
@@ -153,19 +258,16 @@ export function subscribeCollapsed(callback: () => void) {
   };
 }
 
-/**
- * The project list's layout: rows, cards with photos, or the "Nytt" view
- * of what last happened on each project.
- */
-export type ListDensity = "compact" | "expanded" | "feed";
-/** A project card's own layout; the "Nytt" view draws its own rows. */
-export type CardDensity = Exclude<ListDensity, "feed">;
+/** The project list's layout: rows, or cards with photos. */
+export type ListDensity = "compact" | "expanded";
+/** A project card's layout. */
+export type CardDensity = ListDensity;
 export const defaultDensity: ListDensity = "compact";
 const densityKey = "planfri-list-density";
 const densityEvent = "planfri-list-density";
 let densityFallback: ListDensity = defaultDensity;
 const isDensity = (value: string | null): value is ListDensity =>
-  value === "compact" || value === "expanded" || value === "feed";
+  value === "compact" || value === "expanded";
 
 /** The project list's layout, kept in this browser. */
 export function storedDensity(): ListDensity {

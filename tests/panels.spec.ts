@@ -177,7 +177,7 @@ test.describe("login prompt", () => {
       return Math.round(rect.top + rect.height / 2);
     };
     expect(await login.evaluate(middle)).toBe(
-      await header.locator("[data-sidebar-maximize]").evaluate(middle),
+      await page.locator("[data-sidebar-toggle]").evaluate(middle),
     );
     await shot(page, "header-logged-out");
     await login.click();
@@ -196,7 +196,7 @@ test.describe("login prompt", () => {
     await page.goto(projectPath);
     const post = page.locator("[data-project-post]");
     await expect(post).toBeVisible();
-    await post.getByRole("button", { name: "Lagre", exact: true }).click();
+    await projectAction(page, "Lagre");
     await expect(prompt).toContainText(
       "Du må være logget inn for å lagre prosjekter.",
     );
@@ -218,76 +218,6 @@ test.describe("login prompt", () => {
 
 test.describe("desktop panels", () => {
   test.use({ viewport: { width: 1280, height: 800 } });
-
-  test("a project opened over the maximized list paints its full layout at once", async ({
-    page,
-  }) => {
-    await page.emulateMedia({ reducedMotion: "no-preference" });
-    await page.goto("/?visning=full");
-    const card = page.locator(`[data-card-id="${project.id}"]`).first();
-    await expect(card).toBeVisible();
-    // The first frame after the click already has the wide layout.
-    const firstFrame = await card.evaluate(
-      (element) =>
-        new Promise<string | null>((resolve) => {
-          (element.querySelector("button, a") as HTMLElement | null)?.click();
-          requestAnimationFrame(() =>
-            resolve(
-              document
-                .querySelector("[data-project-post]")
-                ?.getAttribute("data-wide") ?? null,
-            ),
-          );
-        }),
-    );
-    expect(firstFrame).toBe("true");
-  });
-
-  test("a project loaded as a full page is rendered in its centred column", async ({
-    request,
-  }) => {
-    // The server's HTML already has the wide layout, so a reload never
-    // shows the sidebar's layout stretched across the window first.
-    const html = await (await request.get(`${projectPath}?visning=full`)).text();
-    expect(html).toMatch(/<article[^>]*data-project-post=""[^>]*data-wide="true"/);
-  });
-
-  test("a project opened over the maximized list shows its cover at once", async ({
-    page,
-  }) => {
-    await page.goto("/?visning=full");
-    const card = page.locator(`[data-card-id="${project.id}"]`).first();
-    // The card's thumbnail of the cover is loaded.
-    await expect
-      .poll(() =>
-        card.locator(`img[sizes="88px"]`).evaluate(
-          (image: HTMLImageElement) => image.complete && image.naturalWidth > 0,
-        ),
-      )
-      .toBe(true);
-    // The first frame after the click already paints a photo in the cover:
-    // the thumbnail, until the full size is ready.
-    const painted = await card.evaluate(
-      (element) =>
-        new Promise<boolean>((resolve) => {
-          (element.querySelector("button, a") as HTMLElement | null)?.click();
-          requestAnimationFrame(() => {
-            const images = [
-              ...document.querySelectorAll<HTMLImageElement>(
-                "[data-project-post] figure img",
-              ),
-            ];
-            resolve(
-              images.some((image) => image.complete && image.naturalWidth > 0),
-            );
-          });
-        }),
-    );
-    expect(painted).toBe(true);
-    // Once the full size has loaded, the thumbnail goes.
-    const cover = page.locator("[data-project-post] figure button").first();
-    await expect(cover.locator("img")).toHaveCount(1);
-  });
 });
 
 test.describe("map menu", () => {
@@ -327,7 +257,9 @@ test.describe("map menu", () => {
     const editor = page.locator("[data-project-editor]");
     await expect(editor.getByLabel("Sted", { exact: true })).toHaveValue("Bergen");
     // Close enough in to draw at: tens of metres, not the city.
-    await expect(editor.locator(".leaflet-control-scale-line")).toHaveText("50 m");
+    await expect(
+      page.locator("[data-draw-surface-map] .leaflet-control-scale-line"),
+    ).toHaveText("50 m");
     await page.context().close();
 
     const memberPage = await open(person);
@@ -446,7 +378,7 @@ test.describe("mobile panels", () => {
     // come down to the same height behind it.
     await page
       .getByRole("region", { name: "Prosjektliste", exact: true })
-      .getByRole("button", { name: new RegExp(project.title) })
+      .getByRole("link", { name: new RegExp(project.title) })
       .first()
       .click();
     const projectDrawer = page.locator('[data-panel-drawer="project"]');
@@ -561,43 +493,35 @@ test.describe("mobile panels", () => {
 test.describe("desktop headers", () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
-  test("a project's actions sit in its bar, and give way to a menu as it narrows", async ({
+  test("a project's actions wait in its menu, beside the close button", async ({
     page,
   }) => {
     await page.goto(projectPath);
     const post = page.locator("[data-project-post]");
     await expect(post).toBeVisible();
     const actions = post.locator("[data-project-actions]");
-    await expect(actions).toHaveAttribute("data-fitted", "true");
     const menu = actions.getByRole("button", { name: "Flere valg" });
-    for (const name of ["Lagre", "Foreslå endring", "Kopier lenke"])
-      await expect(actions.getByRole("button", { name, exact: true })).toBeVisible();
-    await expect(menu).toHaveCount(0);
+    await expect(menu).toBeVisible();
+    // Nothing else shares the bar with the title.
+    await expect(actions.getByRole("button")).toHaveCount(2);
     const box = (selector: string) =>
       post.locator(selector).first().evaluate((element) => {
         const rect = element.getBoundingClientRect();
         return { top: rect.top, bottom: rect.bottom, middle: rect.top + rect.height / 2 };
       });
-    // The actions sit level with the panel's controls.
-    const full = await box("[data-project-full]");
-    for (const selector of ["[data-project-close]", "[data-save]", "[data-share]"])
-      expect(Math.round((await box(selector)).middle)).toBe(Math.round(full.middle));
+    // The menu sits level with the close button.
+    const close = await box("[data-project-close]");
+    expect(Math.round((await box("[data-overflow-menu]")).middle)).toBe(
+      Math.round(close.middle),
+    );
     // The title's capitals sit level with them, as far below the panel's
     // top as they are in from its side.
     const title = await capitals(post.locator("#project-card-title"));
     expect(Math.abs(title.top - title.left)).toBeLessThanOrEqual(1);
-    expect(title.top).toBeGreaterThanOrEqual(full.top);
-    expect(title.bottom).toBeLessThanOrEqual(full.bottom);
+    expect(title.top).toBeGreaterThanOrEqual(close.top);
+    expect(title.bottom).toBeLessThanOrEqual(close.bottom);
     await shot(page, "desktop-project-header");
 
-    // At the sidebar's narrowest, they wait in a menu, and still work there.
-    const handle = page.getByRole("separator", {
-      name: "Bredde på prosjektlisten",
-    });
-    await handle.focus();
-    await page.keyboard.press("Home");
-    await expect(actions.locator("[data-overflow-item]")).toHaveCount(0);
-    await expect(menu).toBeVisible();
     await menu.click();
     const items = page.getByRole("menu").locator("[data-overflow-action]");
     await expect(items).toHaveText(["Lagre", "Foreslå endring", "Kopier lenke"]);
@@ -606,12 +530,50 @@ test.describe("desktop headers", () => {
     await expect(page.getByRole("dialog", { name: "Logg inn" })).toContainText(
       "lagre prosjekter",
     );
-    await page.keyboard.press("Escape");
-    // Widened again, they return.
-    await handle.focus();
-    await page.keyboard.press("End");
-    await expect(menu).toHaveCount(0);
-    await expect(actions.locator("[data-overflow-item]")).toHaveCount(3);
+  });
+
+  test("members suggest a change from under the intro", async ({
+    page,
+    context,
+  }) => {
+    await signIn(context, await member({ username: uniqueName("corrector") }));
+    await page.goto(projectPath);
+    const post = page.locator("[data-project-post]");
+    const line = post.locator("[data-suggest-change]");
+    await expect(line).toContainText("Ser du noe som er feil eller mangler?");
+    await line.getByRole("button", { name: "Foreslå endring" }).click();
+    await expect(post.getByRole("textbox", { name: "Prosjektnavn" })).toBeVisible();
+  });
+
+  test("the hint to suggest a change closes for one project", async ({
+    page,
+    context,
+  }) => {
+    await signIn(context, await member({ username: uniqueName("hinted") }));
+    await page.goto(projectPath);
+    const line = page.locator("[data-project-post] [data-suggest-change]");
+    await expect(line).toBeVisible();
+    await line.getByRole("button", { name: "Skjul forslag om endring" }).click();
+    await expect(line).toHaveCount(0);
+    await page.reload();
+    await expect(page.locator("#project-card-title")).toBeVisible();
+    await expect(line).toHaveCount(0);
+    // Other projects still offer it.
+    const other = seedProjects.find((item) => item.id !== project.id)!;
+    await page.goto(`/prosjekt/${other.id}`);
+    await expect(line).toBeVisible();
+  });
+
+  test("a project loaded on its own page stands out on the map", async ({
+    page,
+  }) => {
+    await page.goto(projectPath);
+    await expect(page.locator("[data-project-post]")).toBeVisible();
+    const shape = page
+      .locator(`path[data-project-id="${project.id}"]:not(.project-hit)`)
+      .first();
+    await expect(shape).toHaveClass(/is-selected/);
+    await expect(shape).toHaveCSS("opacity", "1");
   });
 
   test("moderators delete a project from its menu, after asking", async ({
@@ -702,51 +664,6 @@ test.describe("desktop headers", () => {
     await level("saved");
     await shot(page, "desktop-saved-header");
   });
-
-  test("maximized, the header lines up with the list's column", async ({
-    page,
-  }) => {
-    await page.goto("/");
-    const header = page.locator("[data-explorer-header]");
-    await expect(header).toBeVisible();
-    await header.locator("[data-sidebar-maximize]").click();
-    await expect(page.locator("#project-panel")).toHaveAttribute(
-      "data-sidebar-mode",
-      "maximized",
-    );
-    await expect
-      .poll(() =>
-        page.evaluate(() => Boolean(document.documentElement.dataset.sidebarTransition)),
-      )
-      .toBe(false);
-    const edges = (selector: string) =>
-      page.locator(selector).first().evaluate((element) => {
-        const rect = element.getBoundingClientRect();
-        return [Math.round(rect.left), Math.round(rect.right)];
-      });
-    const [searchLeft, searchRight] = await edges(
-      "[data-explorer-layer] input#project-search",
-    ).then(async () => {
-      const box = await page
-        .getByRole("region", { name: "Filtrer prosjekter" })
-        .locator("> div")
-        .first()
-        .evaluate((element) => {
-          const rect = element.getBoundingClientRect();
-          return [Math.round(rect.left), Math.round(rect.right)];
-        });
-      return box;
-    });
-    const [brandLeft] = await edges("[data-explorer-brand]");
-    expect(Math.abs(brandLeft - searchLeft)).toBeLessThanOrEqual(2);
-    const maximizeGlyph = await header
-      .locator("[data-sidebar-maximize] svg")
-      .evaluate((element) => Math.round(element.getBoundingClientRect().right));
-    expect(Math.abs(maximizeGlyph - searchRight)).toBeLessThanOrEqual(4);
-    // The sidebar toggle has faded out of the way.
-    await expect(page.locator("[data-explorer-toggle]")).toHaveCSS("opacity", "0");
-    await shot(page, "maximized-header");
-  });
 });
 
 test.describe("flows stay in the explorer", () => {
@@ -823,10 +740,11 @@ test.describe("account menu", () => {
       // Settings are an icon beside the profile.
       "",
       "Lagret",
+      "Mine forslag",
       "Logg ut",
     ]);
-    // Members have no moderator's view to leave.
-    await expect(menu.getByRole("menuitemcheckbox")).toHaveCount(0);
+    // Members have no moderator's view to leave; dark mode is the one switch.
+    await expect(menu.getByRole("menuitemcheckbox")).toHaveText(["Mørk modus"]);
     await expect(
       menu.getByRole("menuitem", { name: "Kontoinnstillinger" }),
     ).toBeVisible();
@@ -847,6 +765,15 @@ test.describe("account menu", () => {
     await expect(saved).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(saved).toHaveCount(0);
+
+    // Their own suggestions, and dark mode.
+    await trigger.click();
+    await menu.getByRole("menuitem", { name: "Mine forslag" }).click();
+    await expect(page.locator('[data-sidebar-panel="suggestions"]')).toBeVisible();
+    await page.keyboard.press("Escape");
+    await trigger.click();
+    await menu.getByRole("menuitemcheckbox", { name: "Mørk modus" }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", /dark|light/);
 
     // Logging out asks first, and can log out every other device too.
     await trigger.click();

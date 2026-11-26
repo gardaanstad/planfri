@@ -368,7 +368,7 @@ test("moderators set a project's phase, dates and milestones on its timeline, wi
   await expect(phases).toHaveAttribute("data-phase-strip", "construction");
 });
 
-test("the drawing map opens over the whole screen and comes back with its points", async ({
+test("on desktop the drawing takes the map area, its tools over it", async ({
   page,
   context,
 }) => {
@@ -379,29 +379,27 @@ test("the drawing map opens over the whole screen and comes back with its points
   await signIn(context, moderator);
   await page.goto(path);
   await projectAction(page, "Rediger prosjekt");
-  const field = page.locator('[data-field="geometry"]');
+  const surface = page.locator("[data-draw-surface-map]");
   const points = project.geometry.length;
-  await expect(field.locator(".draw-vertex")).toHaveCount(points);
-  await field.getByRole("button", { name: "Forstørr kartet" }).click();
-  const big = page.getByRole("dialog", { name: "Tegn på kartet" });
-  await expect(big).toBeVisible();
-  const box = (await big
-    .locator("[data-base-ui-swipe-ignore]")
-    .first()
-    .boundingBox())!;
-  expect(box.height).toBeGreaterThan(600);
-  await expect(big.locator(".draw-vertex")).toHaveCount(points);
-  // Escape leaves the big map, not the project.
-  await page.keyboard.press("Escape");
-  await expect(big).toHaveCount(0);
+  await expect(surface.locator(".draw-vertex")).toHaveCount(points);
+  expect((await surface.boundingBox())!.width).toBeGreaterThan(600);
+  const tools = surface.getByRole("toolbar", { name: "Tegneverktøy" });
+  await expect(tools.getByRole("button", { name: "Område" })).toBeVisible();
+  await expect(tools.getByRole("button", { name: "Angre" })).toBeDisabled();
+  // Clearing everything is a button of its own, beside the band.
   await expect(
-    field.getByRole("button", { name: "Forstørr kartet" }),
-  ).toBeFocused();
-  await expect(page.getByRole("region", { name: "Redigering" })).toBeVisible();
-  await field.getByRole("button", { name: "Forstørr kartet" }).click();
-  await big.getByRole("button", { name: "Ferdig", exact: true }).click();
-  await expect(big).toHaveCount(0);
-  await expect(field.locator(".draw-vertex")).toHaveCount(points);
+    tools.getByRole("button", { name: "Fjern alle punkter" }),
+  ).toHaveCount(0);
+  await expect(
+    surface
+      .locator("[data-draw-clear]")
+      .getByRole("button", { name: "Fjern alle punkter" }),
+  ).toBeEnabled();
+  await expect(tools).toContainText(`${points} punkter`);
+  // No small map, nor a control to enlarge it, in the panel.
+  const field = page.locator('[data-field="geometry"]');
+  await expect(field.locator(".leaflet-container")).toHaveCount(0);
+  await expect(field.getByRole("button", { name: "Forstørr kartet" })).toHaveCount(0);
 });
 
 test("moderators edit the reference page and publish sourced updates without new comment sections", async ({

@@ -25,6 +25,7 @@ import {
   type Point,
   type Project,
   type Status,
+  statusOrder,
   statuses,
   transportMode,
   type ViewBounds,
@@ -362,7 +363,48 @@ export type MapOverlay = {
   icon: ReactNode;
   on: boolean;
   onToggle: () => void;
+  /** Only changes how the map is read, such as the legend: no dot on the button. */
+  quiet?: boolean;
 };
+/**
+ * What the map's colours and lines mean: a status each, its line as the map
+ * draws it (proposed dotted, planned dashed, the rest solid).
+ */
+function MapLegend() {
+  return (
+    <div
+      className="pointer-events-auto flex flex-col gap-1.5 rounded-xl border border-border bg-surface px-3 py-2.5 text-xs leading-4 text-ink-soft shadow-popover"
+      role="group"
+      aria-label="Tegnforklaring"
+      data-map-legend=""
+    >
+      {statusOrder.map((status) => (
+        <span key={status} className="flex items-center gap-2">
+          <svg
+            width="26"
+            height="8"
+            viewBox="0 0 26 8"
+            aria-hidden="true"
+            className="shrink-0"
+            style={{ color: statuses[status].color }}
+          >
+            <line
+              x1="3"
+              y1="4"
+              x2="23"
+              y2="4"
+              stroke="currentColor"
+              strokeWidth="3.5"
+              strokeLinecap="round"
+              strokeDasharray={dashes[status]?.line.replace(",", "")}
+            />
+          </svg>
+          {statuses[status].label}
+        </span>
+      ))}
+    </div>
+  );
+}
 const osmLineWeight = (selected: boolean) => (selected ? 6 : 3.5);
 // Proposed lines dotted: round dots spaced evenly at every zoom.
 const osmDots = "0.1 7";
@@ -734,6 +776,8 @@ type Props = {
   onContextMenu?: (at: MapContextMenuAt) => void;
   /** Switchable layers in the layer menu; the button shows when one is on. */
   overlays?: MapOverlay[];
+  /** What the statuses' colours and lines mean, over the layer button. */
+  legend?: boolean;
 };
 export default function ProjectMap({
   projects = noProjects,
@@ -758,6 +802,7 @@ export default function ProjectMap({
   controlsContainer,
   osm,
   overlays = noOverlays,
+  legend = false,
   onContextMenu,
 }: Props) {
   const container = useRef<HTMLDivElement>(null);
@@ -775,6 +820,12 @@ export default function ProjectMap({
   const projectsRef = useRef(projects);
   // Editing an existing shape opens framed on it.
   const initialPoints = useRef(points);
+  // The shape as drawn now: once it has points, a new place leaves the view.
+  const drawnPoints = useRef(points);
+  useEffect(() => {
+    drawnPoints.current = points;
+  });
+  const framedOnce = useRef(false);
   const startView = useRef(initialView);
   const selectedRef = useRef(selectedId);
   const highlightedRef = useRef<string | null>(null);
@@ -1181,6 +1232,10 @@ export default function ProjectMap({
       return;
     }
     if (!draw) return;
+    // A place named after drawing has begun, say from the shape itself,
+    // keeps the map on the shape.
+    if (framedOnce.current && drawnPoints.current.length) return;
+    framedOnce.current = true;
     const place = city ? cities[city] : undefined;
     // Opened on a spot, it starts there once; a new place moves on.
     const start = startView.current;
@@ -1626,8 +1681,18 @@ export default function ProjectMap({
       const zoom = map.getZoom();
       const grouped = new Set<string>();
       const kept = new Set<string>();
+      // The open project's shape stays clear: a group that would sit on it
+      // shows its projects one by one instead.
+      const open = selectedRef.current
+        ? drawn.get(selectedRef.current)?.project
+        : undefined;
+      const keepClear =
+        open && open.geometry.length > 1
+          ? L.latLngBounds(open.geometry).pad(0.15)
+          : null;
       if (zoom < clusterZoom)
         for (const { members, at } of groupsAt(zoom)) {
+          if (keepClear?.contains(map.unproject(at, 0))) continue;
           const list = members.map((entry) => entry.project);
           const key = list
             .map((project) => project.id)
@@ -1857,6 +1922,9 @@ export default function ProjectMap({
           focused.focus({ preventScroll: true });
       }
       cluster();
+      // A project open as the map draws, as on a project's own page, is
+      // marked selected like one opened later.
+      style(selectedRef.current);
       style(highlightedRef.current);
       placeHint();
     };
@@ -2285,6 +2353,7 @@ export default function ProjectMap({
           )}
         </div>
       )}
+      {legend && !compact && !draw && <MapLegend />}
       {layersOpen && !compact && mobile && (
         <ActionSheet
           label="Kartlag"
@@ -2310,7 +2379,7 @@ export default function ProjectMap({
         onClick={() => setLayersOpen(!layersOpen)}
       >
         <Layers size={20} aria-hidden="true" />
-        {overlays.some((overlay) => overlay.on) && (
+        {overlays.some((overlay) => overlay.on && !overlay.quiet) && (
           <span
             className="absolute top-1.5 right-1.5 size-2.5 rounded-full border-2 border-surface bg-ink"
             data-overlay-on=""

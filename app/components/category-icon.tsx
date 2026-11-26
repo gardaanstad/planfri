@@ -1,11 +1,11 @@
 import {
   Building2,
+  Cable,
   Bike,
   BusFront,
   Car,
   CloudRain,
   Drama,
-  Droplets,
   Factory,
   Flame,
   GlassWater,
@@ -24,12 +24,15 @@ import {
   UtilityPole,
   Waves,
   Wind,
-  Zap,
   type LucideProps,
 } from "lucide-react";
-import type { Category } from "../lib/data";
+import { mainCategoryOf, type Category } from "../lib/data";
 
-const icons: Record<Category, React.ComponentType<LucideProps>> = {
+/**
+ * Each category's icon. Optional: a category without one takes its main
+ * category's, so a new one needs no icon to show.
+ */
+const icons: Partial<Record<Category, React.ComponentType<LucideProps>>> = {
   Samferdsel: Route,
   Vei: Car,
   Jernbane: TrainFront,
@@ -39,16 +42,14 @@ const icons: Record<Category, React.ComponentType<LucideProps>> = {
   "Sykkel og gange": Bike,
   Havn: Ship,
   Luftfart: Plane,
-  Energi: Zap,
+  "Annen infrastruktur": Cable,
   Kraftproduksjon: Wind,
   Strømnett: UtilityPole,
   Fjernvarme: Flame,
   "CO₂-lagring": Factory,
-  "Vann og avløp": Droplets,
   Drikkevann: GlassWater,
   Avløp: Waves,
   Overvann: CloudRain,
-  "Offentlige bygg": Landmark,
   Helse: Hospital,
   Skole: School,
   "Kultur og idrett": Drama,
@@ -63,7 +64,7 @@ export default function CategoryIcon({
   category,
   ...props
 }: LucideProps & { category: Category }) {
-  const Icon = icons[category] ?? Building2;
+  const Icon = icons[category] ?? icons[mainCategoryOf(category)] ?? Building2;
   return <Icon aria-hidden="true" {...props} />;
 }
 

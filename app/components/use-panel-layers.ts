@@ -1,7 +1,6 @@
 "use client";
 import {
   useEffect,
-  useEffectEvent,
   useLayoutEffect,
   useRef,
   useState,
@@ -29,23 +28,18 @@ const layerOrder: Layer[] = [
 
 /**
  * The explorer's panel stack as it animates: the open panels (`live`), and
- * those still on their way out. Desktop panels slide away in the sidebar,
- * or go at once over a maximized one; on phones, drawers animate themselves.
+ * those still on their way out. Desktop panels slide away in the sidebar;
+ * on phones, drawers animate themselves.
  */
 export function usePanelLayers({
   live,
   isMobile,
-  maximized,
   panelRef,
-  onClosedOverMaximized,
 }: {
   live: Layer[];
   isMobile: boolean;
-  maximized: boolean;
   /** The desktop sidebar the panels are in. */
   panelRef: RefObject<HTMLElement | null>;
-  /** A panel opened beside the map closed while the sidebar is maximized. */
-  onClosedOverMaximized: () => void;
 }) {
   // Closed panels stay until they have animated away. A panel replaced by
   // another in the same step (Lagret for the profile, say) goes at once on
@@ -54,14 +48,6 @@ export function usePanelLayers({
   let exiting = exitingState;
   const [heldState, setHeld] = useState<Layer[]>([]);
   let held = heldState;
-  // Whether each panel opened over a maximized sidebar: it then appears at
-  // once where it is, and closing it keeps the sidebar maximized. One opened
-  // beside the map takes the sidebar back there when it closes.
-  const [openedMaximized, setOpenedMaximized] = useState<
-    Partial<Record<Layer, boolean>>
-  >(() => Object.fromEntries(live.map((layer) => [layer, maximized])));
-  // Counts closings that take the sidebar back beside the map.
-  const [restores, setRestores] = useState(0);
   const [previousLayers, setPreviousLayers] = useState(live);
   if (previousLayers.join() !== live.join()) {
     const added = live.filter((layer) => !previousLayers.includes(layer));
@@ -74,28 +60,12 @@ export function usePanelLayers({
     setExiting(exiting);
     held = isMobile && added.length ? removed : [];
     setHeld(held);
-    const opened = { ...openedMaximized };
-    for (const layer of added)
-      opened[layer] =
-        removed.length > 0 ? openedMaximized[removed[0]] : maximized;
-    setOpenedMaximized(opened);
-    if (
-      !added.length &&
-      maximized &&
-      removed.some((layer) => openedMaximized[layer] === false)
-    )
-      setRestores((count) => count + 1);
   }
   const layers = layerOrder.filter(
     (layer) => live.includes(layer) || exiting.includes(layer),
   );
   const leaving = (layer: Layer) =>
     exiting.includes(layer) || held.includes(layer);
-
-  const restore = useEffectEvent(onClosedOverMaximized);
-  useLayoutEffect(() => {
-    if (restores) restore();
-  }, [restores]);
 
   // Closed panels animate away, then leave; opened again on the way, they
   // come back from where they got to.
@@ -120,8 +90,7 @@ export function usePanelLayers({
       const element = aside?.querySelector<HTMLElement>(
         `[data-sidebar-layer="${layer}"]`,
       );
-      // Over a maximized sidebar a panel goes at once, as it came.
-      if (!element || reduced || element.hasAttribute("data-full")) {
+      if (!element || reduced) {
         setExiting((current) => current.filter((item) => item !== layer));
         continue;
       }
@@ -171,7 +140,6 @@ export function usePanelLayers({
     exited: (layer: Layer) =>
       setExiting((current) => current.filter((item) => item !== layer)),
     leaving,
-    openedMaximized,
     /** Notes what has focus, to return it there when the layer closes. */
     rememberTrigger,
   };

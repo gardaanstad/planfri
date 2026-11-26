@@ -1,10 +1,7 @@
 "use client";
 import { useEffect, useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
-import { Moon, Sun } from "lucide-react";
-import { cn } from "../lib/cn";
 import { reducedMotion } from "../lib/media";
-import { iconButton } from "../lib/ui";
 import { parseTheme, themeColors, themeCookie, type Theme } from "../lib/theme";
 
 const darkQuery = "(prefers-color-scheme: dark)";
@@ -83,41 +80,3 @@ export function useTheme() {
   return useSyncExternalStore<Theme>(subscribeTheme, currentTheme, () => "light");
 }
 
-const icon =
-  "absolute transition-[rotate,scale,opacity] duration-300 ease-out-soft motion-reduce:transition-none";
-
-/**
- * Moon in light mode, sun in dark: the icon shows the theme it switches to.
- * The icons follow the CSS theme, so they are right before hydration; only
- * the switch state waits for it.
- */
-export default function ThemeToggle({ tooltip = true }: { tooltip?: boolean }) {
-  const dark = useTheme() === "dark";
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={dark}
-      aria-label="Mørk modus"
-      data-tooltip={
-        tooltip ? (dark ? "Bytt til lys modus" : "Bytt til mørk modus") : undefined
-      }
-      className={cn(iconButton, "relative rounded-lg hover:text-ink")}
-      onClick={toggleTheme}
-    >
-      <Sun
-        size={20}
-        aria-hidden="true"
-        className={cn(
-          icon,
-          "scale-50 -rotate-90 opacity-0 dark:scale-100 dark:rotate-0 dark:opacity-100",
-        )}
-      />
-      <Moon
-        size={18}
-        aria-hidden="true"
-        className={cn(icon, "dark:scale-50 dark:rotate-90 dark:opacity-0")}
-      />
-    </button>
-  );
-}

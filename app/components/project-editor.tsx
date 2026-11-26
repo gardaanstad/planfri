@@ -8,7 +8,8 @@ import {
   type RefObject,
 } from "react";
 import { AlertCircle } from "lucide-react";
-import { centroid, type Project } from "../lib/data";
+import { centroid, type Point, type Project } from "../lib/data";
+import { projectPlaces } from "../lib/places";
 import type { MapView } from "../lib/explore-state";
 import { errorMessage } from "../lib/api-client";
 import { cn } from "../lib/cn";
@@ -44,7 +45,7 @@ const blank: Project = {
   title: "",
   description: "",
   website: "",
-  city: "Oslo",
+  city: "",
   district: "",
   categories: [],
   status: "planned",
@@ -142,6 +143,16 @@ export default function ProjectEditor({
   const ids = useId();
   const change = (patch: Partial<Project>) =>
     setDraft((current) => ({ ...current, ...patch }));
+  // Until a place is picked, the drawing names it.
+  const autoCity = useRef(!start.city);
+  function drawn(geometry: Point[]) {
+    const patch: Partial<Project> = { geometry };
+    if (autoCity.current && geometry.length) {
+      const [place] = projectPlaces("", centroid(geometry));
+      if (place) patch.city = place;
+    }
+    change(patch);
+  }
   const invalid = attempted ? invalidFields(draft) : [];
   const error = (id: FieldId) =>
     invalid.includes(id) ? fields[id].error?.(finalize(draft)) : undefined;
@@ -226,6 +237,69 @@ export default function ProjectEditor({
               onChange={(event) => change({ title: event.target.value })}
             />
           </Field>
+          <Field id="categories" label="Kategori" error={error("categories")}>
+            <CategoryPicker
+              triggerClassName={cn(
+                "min-h-10 rounded-lg border-border-strong px-3 pointer-coarse:min-h-11 max-sm:text-base",
+                error("categories") && "border-danger",
+              )}
+              value={draft.categories}
+              onChange={(categories) => change({ categories })}
+            />
+          </Field>
+          <Field id="geometry" label="Kart" error={error("geometry")}>
+            <DrawingMap
+              city={draft.city.trim() || "Oslo"}
+              points={draft.geometry}
+              shape={draft.geometryType}
+              onPointsChange={drawn}
+              onShapeChange={(geometryType) => change({ geometryType })}
+              view={view}
+              frameClassName={error("geometry") && "border-danger"}
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field
+              id="place"
+              label="Sted"
+              control={`${ids}-place`}
+              error={error("place")}
+            >
+              <PlacePicker
+                {...control("place")}
+                className={input}
+                value={draft.city}
+                onChange={(city) => {
+                  autoCity.current = false;
+                  change({ city });
+                }}
+              />
+            </Field>
+            <Field
+              id="district"
+              label="Område / bydel"
+              control={`${ids}-district`}
+              optional
+            >
+              <input
+                id={`${ids}-district`}
+                className={input}
+                maxLength={80}
+                placeholder="F.eks. Bjørvika"
+                value={draft.district}
+                onChange={(event) => change({ district: event.target.value })}
+              />
+            </Field>
+          </div>
+          <Field id="timeline" label="Tidslinje" error={error("timeline")}>
+            <TimelineInput
+              draft={draft}
+              change={change}
+              idPrefix={`${ids}-timeline`}
+              showErrors={attempted}
+            />
+          </Field>
+          {/* The rest is optional. */}
           <Field
             id="description"
             label="Beskrivelse"
@@ -254,24 +328,6 @@ export default function ProjectEditor({
               onBusy={setUploading}
             />
           </Field>
-          <Field id="timeline" label="Tidslinje" error={error("timeline")}>
-            <TimelineInput
-              draft={draft}
-              change={change}
-              idPrefix={`${ids}-timeline`}
-              showErrors={attempted}
-            />
-          </Field>
-          <Field id="categories" label="Kategori" error={error("categories")}>
-            <CategoryPicker
-              triggerClassName={cn(
-                "min-h-10 rounded-lg border-border-strong px-3 pointer-coarse:min-h-11 max-sm:text-base",
-                error("categories") && "border-danger",
-              )}
-              value={draft.categories}
-              onChange={(categories) => change({ categories })}
-            />
-          </Field>
           <Field
             id="developer"
             label="Byggherre"
@@ -286,36 +342,6 @@ export default function ProjectEditor({
               onChange={(event) => change({ developer: event.target.value })}
             />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field
-              id="place"
-              label="Sted"
-              control={`${ids}-place`}
-              error={error("place")}
-            >
-              <PlacePicker
-                {...control("place")}
-                className={input}
-                value={draft.city}
-                onChange={(city) => change({ city })}
-              />
-            </Field>
-            <Field
-              id="district"
-              label="Område / bydel"
-              control={`${ids}-district`}
-              optional
-            >
-              <input
-                id={`${ids}-district`}
-                className={input}
-                maxLength={80}
-                placeholder="F.eks. Bjørvika"
-                value={draft.district}
-                onChange={(event) => change({ district: event.target.value })}
-              />
-            </Field>
-          </div>
           <Field
             id="website"
             label="Prosjektlenke"
@@ -332,17 +358,6 @@ export default function ProjectEditor({
               placeholder="https://…"
               value={draft.website}
               onChange={(event) => change({ website: event.target.value })}
-            />
-          </Field>
-          <Field id="geometry" label="Kart" error={error("geometry")}>
-            <DrawingMap
-              city={draft.city.trim() || "Oslo"}
-              points={draft.geometry}
-              shape={draft.geometryType}
-              onPointsChange={(geometry) => change({ geometry })}
-              onShapeChange={(geometryType) => change({ geometryType })}
-              view={view}
-              frameClassName={error("geometry") && "border-danger"}
             />
           </Field>
         </div>

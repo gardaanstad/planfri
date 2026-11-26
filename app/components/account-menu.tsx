@@ -6,10 +6,12 @@ import {
   ChevronRight,
   Inbox,
   LogOut,
+  Moon,
   Settings,
   ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "./auth-provider";
+import { toggleTheme, useTheme } from "./theme-toggle";
 import ActionSheet, { SwitchTrack, type SheetAction } from "./action-sheet";
 import ProfileAvatar from "./profile-avatar";
 import { cn } from "../lib/cn";
@@ -30,9 +32,10 @@ function Count({ count }: { count: number }) {
 
 /**
  * The signed-in member's menu from their avatar: their profile, with
- * settings beside it, what they saved, then logging out. Moderators switch
- * moderator mode off to view the app as a member, and, with it on, reach the
- * suggestion queue just below it. A dropdown on desktop, a sheet on phones.
+ * settings beside it, what they saved and their suggestions, dark mode, then
+ * logging out. Moderators switch moderator mode off to view the app as a
+ * member, and, with it on, reach the suggestion queue just below it. A
+ * dropdown on desktop, a sheet on phones.
  */
 export default function AccountMenu({
   username,
@@ -46,6 +49,7 @@ export default function AccountMenu({
   onSettings,
   onMemberView,
   suggestions,
+  reviewed,
   onSuggestions,
   onSignOut,
 }: {
@@ -61,11 +65,17 @@ export default function AccountMenu({
   onMemberView: (on: boolean) => void;
   /** Suggestions waiting for a moderator. */
   suggestions: number;
+  /** A member's suggestions reviewed since they last looked. */
+  reviewed: number;
   onSuggestions: () => void;
   onSignOut: () => void;
 }) {
   const { isModerator, memberView, canModerate } = useAuth();
-  const suggestionsLabel = `Forslag${suggestions > 0 ? ` (${suggestions})` : ""}`;
+  const dark = useTheme() === "dark";
+  // Moderators get the queue; members their own suggestions.
+  const suggestionsName = canModerate ? "Forslag" : "Mine forslag";
+  const suggestionsCount = canModerate ? suggestions : reviewed;
+  const suggestionsLabel = `${suggestionsName}${suggestionsCount > 0 ? ` (${suggestionsCount})` : ""}`;
   const [sheetOpen, setSheetOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   // A panel opened from the menu returns focus to the avatar, not to the
@@ -96,6 +106,17 @@ export default function AccountMenu({
         onSelect: onSaved,
         divided: true,
       },
+      ...(!canModerate
+        ? [
+            {
+              id: "suggestions",
+              label: suggestionsName,
+              icon: <Inbox size={20} />,
+              trailing: <Count count={reviewed} />,
+              onSelect: onSuggestions,
+            },
+          ]
+        : []),
       ...(isModerator
         ? [
             {
@@ -119,6 +140,14 @@ export default function AccountMenu({
             },
           ]
         : []),
+      {
+        id: "theme",
+        label: "Mørk modus",
+        icon: <Moon size={20} />,
+        checked: dark,
+        onSelect: toggleTheme,
+        divided: true,
+      },
       {
         id: "sign-out",
         label: "Logg ut",
@@ -211,6 +240,17 @@ export default function AccountMenu({
               <Bookmark size={16} aria-hidden="true" />
               Lagret
             </Menu.Item>
+            {!canModerate && (
+              <Menu.Item
+                className={item}
+                aria-label={suggestionsLabel}
+                onClick={() => run(onSuggestions)}
+              >
+                <Inbox size={16} aria-hidden="true" />
+                <span className="flex-1">{suggestionsName}</span>
+                <Count count={reviewed} />
+              </Menu.Item>
+            )}
             {isModerator && (
               <>
                 <Menu.Separator className={separator} />
@@ -237,6 +277,17 @@ export default function AccountMenu({
                 <Count count={suggestions} />
               </Menu.Item>
             )}
+            <Menu.Separator className={separator} />
+            <Menu.CheckboxItem
+              className={item}
+              checked={dark}
+              onCheckedChange={toggleTheme}
+              closeOnClick
+            >
+              <Moon size={16} aria-hidden="true" />
+              <span className="mr-3 flex-1">Mørk modus</span>
+              <SwitchTrack on={dark} />
+            </Menu.CheckboxItem>
             <Menu.Separator className={separator} />
             <Menu.Item
               className={cn(item, menuItemDangerHover)}

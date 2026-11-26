@@ -47,16 +47,18 @@ the screen being truly small (dialogs, button stacking).
 
 - The **sidebar** (results list) sits beside the **map**. Its width is
   resizable and remembered. Below 450px it goes **narrow**: Kategori and
-  Status fold into one filter button, header extras into the ⋯ menu, labels
-  down to their icons. Things that change between widths **fold**
+  Status fold into one filter button, labels down to their icons. Things that change between widths **fold**
   (`fold unfolded narrow:folded`), never jump.
 - **Panels** (a project, a profile, Lagret, Forslag, the editor) stack as
   layers over the list in the sidebar. They slide in from the left edge
   (`animate-panel-in`, 320ms) and slide back out on close. The list stays
   mounted underneath, scroll position kept.
-- A panel can be **maximized** to the full window (⤢) and back, with a view
-  transition. Escape and Back step down one level (full page → sidebar →
-  closed); ✕ closes.
+- Escape, Back and ✕ close the panel on top.
+- A panel's own actions (save, suggest a change, share) sit in its ⋯ menu,
+  beside ✕, so the title has the bar to itself.
+- Drawing a project takes the **map area** beside the sidebar
+  (`DrawSurfaceContext`), its tools in a small bar floating over the
+  map's top.
 - Content gutter inside panels is **24px** each side (`px-gutter-scroll`,
   which accounts for the scrollbar).
 
@@ -186,9 +188,8 @@ Base UI `Menu` with the shared classes in `ui.ts`; never a hand-built
   desktop, top on phones; swipe away.
 - **Tooltips** (`data-tooltip`, `TooltipLayer`) name icon-only controls and
   explain compact stats. Inverse colours, `rounded-md`, `text-xs` medium,
-  `animate-tooltip-in` (90ms). Desktop only. On phones, where a tap is the
-  only way to learn what a control means (the list count's eye), a short
-  `info` toast names it instead.
+  `animate-tooltip-in` (90ms). Desktop only. Anything a phone can't hover
+  says what it is in words instead.
 
 ## Typography
 

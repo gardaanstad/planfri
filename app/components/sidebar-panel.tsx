@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useEffectEvent, type ReactNode } from "react";
-import { ArrowLeft, Maximize2, Minimize2, X } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 import { cn } from "../lib/cn";
 import { iconButton } from "../lib/ui";
 
@@ -10,14 +10,13 @@ import { iconButton } from "../lib/ui";
  * base layer; panels (a project, Lagret, Forslag, a profile) stack on top
  * and share the mode. A collapsed sidebar still shows panels at normal width.
  */
-export type SidebarMode = "collapsed" | "normal" | "maximized";
+export type SidebarMode = "collapsed" | "normal";
 
 /**
  * Every sidebar change of size shares one transition: the timing of the
  * panels' slide (`--animate-panel-in`). Layers are clipped from the visible
  * width before to the one after. The layer in view also changes its width
- * when given `widths`, so its content moves along with the edge; layers
- * under it keep their widest size, so nothing lays out there per frame.
+ * when given `widths`, so its content moves along with the edge.
  */
 export const sidebarTiming = {
   duration: 320,
@@ -68,33 +67,6 @@ export const controlButton = cn(
   "rounded-lg active:scale-100 pointer-fine:active:scale-[0.97]",
 );
 
-/** Switches the sidebar between its normal width and the whole window. */
-export function MaximizeButton({
-  maximized,
-  onToggle,
-  labels = ["Vis som helside", "Vis i sidepanel"],
-}: {
-  maximized: boolean;
-  onToggle: () => void;
-  /** Maximize and minimize labels. */
-  labels?: [string, string];
-}) {
-  const label = maximized ? labels[1] : labels[0];
-  return (
-    <button
-      type="button"
-      className={controlButton}
-      data-press=""
-      onClick={onToggle}
-      aria-label={label}
-      data-tooltip={label}
-      data-sidebar-maximize=""
-    >
-      {maximized ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-    </button>
-  );
-}
-
 /**
  * Escape on the panel on top of the stack. Menus and dialogs over it take
  * Escape first.
@@ -118,13 +90,11 @@ export function usePanelEscape(active: boolean, onEscape: () => void) {
 }
 
 /**
- * Desktop: a panel in the sidebar stack, a bar with the mode and close
- * controls over scrolling content. See `Panel`, which also handles Escape.
+ * Desktop: a panel in the sidebar stack, a bar with the close control over
+ * scrolling content. See `Panel`, which also handles Escape.
  */
 export function SidebarPanel({
   name,
-  maximized,
-  onToggleMaximized,
   onClose,
   onBack,
   closeLabel = "Lukk",
@@ -133,8 +103,6 @@ export function SidebarPanel({
 }: {
   /** Names the panel for tests and styling (`data-sidebar-panel`). */
   name: string;
-  maximized: boolean;
-  onToggleMaximized: () => void;
   onClose: () => void;
   /** Back to the panel this one was opened from. */
   onBack?: () => void;
@@ -150,11 +118,8 @@ export function SidebarPanel({
     >
       {bar && (
       <div
-        className={cn(
-          // The list's header height, so controls stay put as panels open.
-          "flex h-16 shrink-0 items-center gap-0.5 px-3",
-          maximized && "px-[max(0.75rem,calc((100%-880px)/2))]",
-        )}
+        // The list's header height, so controls stay put as panels open.
+        className="flex h-16 shrink-0 items-center gap-0.5 px-3"
       >
         {onBack && (
           <button
@@ -168,7 +133,6 @@ export function SidebarPanel({
           </button>
         )}
         <div className="ml-auto flex items-center gap-0.5">
-          <MaximizeButton maximized={maximized} onToggle={onToggleMaximized} />
           <button
             type="button"
             className={controlButton}
@@ -181,12 +145,7 @@ export function SidebarPanel({
         </div>
       </div>
       )}
-      <div
-        className={cn(
-          "flex min-h-0 flex-1 flex-col",
-          maximized && "mx-auto w-full max-w-[880px]",
-        )}
-      >
+      <div className="flex min-h-0 flex-1 flex-col">
         {children}
       </div>
     </div>

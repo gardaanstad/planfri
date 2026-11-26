@@ -22,7 +22,13 @@ import {
   MessagesSquare,
   Plus,
   Trash2,
+  X,
 } from "lucide-react";
+import {
+  dismissSuggestHint,
+  storedSuggestHintDismissed,
+  subscribeSuggestHint,
+} from "../lib/explore-state";
 import {
   arrangePhotos,
   getProjectUpdates,
@@ -126,13 +132,8 @@ type Props = {
   feedback?: ReactNode;
   saved: boolean;
   onSave: () => void;
-  /** Replaces closing on Escape, e.g. to step down from a full page first. */
-  onEscape?: () => void;
-  /** Desktop: shown as a full page, with a control to switch back and forth. */
-  full?: boolean;
   /** Phones: the header's actions sit in a sheet. */
   mobile?: boolean;
-  onToggleFull?: () => void;
   onNotify: (message: string) => void;
 };
 /** A suggester's username, quietly linked to their profile. */
@@ -427,6 +428,54 @@ function ProjectMeta({ project }: { project: Project }) {
         </p>
       </div>
       <PhaseTimeline project={project} className="mt-5 max-md:mt-4" />
+    </div>
+  );
+}
+
+const noDismissed: string[] = [];
+
+/**
+ * "Ser du noe som er feil eller mangler? Foreslå endring", under a
+ * project's intro, until its ✕ closes it for that project in this browser.
+ */
+function SuggestChangeHint({
+  projectId,
+  onSuggest,
+}: {
+  projectId: string;
+  onSuggest: () => void;
+}) {
+  const dismissed = useSyncExternalStore(
+    subscribeSuggestHint,
+    storedSuggestHintDismissed,
+    () => noDismissed,
+  );
+  if (dismissed.includes(projectId)) return null;
+  return (
+    <div
+      className="mt-4 mb-1 flex items-center gap-2 text-xs leading-4.5 text-muted"
+      data-suggest-change=""
+    >
+      <p className="min-w-0 flex-1">
+        Ser du noe som er feil eller mangler?{" "}
+        <button
+          type="button"
+          className="relative font-medium text-ink underline decoration-border-strong decoration-1 underline-offset-3 transition-[text-decoration-color] duration-120 hover:decoration-current pointer-coarse:after:absolute pointer-coarse:after:-inset-2"
+          onClick={onSuggest}
+        >
+          Foreslå endring
+        </button>
+      </p>
+      <button
+        type="button"
+        className="-my-1.5 -mr-1.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted hover:bg-ink/[0.06] hover:text-ink pointer-coarse:size-9"
+        aria-label="Skjul forslag om endring"
+        data-tooltip="Skjul"
+        data-press=""
+        onClick={() => dismissSuggestHint(projectId)}
+      >
+        <X size={14} aria-hidden="true" />
+      </button>
     </div>
   );
 }
@@ -1063,10 +1112,7 @@ export default function ProjectPost({
   initialSection,
   closeOnEscape = false,
   onClose,
-  onEscape: escape,
-  full = false,
   mobile = false,
-  onToggleFull,
   feedback,
   saved,
   onSave,
@@ -1076,23 +1122,6 @@ export default function ProjectPost({
   const comments = useComments(projectComments(project.id));
   const contentRef = useRef<HTMLDivElement>(null);
   const tabScroll = useRef<Record<string, number>>({});
-  // A full page centres the post in a wider column. Known from the sidebar's
-  // mode, not measured, so the server renders it too: a reload never shows
-  // the narrow layout stretched across the window.
-  const wide = full;
-  useEffect(() => {
-    const root = contentRef.current;
-    if (!root) return;
-    const measure = () =>
-      root.parentElement?.style.setProperty(
-        "--scrollbar-width",
-        `${root.offsetWidth - root.clientWidth}px`,
-      );
-    const observer = new ResizeObserver(measure);
-    observer.observe(root);
-    measure();
-    return () => observer.disconnect();
-  }, []);
   const { user, canModerate, requireLogin } = useAuth();
   const { mutate, suggest } = useCommunity();
   const onUpdate = (next: Project) =>
@@ -1309,8 +1338,7 @@ export default function ProjectPost({
     )
       return;
     event.preventDefault();
-    if (!draft && escape) escape();
-    else close();
+    close();
   });
   useEffect(() => {
     if (!closeOnEscape) return;
@@ -1386,15 +1414,11 @@ export default function ProjectPost({
       <article
         className="relative flex h-full min-h-0 flex-col bg-surface"
         data-project-post=""
-        data-wide={wide || undefined}
       >
         <ProjectPostHeader
           project={project}
           scrollRootRef={contentRef}
           onClose={close}
-          wide={wide}
-          full={full}
-          onToggleFull={onToggleFull}
           mobile={mobile}
           actions={actions}
         />
@@ -1404,13 +1428,9 @@ export default function ProjectPost({
           data-project-scroll=""
           data-drawer-scroll
         >
-          {/* A full page is the sidebar's layout in a wider, centred column. */}
-          <div className={cn(wide && "mx-auto w-full max-w-[880px] px-6")}>
+          <div>
             <section
-              className={cn(
-                "pt-0.5 pb-2",
-                !wide && "px-4.5 md:px-gutter-scroll",
-              )}
+              className="px-4.5 pt-0.5 pb-2 md:px-gutter-scroll"
               aria-label="Om prosjektet"
             >
               {draft ? (
@@ -1424,14 +1444,19 @@ export default function ProjectPost({
                 <>
                   <ProjectMeta project={project} />
                   <ProjectIntro project={project} />
+                  {/* Members correct the page from here; moderators edit
+                      from the menu. */}
+                  {!canModerate && (
+                    <SuggestChangeHint
+                      projectId={project.id}
+                      onSuggest={startEditing}
+                    />
+                  )}
                 </>
               )}
             </section>
             <nav
-              className={cn(
-                "border-b border-border",
-                !wide && "mx-4.5 md:mx-gutter-scroll",
-              )}
+              className="mx-4.5 border-b border-border md:mx-gutter-scroll"
               hidden={Boolean(draft)}
               id="project-sections"
               aria-label="Prosjektinnhold"
@@ -1471,10 +1496,7 @@ export default function ProjectPost({
               </div>
             </nav>
             <div
-              className={cn(
-                "pt-4.5 pb-8 md:pt-5",
-                !wide && "px-4.5 md:px-gutter-scroll",
-              )}
+              className="px-4.5 pt-4.5 pb-8 md:px-gutter-scroll md:pt-5"
             >
               <BelowTabs
                 className="min-w-0"

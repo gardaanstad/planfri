@@ -23,6 +23,7 @@ Before committing, run `bun run lint`, `bun run typecheck`, and the specs for wh
 - `uploads.spec.ts`: photo uploads
 - `osm-candidates.spec.ts`: OpenStreetMap candidates
 - `diff.spec.ts`: suggestion diff (no browser)
+- `categories.spec.ts`: the category tree and retired names (no browser)
 
 Run the full suite, in the background, only when asked or when you touch shared ground: `explorer.tsx`, panels and drawers, `app/layout.tsx`, global CSS, auth, the schema or migrations, `scripts/seed-data.ts`, or the test setup (`playwright.config.ts`, `tests/support.ts`, `scripts/test-db.ts`). If an unrelated spec fails, rerun it alone; if it then passes, it's flaky. Mention it, don't fix it here.
 

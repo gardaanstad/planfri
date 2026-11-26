@@ -134,7 +134,7 @@ export const seedProjects: Project[] = [
     title: "Nytt regjeringskvartal",
     district: "Hammersborg",
     city: "Oslo",
-    categories: ["Offentlige bygg", "Forvaltning"],
+    categories: ["Byutvikling", "Forvaltning"],
     status: "construction",
     image: "/images/regjeringskvartalet.jpg",
     imageCredit: "Haptic Architects",
@@ -205,7 +205,7 @@ export const seedProjects: Project[] = [
     title: "Ny vannforsyning Oslo",
     district: "Holsfjorden – Huseby",
     city: "Oslo",
-    categories: ["Vann og avløp", "Drikkevann"],
+    categories: ["Annen infrastruktur", "Drikkevann"],
     status: "construction",
     image: "",
     description:
@@ -229,7 +229,7 @@ export const seedProjects: Project[] = [
     title: "Nye Aker sykehus",
     district: "Sinsen",
     city: "Oslo",
-    categories: ["Offentlige bygg", "Helse"],
+    categories: ["Byutvikling", "Helse"],
     status: "construction",
     image: "",
     description:
@@ -296,7 +296,7 @@ export const seedProjects: Project[] = [
     title: "Northern Lights",
     district: "Øygarden",
     city: "Bergen",
-    categories: ["Energi", "CO₂-lagring"],
+    categories: ["Annen infrastruktur", "CO₂-lagring"],
     status: "completed",
     image: "",
     description:

@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { seedProjects } from "../scripts/seed-data";
 import type { Unread } from "../app/lib/unread";
@@ -195,7 +195,7 @@ for (const [viewport, project, saved] of [
     await shot(page, `unread-card-${viewport.width}`);
 
     // The card opens its project at the first new comment and reads it.
-    const title = card.getByRole("button", {
+    const title = card.getByRole("link", {
       name: new RegExp(`^${project.title} ·`),
     });
     // The server renders the list, so a click can land before hydration.
@@ -225,7 +225,7 @@ for (const [viewport, project, saved] of [
     await shot(page, `saved-${viewport.width}`);
     // Opening it from there reads it too.
     await savedCard
-      .getByRole("button", { name: new RegExp(`^${saved.title} ·`) })
+      .getByRole("link", { name: new RegExp(`^${saved.title} ·`) })
       .click();
     await expect(
       page.locator("[data-highlighted]", { hasText: "Her også" }),
@@ -237,12 +237,25 @@ for (const [viewport, project, saved] of [
   });
 }
 
+/** Desktop: saving, in a project's menu. */
+function saveMenu(page: Page) {
+  return {
+    menu: page
+      .locator("[data-project-actions]")
+      .getByRole("button", { name: "Flere valg" }),
+    save: page.getByRole("menuitemcheckbox", { name: "Lagre", exact: true }),
+    unsave: page.getByRole("menuitemcheckbox", {
+      name: "Fjern fra lagrede",
+      exact: true,
+    }),
+  };
+}
+
 test("opening a project page starts its read state; saving can be undone", async ({
   page,
   context,
   request,
 }) => {
-  // Wide enough that saving stays in the bar beside a two-word title.
   await page.setViewportSize({ width: 1440, height: 800 });
   const project = seedProjects[11];
   const reader = await member({ username: uniqueName() });
@@ -252,21 +265,24 @@ test("opening a project page starts its read state; saving can be undone", async
     .poll(async () => entry(await readUnread(request, reader), project.id))
     .toMatchObject({ comments: 0 });
 
-  const button = page.locator("[data-project-actions] [data-save]");
+  const { menu, save, unsave } = saveMenu(page);
+  // The server renders the menu's button, so a click can land before
+  // hydration.
   await expect(async () => {
-    await button.click();
-    await expect(button).toHaveAttribute("aria-pressed", "true", {
-      timeout: 1000,
-    });
+    await menu.click();
+    await save.click({ timeout: 1000 });
   }).toPass();
-  await expect(button).toHaveAccessibleName("Lagret");
   await expect(page.getByText(`Lagret ${project.title}`)).toBeVisible();
+  await menu.click();
+  await expect(unsave).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Angre" }).click();
-  await expect(button).toHaveAttribute("aria-pressed", "false");
-  await expect(button).toHaveAccessibleName("Lagre");
+  await menu.click();
+  await expect(save).toHaveAttribute("aria-checked", "false");
 
-  await button.click();
-  await expect(button).toHaveAttribute("aria-pressed", "true");
+  await save.click();
+  // The first toast may still be on its way out.
+  await expect(page.getByText(`Lagret ${project.title}`).last()).toBeVisible();
   await page.getByRole("button", { name: "Lukk prosjekt", exact: true }).click();
   await openSaved(page);
   const panel = page.locator('[data-sidebar-panel="saved"]');
@@ -290,16 +306,16 @@ test("saving shows at once and goes back if the server refuses it", async ({
     await route.fulfill({ status: 500, json: { error: "Serveren svarte ikke." } });
   });
   await page.goto(`/prosjekt/${project.id}`);
-  const button = page.locator("[data-project-actions] [data-save]");
-  // The server renders the button, so a click can land before hydration.
+  const { menu, save } = saveMenu(page);
+  // The server renders the menu's button, so a click can land before
+  // hydration.
   await expect(async () => {
-    await button.click();
-    await expect(button).toHaveAttribute("aria-pressed", "true", {
-      timeout: 1000,
-    });
+    await menu.click();
+    await save.click({ timeout: 1000 });
   }).toPass();
   await expect(page.getByText(`Lagret ${project.title}`)).toBeVisible();
   release();
-  await expect(button).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByText("Serveren svarte ikke.")).toBeVisible();
+  await menu.click();
+  await expect(save).toHaveAttribute("aria-checked", "false");
 });

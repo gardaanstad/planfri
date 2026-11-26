@@ -10,17 +10,14 @@ import {
   useState,
   type KeyboardEvent,
   type ReactNode,
-  type RefObject,
 } from "react";
 import { flushSync } from "react-dom";
-import { Menu } from "@base-ui/react/menu";
-import { Check, ChevronDown, Ellipsis } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { cn } from "../lib/cn";
 import { mobileQuery, reducedMotion, sheetLeave } from "../lib/media";
 import { useBackgroundPush } from "../lib/background-push";
 import { useSwipeDismiss } from "./use-swipe-dismiss";
-import { SheetGrip, SwitchTrack, sheetTitle } from "./action-sheet";
-import { menuPopup } from "../lib/ui";
+import { SheetGrip, sheetTitle } from "./action-sheet";
 import { Radio } from "./choice-mark";
 
 type Option = {
@@ -1012,7 +1009,7 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
                     {label}
                   </span>
                   {pins?.phoneToggle && (
-                    <SheetMenu toggle={pins.phoneToggle} container={menu} />
+                    <PinToggle toggle={pins.phoneToggle} />
                   )}
                 </div>
               </div>
@@ -1245,51 +1242,32 @@ function PinIcon({ size, filled }: { size: number; filled: boolean }) {
   );
 }
 
-const sheetMenuItem = cn(
-  "flex min-h-11 items-center gap-3 rounded-lg px-2.5 py-1.5 text-ui text-ink outline-none select-none",
-  "focus-visible:bg-surface-muted active:bg-surface-muted",
-);
-
 /**
- * The phone sheet's "more" menu, beside its title. Rendered inside the
- * sheet's top-layer scrim, so it opens over the sheet rather than under it.
+ * The phone sheet's switch for pinning, beside its title, named for what
+ * it does: "Fest" shows the pins beside the options, "Ferdig" hides them.
  */
-function SheetMenu({
+function PinToggle({
   toggle,
-  container,
 }: {
   toggle: { label: string; on: boolean; onChange: (on: boolean) => void };
-  container: RefObject<HTMLElement | null>;
 }) {
   return (
-    <Menu.Root>
-      <Menu.Trigger
-        className="-my-2.5 -mr-2 ml-auto inline-flex size-11 shrink-0 items-center justify-center rounded-xl text-muted active:bg-ink/[0.05] data-popup-open:bg-ink/[0.05] data-popup-open:text-ink"
-        aria-label="Flere valg"
-      >
-        <Ellipsis size={20} aria-hidden="true" />
-      </Menu.Trigger>
-      <Menu.Portal container={container}>
-        <Menu.Positioner
-          side="bottom"
-          align="end"
-          sideOffset={4}
-          className="z-[1000]"
-          data-slot="choice-sheet-menu"
-        >
-          <Menu.Popup className={cn(menuPopup, "min-w-60")}>
-            <Menu.CheckboxItem
-              className={sheetMenuItem}
-              checked={toggle.on}
-              onCheckedChange={toggle.onChange}
-              closeOnClick
-            >
-              <span className="flex-1">{toggle.label}</span>
-              <SwitchTrack on={toggle.on} />
-            </Menu.CheckboxItem>
-          </Menu.Popup>
-        </Menu.Positioner>
-      </Menu.Portal>
-    </Menu.Root>
+    <button
+      type="button"
+      className="-my-2.5 -mr-2 ml-auto inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl px-3 text-ui font-medium text-muted active:bg-ink/[0.05] aria-pressed:text-ink"
+      aria-label={toggle.label}
+      aria-pressed={toggle.on}
+      data-pin-toggle=""
+      onClick={() => toggle.onChange(!toggle.on)}
+    >
+      {toggle.on ? (
+        "Ferdig"
+      ) : (
+        <>
+          <PinIcon size={16} filled={false} />
+          Fest
+        </>
+      )}
+    </button>
   );
 }

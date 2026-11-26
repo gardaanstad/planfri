@@ -60,8 +60,10 @@ function Entry({
         <span className="shrink-0 text-xs text-muted" aria-hidden="true">
           ·
         </span>
+        {/* Relative throughout, so the list reads in one way. */}
         <RelativeTime
           date={date}
+          mode="relative"
           className="shrink-0 text-xs whitespace-nowrap text-muted"
         />
         {fresh && (
@@ -148,15 +150,14 @@ export const FeedRow = memo(function FeedRow({
           onClick={() => onOpen(project.id, target)}
         />
       )}
-      {/* A new project is itself the news; others name it on top. */}
-      {event.kind !== "added" && (
-        <p
-          className="mb-2 truncate text-xs leading-4 text-muted"
-          data-feed-context=""
-        >
-          {project.title}
-        </p>
-      )}
+      {/* The project on top; a new project is itself the news, so that
+          is said instead. */}
+      <p
+        className="mb-2 truncate text-xs leading-4 text-muted"
+        data-feed-context=""
+      >
+        {event.kind === "added" ? "Nytt prosjekt" : project.title}
+      </p>
       {event.kind === "update" ? (
         <div aria-hidden="true">
           <Entry

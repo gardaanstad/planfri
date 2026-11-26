@@ -8,8 +8,7 @@ import {
 import { replaceUrl } from "../lib/explore-history";
 
 /**
- * Filters, the map position and the full-page view live in the query
- * string, for sharing and reloads. Each change replaces the entry, so
+ * Filters and the map position live in the query string, for sharing and reloads. Each change replaces the entry, so
  * history only holds pages. The map's position is written once it has
  * rested, not after every move (`syncSoon`).
  */
@@ -43,11 +42,11 @@ export function useUrlSync({
     const search = searchFor();
     if (window.location.search !== search) replaceUrl(path + search);
   }, [searchFor]);
-  const { query, status, category, sort, full, place } = state;
+  const { query, status, category, sort } = state;
   useEffect(() => {
-    current.current = { query, status, category, sort, full, place };
+    current.current = { query, status, category, sort };
     syncUrl();
-  }, [query, status, category, sort, full, place, syncUrl]);
+  }, [query, status, category, sort, syncUrl]);
   useEffect(() => () => window.clearTimeout(timer.current), []);
   const syncSoon = useCallback(() => {
     window.clearTimeout(timer.current);

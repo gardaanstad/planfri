@@ -149,7 +149,7 @@ export const sampleProjects: Project[] = [
     title: "420 kV-ledning Sogndal – Høyanger",
     district: "Sogndal – Høyanger",
     city: "Vestland",
-    categories: ["Energi", "Strømnett"],
+    categories: ["Annen infrastruktur", "Strømnett"],
     status: "planned",
     image: "",
     description:
@@ -176,7 +176,7 @@ export const sampleProjects: Project[] = [
     title: "Lade skole og flerbrukshall",
     district: "Lade",
     city: "Trondheim",
-    categories: ["Offentlige bygg", "Skole", "Kultur og idrett"],
+    categories: ["Byutvikling", "Skole", "Kultur og idrett"],
     status: "construction",
     image: "/images/regjeringskvartalet.jpg",
     imageCredit: "Eksempelbilde",
@@ -226,7 +226,7 @@ export const sampleProjects: Project[] = [
     title: "Ny avløpstunnel Hillevåg – Mekjarvik",
     district: "Hillevåg – Mekjarvik",
     city: "Stavanger",
-    categories: ["Vann og avløp", "Avløp"],
+    categories: ["Annen infrastruktur", "Avløp"],
     status: "completed",
     image: "",
     description:

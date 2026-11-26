@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   blob,
+  customType,
   index,
   integer,
   primaryKey,
@@ -8,6 +9,26 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+import { normalizeCategories } from "../categories";
+
+/**
+ * A JSON column, stored as text like `text(…, { mode: "json" })`, whose
+ * value passes through `read` on its way out of the database.
+ */
+const json = <T>(name: string, read: (value: T) => T) =>
+  customType<{ data: T; driverData: string }>({
+    dataType: () => "text",
+    toDriver: (value) => JSON.stringify(value),
+    fromDriver: (value) => read(JSON.parse(value) as T),
+  })(name);
+
+type Categorized = { categories?: string[] } | undefined;
+/** Categories as the tree has them now (see `retiredCategories`). */
+function currentCategories<T extends Categorized>(value: T): T {
+  return value && Array.isArray(value.categories)
+    ? { ...value, categories: normalizeCategories(value.categories) }
+    : value;
+}
 
 export const user = sqliteTable("user", {
   id: text("id").primaryKey(),
@@ -87,9 +108,7 @@ export const rateLimit = sqliteTable("rate_limit", {
 });
 export const project = sqliteTable("project", {
   id: text("id").primaryKey(),
-  data: text("data", { mode: "json" })
-    .$type<import("../data").Project>()
-    .notNull(),
+  data: json<import("../data").Project>("data", currentCategories).notNull(),
 });
 export const comment = sqliteTable(
   "comment",
@@ -183,9 +202,19 @@ export const suggestion = sqliteTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    data: text("data", { mode: "json" })
-      .$type<import("../suggestions").SuggestionData>()
-      .notNull(),
+    // A suggestion's project, changes and their base, read with current
+    // categories.
+    data: json<import("../suggestions").SuggestionData>("data", (data) => {
+      const parts = data as Record<string, Categorized>;
+      return {
+        ...data,
+        ...Object.fromEntries(
+          (["project", "changes", "base"] as const)
+            .filter((key) => parts[key])
+            .map((key) => [key, currentCategories(parts[key])]),
+        ),
+      };
+    }).notNull(),
     note: text("note").notNull().default(""),
     status: text("status", { enum: ["pending", "approved", "rejected"] })
       .notNull()

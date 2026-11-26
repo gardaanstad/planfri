@@ -27,7 +27,6 @@ import {
 } from "./drawer";
 import {
   controlButton,
-  MaximizeButton,
   SidebarPanel,
   usePanelEscape,
 } from "./sidebar-panel";
@@ -340,8 +339,6 @@ const mobileControl = cn(iconButton, "rounded-lg");
 
 type PanelFrame = {
   mobile: boolean;
-  maximized: boolean;
-  onToggleMaximized: () => void;
   onClose: () => void;
   onBack?: () => void;
   closeLabel: string;
@@ -377,7 +374,7 @@ export function PanelHeader({
 }) {
   const frame = use(PanelFrameContext);
   if (!frame) throw new Error("PanelHeader must be used within a Panel.");
-  const { mobile, maximized, onToggleMaximized, onClose, closeLabel } = frame;
+  const { mobile, onClose, closeLabel } = frame;
   const onBack = back ?? frame.onBack;
   const control = mobile
     ? cn(mobileControl, "size-10 active:scale-100")
@@ -435,9 +432,6 @@ export function PanelHeader({
             {actions}
           </div>
         )}
-        {!mobile && (
-          <MaximizeButton maximized={maximized} onToggle={onToggleMaximized} />
-        )}
         <button
           type="button"
           className={control}
@@ -473,15 +467,13 @@ export function PanelHeaderButton({
 }
 
 /**
- * A panel's frame: back and close over its scrolling content, plus the
- * sidebar's mode control on desktop. Escape closes the panel on top.
+ * A panel's frame: back and close over its scrolling content. Escape
+ * closes the panel on top.
  */
 export function Panel({
   mobile,
   name,
   active,
-  maximized,
-  onToggleMaximized,
   onClose,
   onBack,
   closeLabel = "Lukk",
@@ -493,8 +485,6 @@ export function Panel({
   name: string;
   /** The top of the stack: the one Escape acts on. */
   active: boolean;
-  maximized: boolean;
-  onToggleMaximized: () => void;
   onClose: () => void;
   /** Back to the panel this one was opened from. */
   onBack?: () => void;
@@ -506,11 +496,7 @@ export function Panel({
   titled?: boolean;
   children: ReactNode;
 }) {
-  // Escape steps down from a maximized panel before closing it.
-  usePanelEscape(
-    active,
-    maximized && !mobile ? onToggleMaximized : onClose,
-  );
+  usePanelEscape(active, onClose);
   const [scrolled, setScrolled] = useState(false);
   const body = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -529,8 +515,6 @@ export function Panel({
   }, [titled]);
   const frame: PanelFrame = {
     mobile,
-    maximized,
-    onToggleMaximized,
     onClose,
     onBack,
     closeLabel,
@@ -552,8 +536,6 @@ export function Panel({
       return (
         <SidebarPanel
           name={name}
-          maximized={maximized}
-          onToggleMaximized={onToggleMaximized}
           onClose={onClose}
           bar={false}
         >
@@ -573,8 +555,6 @@ export function Panel({
     return (
       <SidebarPanel
         name={name}
-        maximized={maximized}
-        onToggleMaximized={onToggleMaximized}
         onClose={onClose}
         onBack={onBack}
         closeLabel={closeLabel}
