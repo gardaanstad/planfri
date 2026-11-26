@@ -73,11 +73,7 @@ import {
   type ListDensity,
   type MapView,
 } from "../lib/explore-state";
-import type {
-  MapApi,
-  MapContextMenuAt,
-  MapViewChange,
-} from "./project-map";
+import type { MapApi, MapContextMenuAt, MapViewChange } from "./project-map";
 import MapContextMenu from "./map-context-menu";
 import OffMapGroup, { showOffMapEvent } from "./off-map-group";
 import {
@@ -99,10 +95,7 @@ import AccountMenu from "./account-menu";
 import { BrandMark } from "./brand-mark";
 import ProfileAvatar from "./profile-avatar";
 import ChoiceSelect from "./choice-select";
-import FilterSheet, {
-  FilterPopover,
-  type FilterSection,
-} from "./filter-sheet";
+import FilterSheet, { FilterPopover, type FilterSection } from "./filter-sheet";
 import { categoryOptions } from "./category-picker";
 import { useOsmModeStored, useOsmReview } from "./osm-review";
 import ProjectPost from "./project-post";
@@ -138,10 +131,7 @@ import {
   visibleBottomClasses,
 } from "./panel";
 import { takeLoginIntent } from "../lib/login-intent";
-import {
-  categorySummary,
-  projectPoints,
-} from "../lib/project-filters";
+import { categorySummary, projectPoints } from "../lib/project-filters";
 import { useProjectList } from "./use-project-list";
 import { usePanelLayers, type Layer } from "./use-panel-layers";
 import { panelWidth, useSidebarMode } from "./use-sidebar-mode";
@@ -544,9 +534,7 @@ const SavedProjects = dynamic(() => import("./saved-projects"));
 const ProfileOverlay = dynamic(() => import("./profile-overlay"));
 const SuggestionList = dynamic(() => import("./suggestion-list"));
 // Moderators' OSM mode, only while it is on.
-const OsmPanel = dynamic(() =>
-  import("./osm-panel").then((m) => m.OsmPanel),
-);
+const OsmPanel = dynamic(() => import("./osm-panel").then((m) => m.OsmPanel));
 const panelModules = [
   () => import("./saved-projects"),
   () => import("./profile-overlay"),
@@ -574,7 +562,13 @@ function usePreloadPanels() {
     const queue = [...panelModules];
     const next = () => {
       const load = queue.shift();
-      if (load) idle(() => void load().catch(() => {}).then(next));
+      if (load)
+        idle(
+          () =>
+            void load()
+              .catch(() => {})
+              .then(next),
+        );
     };
     // Or at once on the first input, which may be on its way to a panel.
     const intents = ["pointermove", "pointerdown", "keydown"] as const;
@@ -1052,8 +1046,7 @@ export default memo(function Explorer({
   // A project deleted while open keeps showing until its panel has closed.
   const [heldPost, setHeldPost] = useState(found);
   if (found && found !== heldPost) setHeldPost(found);
-  const post =
-    found ?? (heldPost?.id === panelPostId ? heldPost : undefined);
+  const post = found ?? (heldPost?.id === panelPostId ? heldPost : undefined);
 
   // The panel stack over the explorer, bottom to top: layers in the sidebar
   // on desktop, drawers on phones. A header page (Lagret, Forslag, your
@@ -1072,19 +1065,12 @@ export default memo(function Explorer({
     ...(editorOpen && user ? ["editor" as const] : []),
   ];
   const topLayer = liveLayers.at(-1) ?? null;
-  const {
-    layers,
-    exiting,
-    held,
-    setHeld,
-    exited,
-    leaving,
-    rememberTrigger,
-  } = usePanelLayers({
-    live: liveLayers,
-    isMobile,
-    panelRef,
-  });
+  const { layers, exiting, held, setHeld, exited, leaving, rememberTrigger } =
+    usePanelLayers({
+      live: liveLayers,
+      isMobile,
+      panelRef,
+    });
   const panelClosing = !postId && leaving("project");
   if (!postId && !panelClosing && panelPostId) setPanelPostId(null);
   if (!profileName && !leaving("profile") && panelProfileName)
@@ -1197,7 +1183,10 @@ export default memo(function Explorer({
     const view = mapViewRef.current;
     if (!view || !mapApi.current || snapPoint === 1 || mapGesture.current)
       return;
-    onMapView({ ...view, bounds: mapApi.current.boundsAbove(mapInset.current) });
+    onMapView({
+      ...view,
+      bounds: mapApi.current.boundsAbove(mapInset.current),
+    });
   });
   useEffect(() => placeUnderDrawer(), [snapPoint]);
   // Folded down, the list shows only its filters: a list left scrolled, as a
@@ -1490,8 +1479,7 @@ export default memo(function Explorer({
         setFrozenBounds(frozenBounds ?? viewBounds);
       }
       raiseBehindPost.current = folded && listUnderFolded.current;
-      listStaysFolded.current =
-        folded && (!postId || listStaysFolded.current);
+      listStaysFolded.current = folded && (!postId || listStaysFolded.current);
       mapInset.current = middleMapInset();
       if (project) mapApi.current?.center(projectPoints(project));
     }
@@ -2098,18 +2086,12 @@ export default memo(function Explorer({
   });
   // A card with something new opens at the oldest of it, unless it shows
   // an update or comment of its own to open at.
-  const openCard = useCallback(
-    (id: string, target?: CardTarget) => {
-      if (typeof target === "object") return openLatest.current(id, target);
-      const section = target;
-      const item = newsLatest.current.get(id);
-      openLatest.current(
-        id,
-        section || !item?.first ? { section } : item.first,
-      );
-    },
-    [],
-  );
+  const openCard = useCallback((id: string, target?: CardTarget) => {
+    if (typeof target === "object") return openLatest.current(id, target);
+    const section = target;
+    const item = newsLatest.current.get(id);
+    openLatest.current(id, section || !item?.first ? { section } : item.first);
+  }, []);
   // The list's cards open at the middle height over the map, unless they
   // open at something further down, which needs the room.
   const openListCard = useCallback(
@@ -2151,6 +2133,10 @@ export default memo(function Explorer({
     ],
     [listedProjects, offMapProjects],
   );
+  // "Ingen prosjekter her": the empty state stands in for the count.
+  const nothingHere =
+    !filtersChanged &&
+    (feedOn ? feedProjects.length === 0 : listItems.length === 0);
   const renderCard = ({ project, offMap }: ListRow) => (
     <ProjectCard
       key={project.id}
@@ -2292,31 +2278,34 @@ export default memo(function Explorer({
             </div>
           )}
         </div>
+        {!feedOn && !searching && <WelcomeRow />}
         {/* What the list holds, and a way back from the filters; on phones,
             the order and layout at its end. Ruled below, its text centred
-            between the rules, so the first row has a line above it too. */}
-        <div
-          className="flex min-h-9 items-center justify-between gap-x-3 border-b border-border py-2 text-ui text-muted tabular-nums max-md:min-h-11 max-md:gap-x-2 max-md:py-0"
-          data-list-count=""
-        >
-          {listCount}
-          {(filtersChanged || (isMobile && !feedOn)) && (
-            <div className="flex shrink-0 items-center">
-              {filtersChanged && (
-                <button
-                  type="button"
-                  className="relative shrink-0 text-xs whitespace-nowrap text-muted underline-offset-3 hover:text-ink hover:underline pointer-coarse:after:absolute pointer-coarse:after:-inset-2 max-md:mr-1"
-                  onClick={resetFilters}
-                >
-                  Nullstill filtre
-                </button>
-              )}
-              {isMobile && !feedOn && sortFilter}
-              {isMobile && !feedOn && densityMenu}
-            </div>
-          )}
-        </div>
-        {!feedOn && !searching && <WelcomeRow />}
+            between the rules, so the first row has a line above it too.
+            Gone when "Ingen prosjekter her" says it all. */}
+        {!nothingHere && (
+          <div
+            className="flex min-h-9 items-center justify-between gap-x-3 border-b border-border py-2 text-ui text-muted tabular-nums max-md:min-h-11 max-md:gap-x-2 max-md:py-0"
+            data-list-count=""
+          >
+            {listCount}
+            {(filtersChanged || (isMobile && !feedOn)) && (
+              <div className="flex shrink-0 items-center">
+                {filtersChanged && (
+                  <button
+                    type="button"
+                    className="relative shrink-0 text-xs whitespace-nowrap text-muted underline-offset-3 hover:text-ink hover:underline pointer-coarse:after:absolute pointer-coarse:after:-inset-2 max-md:mr-1"
+                    onClick={resetFilters}
+                  >
+                    Nullstill filtre
+                  </button>
+                )}
+                {isMobile && !feedOn && sortFilter}
+                {isMobile && !feedOn && densityMenu}
+              </div>
+            )}
+          </div>
+        )}
         {feedOn && feedProjects.length > 0 && (
           <ol aria-label="Nytt">
             {feed.map((entry) => (
@@ -2344,11 +2333,7 @@ export default memo(function Explorer({
                 <EmptyState
                   level={2}
                   icon={
-                    filtersChanged ? (
-                      <Search size={24} />
-                    ) : (
-                      <MapPin size={24} />
-                    )
+                    filtersChanged ? <Search size={24} /> : <MapPin size={24} />
                   }
                   title={
                     filtersChanged ? "Ingen treff" : "Ingen prosjekter her"
@@ -2365,7 +2350,10 @@ export default memo(function Explorer({
               the plus lines up with the rows' text. */}
           <button
             type="button"
-            className={cn(quietAction, "-ml-3 gap-1.5 text-muted hover:text-ink")}
+            className={cn(
+              quietAction,
+              "-ml-3 gap-1.5 text-muted hover:text-ink",
+            )}
             onClick={() => openEditorHere()}
           >
             <Plus size={16} aria-hidden="true" />
@@ -2502,9 +2490,7 @@ export default memo(function Explorer({
     setModal(null);
     setSavedOnly(false);
     if (suggestionsOpen) closeSuggestions();
-    notify(
-      everywhere ? "Du er logget ut på alle enheter" : "Du er logget ut",
-    );
+    notify(everywhere ? "Du er logget ut på alle enheter" : "Du er logget ut");
   }
   function switchMemberView(on: boolean) {
     setMemberView(on);
@@ -2906,408 +2892,412 @@ export default memo(function Explorer({
 
   return (
     <DrawSurfaceContext value={isMobile ? null : drawSurface}>
-    <div
-      className={cn(
-        "flex h-dvh min-h-0 overflow-hidden bg-canvas motion-reduce:[&_*]:transition-none motion-reduce:[&_*]:animate-none",
-        isMobile ? "flex-col" : "flex-row",
-        // While the panel is resized: one cursor, no selection, map at rest.
-        "data-resizing:cursor-col-resize data-resizing:select-none [&[data-resizing]_[data-project-map]]:pointer-events-none",
-      )}
-      ref={rootRef}
-    >
-      {!isMobile && (
-        <aside
-          ref={panelRef}
-          id="project-panel"
-          className={cn(
-            "relative z-10 flex h-full shrink-0 flex-col bg-surface",
-            // Collapsed, it leaves the map the whole width; panels lie over it.
-            asideCollapsed
-              ? "w-0"
-              : "w-(--sidebar-width) border-r border-border shadow-[1px_0_12px_rgb(20_28_24/0.05)]",
-          )}
-          style={
-            {
-              "--sidebar-width": "var(--panel-width,clamp(380px,36vw,540px))",
-            } as CSSProperties
-          }
-          aria-label="Prosjekter"
-          data-sidebar-mode={sidebarMode}
-        >
-          {(sidebarMode === "collapsed" || modeFrom === "collapsed") && (
-            // Where the header has them, so the toggle never moves: a tab
-            // in the corner of the page, its shadow fading with the list.
-            <div
-              className={cn(
-                "absolute top-0 left-0 z-30 flex h-16 items-center gap-2 rounded-br-2xl bg-surface pl-6",
-                // Without the toggle, the logo gets the same room each side.
-                osmFocus ? "pr-6" : "pr-2",
-                "transition-shadow duration-320 ease-out-soft starting:shadow-none",
-                sidebarMode === "collapsed" &&
-                  "shadow-[2px_2px_16px_rgb(20_28_24/0.12)]",
-              )}
-              data-sidebar-tab=""
-            >
-              {brand}
-              {/* Where the toggle comes to rest, right of the logo. */}
-              <span
-                hidden={osmFocus}
-                ref={(node) => {
-                  if (node) setToggleRest(node.offsetLeft);
-                }}
-                aria-hidden="true"
-                className="size-11 shrink-0"
-                data-toggle-rest=""
-              />
-            </div>
-          )}
-          {/*
+      <div
+        className={cn(
+          "flex h-dvh min-h-0 overflow-hidden bg-canvas motion-reduce:[&_*]:transition-none motion-reduce:[&_*]:animate-none",
+          isMobile ? "flex-col" : "flex-row",
+          // While the panel is resized: one cursor, no selection, map at rest.
+          "data-resizing:cursor-col-resize data-resizing:select-none [&[data-resizing]_[data-project-map]]:pointer-events-none",
+        )}
+        ref={rootRef}
+      >
+        {!isMobile && (
+          <aside
+            ref={panelRef}
+            id="project-panel"
+            className={cn(
+              "relative z-10 flex h-full shrink-0 flex-col bg-surface",
+              // Collapsed, it leaves the map the whole width; panels lie over it.
+              asideCollapsed
+                ? "w-0"
+                : "w-(--sidebar-width) border-r border-border shadow-[1px_0_12px_rgb(20_28_24/0.05)]",
+            )}
+            style={
+              {
+                "--sidebar-width": "var(--panel-width,clamp(380px,36vw,540px))",
+              } as CSSProperties
+            }
+            aria-label="Prosjekter"
+            data-sidebar-mode={sidebarMode}
+          >
+            {(sidebarMode === "collapsed" || modeFrom === "collapsed") && (
+              // Where the header has them, so the toggle never moves: a tab
+              // in the corner of the page, its shadow fading with the list.
+              <div
+                className={cn(
+                  "absolute top-0 left-0 z-30 flex h-16 items-center gap-2 rounded-br-2xl bg-surface pl-6",
+                  // Without the toggle, the logo gets the same room each side.
+                  osmFocus ? "pr-6" : "pr-2",
+                  "transition-shadow duration-320 ease-out-soft starting:shadow-none",
+                  sidebarMode === "collapsed" &&
+                    "shadow-[2px_2px_16px_rgb(20_28_24/0.12)]",
+                )}
+                data-sidebar-tab=""
+              >
+                {brand}
+                {/* Where the toggle comes to rest, right of the logo. */}
+                <span
+                  hidden={osmFocus}
+                  ref={(node) => {
+                    if (node) setToggleRest(node.offsetLeft);
+                  }}
+                  aria-hidden="true"
+                  className="size-11 shrink-0"
+                  data-toggle-rest=""
+                />
+              </div>
+            )}
+            {/*
             The sidebar toggle: at the header's end, where a panel has its
             close button, and in the corner tab when collapsed. It glides
             between the two with the sidebar's edge. Panels cover it.
           */}
-          <div
-            className={cn(
-              "absolute top-2.5 z-[35] motion-reduce:transition-none",
-              // It tracks the edge as the sidebar resizes.
-              sidebarMode !== "collapsed" &&
-                "left-[calc(var(--sidebar-width)-0.75rem-2.75rem)]",
-            )}
-            style={
-              sidebarMode === "collapsed" ? { left: toggleRest } : undefined
-            }
-            hidden={osmFocus}
-            data-explorer-toggle=""
-          >
-            {sidebarToggle}
-          </div>
-          {/* The base layer: stays mounted under panels, so it keeps its scroll. */}
-          <CoveredLayer
-            className={cn(
-              // The container `narrow:` measures (see globals.css).
-              "@container/sidebar absolute inset-y-0 left-0 flex flex-col bg-surface",
-              asideCollapsed ? "w-(--sidebar-width)" : "w-full",
-              explorerHidden && "invisible",
-            )}
-            data-explorer-layer=""
-            // Live again as soon as a panel starts sliding away, so focus
-            // can return to the card it was opened from.
-            covered={sidebarMode === "collapsed" || liveLayers.length > 0}
-            aria-hidden={liveLayers.length > 0 || undefined}
-          >
-            <header
-              className="flex h-16 shrink-0 items-center justify-between gap-2 pr-3 pl-6"
-              data-explorer-header=""
-            >
-              <div data-explorer-brand="">{brand}</div>
-              <nav
-                className="flex items-center gap-0.5"
-                aria-label="Konto"
-                data-explorer-nav=""
-              >
-                {profileButton}
-                <span
-                  aria-hidden="true"
-                  className="mx-1.5 h-5 w-px shrink-0 bg-border"
-                />
-                {/* The sidebar toggle stands here (see below). */}
-                <span
-                  aria-hidden="true"
-                  className="size-11 shrink-0"
-                  data-toggle-slot=""
-                />
-              </nav>
-            </header>
-            <div className="relative min-h-0 flex-1">
-              <div className="absolute inset-0 flex flex-col">
-                {projectResults()}
-              </div>
-            </div>
-          </CoveredLayer>
-          {layers.map((layer, index) => (
-            // Panels cover the whole sidebar, header included, and slide
-            // out from its left edge.
             <div
-              key={layer === "project" ? `project-${panelPostId}` : layer}
               className={cn(
-                "absolute inset-y-0 left-0 flex flex-col overflow-hidden bg-surface",
-                "animate-panel-in shadow-[10px_0_30px_rgb(20_28_24/0.10)]",
-                asideCollapsed
-                  ? "w-(--sidebar-width) border-r border-border"
-                  : "w-full",
+                "absolute top-2.5 z-[35] motion-reduce:transition-none",
+                // It tracks the edge as the sidebar resizes.
+                sidebarMode !== "collapsed" &&
+                  "left-[calc(var(--sidebar-width)-0.75rem-2.75rem)]",
               )}
-              style={{ zIndex: 40 + index }}
-              data-sidebar-layer={layer}
-              data-project-layer={layer === "project" ? "" : undefined}
-              data-exiting={exiting.includes(layer) || undefined}
-              inert={layer !== topLayer}
+              style={
+                sidebarMode === "collapsed" ? { left: toggleRest } : undefined
+              }
+              hidden={osmFocus}
+              data-explorer-toggle=""
             >
-              {layerContent(layer)}
+              {sidebarToggle}
             </div>
-          ))}
-          {sidebarMode === "normal" && !modeFrom && (
-            <PanelResizer
-              panel={panelRef}
-              root={rootRef}
-              controls="project-panel"
-              onResizeStart={() => mapApi.current?.beginResize()}
-              onResize={() => mapApi.current?.syncSize()}
-              onResizeEnd={() => mapApi.current?.endResize()}
-            />
-          )}
-        </aside>
-      )}
+            {/* The base layer: stays mounted under panels, so it keeps its scroll. */}
+            <CoveredLayer
+              className={cn(
+                // The container `narrow:` measures (see globals.css).
+                "@container/sidebar absolute inset-y-0 left-0 flex flex-col bg-surface",
+                asideCollapsed ? "w-(--sidebar-width)" : "w-full",
+                explorerHidden && "invisible",
+              )}
+              data-explorer-layer=""
+              // Live again as soon as a panel starts sliding away, so focus
+              // can return to the card it was opened from.
+              covered={sidebarMode === "collapsed" || liveLayers.length > 0}
+              aria-hidden={liveLayers.length > 0 || undefined}
+            >
+              <header
+                className="flex h-16 shrink-0 items-center justify-between gap-2 pr-3 pl-6"
+                data-explorer-header=""
+              >
+                <div data-explorer-brand="">{brand}</div>
+                <nav
+                  className="flex items-center gap-0.5"
+                  aria-label="Konto"
+                  data-explorer-nav=""
+                >
+                  {profileButton}
+                  <span
+                    aria-hidden="true"
+                    className="mx-1.5 h-5 w-px shrink-0 bg-border"
+                  />
+                  {/* The sidebar toggle stands here (see below). */}
+                  <span
+                    aria-hidden="true"
+                    className="size-11 shrink-0"
+                    data-toggle-slot=""
+                  />
+                </nav>
+              </header>
+              <div className="relative min-h-0 flex-1">
+                <div className="absolute inset-0 flex flex-col">
+                  {projectResults()}
+                </div>
+              </div>
+            </CoveredLayer>
+            {layers.map((layer, index) => (
+              // Panels cover the whole sidebar, header included, and slide
+              // out from its left edge.
+              <div
+                key={layer === "project" ? `project-${panelPostId}` : layer}
+                className={cn(
+                  "absolute inset-y-0 left-0 flex flex-col overflow-hidden bg-surface",
+                  "animate-panel-in shadow-[10px_0_30px_rgb(20_28_24/0.10)]",
+                  asideCollapsed
+                    ? "w-(--sidebar-width) border-r border-border"
+                    : "w-full",
+                )}
+                style={{ zIndex: 40 + index }}
+                data-sidebar-layer={layer}
+                data-project-layer={layer === "project" ? "" : undefined}
+                data-exiting={exiting.includes(layer) || undefined}
+                inert={layer !== topLayer}
+              >
+                {layerContent(layer)}
+              </div>
+            ))}
+            {sidebarMode === "normal" && !modeFrom && (
+              <PanelResizer
+                panel={panelRef}
+                root={rootRef}
+                controls="project-panel"
+                onResizeStart={() => mapApi.current?.beginResize()}
+                onResize={() => mapApi.current?.syncSize()}
+                onResizeEnd={() => mapApi.current?.endResize()}
+              />
+            )}
+          </aside>
+        )}
 
-      <main
-        className="relative isolate flex min-h-0 min-w-0 flex-1 overflow-hidden bg-surface"
-        aria-label="Utforsk prosjekter"
-      >
-        <section
-          className="relative isolate h-full min-h-0 w-full min-w-0 flex-1"
-          aria-label="Prosjektkart"
+        <main
+          className="relative isolate flex min-h-0 min-w-0 flex-1 overflow-hidden bg-surface"
+          aria-label="Utforsk prosjekter"
         >
-          {/* Desktop: a project being drawn takes the map area. */}
-          <div
-            ref={setDrawSurface}
-            className="absolute inset-0 z-[700] empty:hidden"
-            data-draw-surface=""
-          />
-          <ProjectMap
-            projects={osm.on && osm.hideProjects ? noProjects : mapProjects}
-            initialView={initial.view}
-            onViewChange={onMapView}
-            onReady={onMapReady}
-            onGestureStart={onMapGesture}
-            onUserMove={onMapMove}
-            bottomInset={isMobile ? mobileMapInset : undefined}
-            // Collapsed, panels lie over the map's left edge.
-            leftInset={
-              !isMobile && sidebarMode === "collapsed" ? sidebarWidth : undefined
-            }
-            foldCredits={isMobile && nothingMatches}
-            controlsContainer={
-              isMobile
-                ? postOverMap
-                  ? postControlsSlot
-                  : controlsSlot
-                : undefined
-            }
-            selectedId={selectedId}
-            onSelect={(id) => (id ? openPost(id, {}, true) : onMapTap())}
-            osm={osm.layer}
-            onContextMenu={isMobile ? undefined : setMapMenu}
-            legend={legendShown}
-            overlays={mapOverlays}
-          />
-          <MapContextMenu
-            at={mapMenu}
-            canModerate={canModerate}
-            onClose={() => setMapMenu(null)}
-            onCreate={() => {
-              if (!mapMenu) return;
-              const { point, zoom } = mapMenu;
-              const [place] = projectPlaces("", point);
-              openEditor(place ? { city: place } : undefined, {
-                center: point,
-                // Close enough to draw at, or as close as it already was.
-                zoom: Math.min(Math.max(Math.round(zoom), 16), 18),
-              });
-            }}
-          />
-          {osm.on && (
-            <OsmPanel
-              review={osm}
-              keyboard={liveLayers.length === 0}
-              onCreate={openEditor}
-              onOpenProject={(id) => openPost(id)}
-              className="absolute top-3 left-1/2 z-[660] -translate-x-1/2 max-md:right-17 max-md:left-3 max-md:w-auto max-md:translate-x-0"
-            />
-          )}
-        </section>
-      </main>
-
-      {drawerShell}
-      {isMobile && (
-        <SheetLayer>
-          <Drawer
-            open
-            modal={false}
-            disablePointerDismissal
-            snapPoints={drawerSnapPoints}
-            snapToSequentialPoints
-            snapPoint={snapPoint}
-            onSnapPointChange={(point, details) => {
-              // Reject dismissal before Base UI restores the previous snap point.
-              // The navigation drawer always settles at its compact height.
-              if (point === null) {
-                details.cancel();
-                minimizeDrawer();
-                return;
-              }
-              if (point === compactSnapPoint) {
-                minimizeDrawer();
-                return;
-              }
-              setSnapPoint(point);
-            }}
-            onOpenChange={(open, details) => {
-              if (open) return;
-              details.cancel();
-              // Escape belongs to the panel or dialog on top, if any.
-              if (
-                details.reason === "escape-key" &&
-                (liveLayers.length || document.querySelector("dialog[open]"))
-              )
-                return;
-              minimizeDrawer();
-            }}
+          <section
+            className="relative isolate h-full min-h-0 w-full min-w-0 flex-1"
+            aria-label="Prosjektkart"
           >
-            <DrawerVirtualKeyboardProvider>
-              <DrawerContent
-                ref={drawerPopupRef}
-                restOffset
-                floating={snapPoint !== 1}
-                onMotion={followDrawer}
-                edge={
-                  <>
-                    <div
-                      ref={controlsSlotNode}
-                      data-map-controls-slot=""
-                      className={cn(
-                        controlsSlotClasses,
-                        "peer",
-                        // A panel covers the map, all but a sliver.
-                        "group-data-map-covered/drawer-popup:invisible group-data-map-covered/drawer-popup:opacity-0",
-                      )}
-                    />
-                    {/* Nothing matches: a note riding the drawer's top edge,
-                      level with the controls and gone with them, the credits
-                      folded for it. Pressed, it clears the filters. */}
-                    {nothingMatches && (
+            {/* Desktop: a project being drawn takes the map area. */}
+            <div
+              ref={setDrawSurface}
+              className="absolute inset-0 z-[700] empty:hidden"
+              data-draw-surface=""
+            />
+            <ProjectMap
+              projects={osm.on && osm.hideProjects ? noProjects : mapProjects}
+              initialView={initial.view}
+              onViewChange={onMapView}
+              onReady={onMapReady}
+              onGestureStart={onMapGesture}
+              onUserMove={onMapMove}
+              bottomInset={isMobile ? mobileMapInset : undefined}
+              // Collapsed, panels lie over the map's left edge.
+              leftInset={
+                !isMobile && sidebarMode === "collapsed"
+                  ? sidebarWidth
+                  : undefined
+              }
+              foldCredits={isMobile && nothingMatches}
+              controlsContainer={
+                isMobile
+                  ? postOverMap
+                    ? postControlsSlot
+                    : controlsSlot
+                  : undefined
+              }
+              selectedId={selectedId}
+              onSelect={(id) => (id ? openPost(id, {}, true) : onMapTap())}
+              osm={osm.layer}
+              onContextMenu={isMobile ? undefined : setMapMenu}
+              legend={legendShown}
+              overlays={mapOverlays}
+            />
+            <MapContextMenu
+              at={mapMenu}
+              canModerate={canModerate}
+              onClose={() => setMapMenu(null)}
+              onCreate={() => {
+                if (!mapMenu) return;
+                const { point, zoom } = mapMenu;
+                const [place] = projectPlaces("", point);
+                openEditor(place ? { city: place } : undefined, {
+                  center: point,
+                  // Close enough to draw at, or as close as it already was.
+                  zoom: Math.min(Math.max(Math.round(zoom), 16), 18),
+                });
+              }}
+            />
+            {osm.on && (
+              <OsmPanel
+                review={osm}
+                keyboard={liveLayers.length === 0}
+                onCreate={openEditor}
+                onOpenProject={(id) => openPost(id)}
+                className="absolute top-3 left-1/2 z-[660] -translate-x-1/2 max-md:right-17 max-md:left-3 max-md:w-auto max-md:translate-x-0"
+              />
+            )}
+          </section>
+        </main>
+
+        {drawerShell}
+        {isMobile && (
+          <SheetLayer>
+            <Drawer
+              open
+              modal={false}
+              disablePointerDismissal
+              snapPoints={drawerSnapPoints}
+              snapToSequentialPoints
+              snapPoint={snapPoint}
+              onSnapPointChange={(point, details) => {
+                // Reject dismissal before Base UI restores the previous snap point.
+                // The navigation drawer always settles at its compact height.
+                if (point === null) {
+                  details.cancel();
+                  minimizeDrawer();
+                  return;
+                }
+                if (point === compactSnapPoint) {
+                  minimizeDrawer();
+                  return;
+                }
+                setSnapPoint(point);
+              }}
+              onOpenChange={(open, details) => {
+                if (open) return;
+                details.cancel();
+                // Escape belongs to the panel or dialog on top, if any.
+                if (
+                  details.reason === "escape-key" &&
+                  (liveLayers.length || document.querySelector("dialog[open]"))
+                )
+                  return;
+                minimizeDrawer();
+              }}
+            >
+              <DrawerVirtualKeyboardProvider>
+                <DrawerContent
+                  ref={drawerPopupRef}
+                  restOffset
+                  floating={snapPoint !== 1}
+                  onMotion={followDrawer}
+                  edge={
+                    <>
                       <div
+                        ref={controlsSlotNode}
+                        data-map-controls-slot=""
                         className={cn(
                           controlsSlotClasses,
-                          "pointer-events-none peer-data-covered:invisible peer-data-covered:opacity-0",
+                          "peer",
+                          // A panel covers the map, all but a sliver.
                           "group-data-map-covered/drawer-popup:invisible group-data-map-covered/drawer-popup:opacity-0",
                         )}
-                      >
-                        <button
-                          type="button"
-                          data-base-ui-swipe-ignore=""
-                          aria-label="Ingen treff med filtrene, nullstill filtre"
-                          className="pointer-events-auto absolute bottom-[19px] left-1/2 flex h-9 max-w-[calc(100%-7rem)] -translate-x-1/2 animate-panel-fade-in items-center gap-2 rounded-full border border-border bg-surface px-3.5 text-ui font-medium whitespace-nowrap text-ink shadow-popover transition-colors duration-150 hover:bg-surface-muted active:bg-surface-muted motion-reduce:transition-none"
-                          onClick={resetFilters}
+                      />
+                      {/* Nothing matches: a note riding the drawer's top edge,
+                      level with the controls and gone with them, the credits
+                      folded for it. Pressed, it clears the filters. */}
+                      {nothingMatches && (
+                        <div
+                          className={cn(
+                            controlsSlotClasses,
+                            "pointer-events-none peer-data-covered:invisible peer-data-covered:opacity-0",
+                            "group-data-map-covered/drawer-popup:invisible group-data-map-covered/drawer-popup:opacity-0",
+                          )}
                         >
-                          <SearchX
-                            size={16}
-                            className="shrink-0 text-muted"
-                            aria-hidden="true"
-                          />
-                          <span className="truncate">Ingen treff med filtrene</span>
-                          <X
-                            size={14}
-                            className="-mr-1 shrink-0 text-muted"
-                            aria-hidden="true"
-                          />
-                        </button>
-                      </div>
-                    )}
-                    {/* For the list's own rows. It stays while a panel is over
-                      it, so it is already there as a closing panel leaves. */}
-                    <ScrollFade shown={snapPoint === middleSnapPoint} />
-                  </>
-                }
-                data-explorer-drawer=""
-                data-panel-open={liveLayers.length > 0 || undefined}
-                data-map-covered={liveLayers.length > 0 || undefined}
-                viewportClassName={
-                  snapInstantly
-                    ? "transition-none"
-                    : meetQuickly
-                      ? "duration-340"
-                      : undefined
-                }
-                className={cn(
-                  explorerDrawerClasses,
-                  visibleBottomClasses,
-                  snapInstantly && "transition-none",
-                  meetQuickly && "duration-340",
-                  // Let Base UI swipe the drawer before its content starts scrolling,
-                  // unless the content is scrolled already (`useScrolledMark`).
-                  snapPoint !== 1 &&
-                    "[&_[data-drawer-scroll]:not([data-scrolled])]:overflow-y-hidden",
-                )}
-                contentClassName={cn(mobileDrawerInnerClasses, unselectable)}
-                initialFocus={false}
-                finalFocus={false}
-                onWheel={(event) => {
-                  if (
-                    snapPoint === 1 ||
-                    event.ctrlKey ||
-                    event.deltaY <= 4 ||
-                    Math.abs(event.deltaX) > Math.abs(event.deltaY) ||
-                    (event.target instanceof Element &&
-                      event.target.closest("[popover], dialog"))
-                  ) {
-                    return;
-                  }
-
-                  setSnapPoint(1);
-                }}
-                handle={
-                  <div className={gripStrip}>
-                    <button
-                      ref={drawerHandleRef}
-                      className={cn(
-                        gripTarget,
-                        "group/handle p-0",
-                        "transition-[color,opacity] duration-150 hover:text-accent active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100",
-                        "group-data-panel-open/drawer-popup:opacity-0",
+                          <button
+                            type="button"
+                            data-base-ui-swipe-ignore=""
+                            aria-label="Ingen treff med filtrene, nullstill filtre"
+                            className="pointer-events-auto absolute bottom-[19px] left-1/2 flex h-9 max-w-[calc(100%-7rem)] -translate-x-1/2 animate-panel-fade-in items-center gap-2 rounded-full border border-border bg-surface px-3.5 text-ui font-medium whitespace-nowrap text-ink shadow-popover transition-colors duration-150 hover:bg-surface-muted active:bg-surface-muted motion-reduce:transition-none"
+                            onClick={resetFilters}
+                          >
+                            <SearchX
+                              size={16}
+                              className="shrink-0 text-muted"
+                              aria-hidden="true"
+                            />
+                            <span className="truncate">
+                              Ingen treff med filtrene
+                            </span>
+                            <X
+                              size={14}
+                              className="-mr-1 shrink-0 text-muted"
+                              aria-hidden="true"
+                            />
+                          </button>
+                        </div>
                       )}
-                      aria-label={
-                        snapPoint === 1
-                          ? "Vis mer av kartet"
-                          : "Utvid prosjektlisten"
-                      }
-                      onClick={() =>
-                        snapPoint === 1 ? minimizeDrawer() : setSnapPoint(1)
-                      }
-                    >
-                      <DrawerGrip />
-                    </button>
-                  </div>
-                }
-              >
-                <DrawerTitle className="sr-only">
-                  Utforsk prosjekter
-                </DrawerTitle>
-                <DrawerDescription className="sr-only">
-                  Dra eller trykk på håndtaket for å endre høyden. Utforsk kart,
-                  prosjekter og dem du har lagret.
-                </DrawerDescription>
-                {drawerReady && drawerBody}
-              </DrawerContent>
-            </DrawerVirtualKeyboardProvider>
-          </Drawer>
-          {panelDrawers}
-        </SheetLayer>
-      )}
-      {panelShell}
-      {settingsOpen && user?.username && (
-        <AccountSettingsSheet
-          user={user}
-          onClose={() => setSettingsOpen(false)}
-          onSignedOut={() => signedOut()}
-        />
-      )}
-      {signOutOpen && (
-        <SignOutPrompt
-          mobile={isMobile}
-          onClose={() => setSignOutOpen(false)}
-          onSignedOut={signedOut}
-        />
-      )}
-    </div>
+                      {/* For the list's own rows. It stays while a panel is over
+                      it, so it is already there as a closing panel leaves. */}
+                      <ScrollFade shown={snapPoint === middleSnapPoint} />
+                    </>
+                  }
+                  data-explorer-drawer=""
+                  data-panel-open={liveLayers.length > 0 || undefined}
+                  data-map-covered={liveLayers.length > 0 || undefined}
+                  viewportClassName={
+                    snapInstantly
+                      ? "transition-none"
+                      : meetQuickly
+                        ? "duration-340"
+                        : undefined
+                  }
+                  className={cn(
+                    explorerDrawerClasses,
+                    visibleBottomClasses,
+                    snapInstantly && "transition-none",
+                    meetQuickly && "duration-340",
+                    // Let Base UI swipe the drawer before its content starts scrolling,
+                    // unless the content is scrolled already (`useScrolledMark`).
+                    snapPoint !== 1 &&
+                      "[&_[data-drawer-scroll]:not([data-scrolled])]:overflow-y-hidden",
+                  )}
+                  contentClassName={cn(mobileDrawerInnerClasses, unselectable)}
+                  initialFocus={false}
+                  finalFocus={false}
+                  onWheel={(event) => {
+                    if (
+                      snapPoint === 1 ||
+                      event.ctrlKey ||
+                      event.deltaY <= 4 ||
+                      Math.abs(event.deltaX) > Math.abs(event.deltaY) ||
+                      (event.target instanceof Element &&
+                        event.target.closest("[popover], dialog"))
+                    ) {
+                      return;
+                    }
+
+                    setSnapPoint(1);
+                  }}
+                  handle={
+                    <div className={gripStrip}>
+                      <button
+                        ref={drawerHandleRef}
+                        className={cn(
+                          gripTarget,
+                          "group/handle p-0",
+                          "transition-[color,opacity] duration-150 hover:text-accent active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100",
+                          "group-data-panel-open/drawer-popup:opacity-0",
+                        )}
+                        aria-label={
+                          snapPoint === 1
+                            ? "Vis mer av kartet"
+                            : "Utvid prosjektlisten"
+                        }
+                        onClick={() =>
+                          snapPoint === 1 ? minimizeDrawer() : setSnapPoint(1)
+                        }
+                      >
+                        <DrawerGrip />
+                      </button>
+                    </div>
+                  }
+                >
+                  <DrawerTitle className="sr-only">
+                    Utforsk prosjekter
+                  </DrawerTitle>
+                  <DrawerDescription className="sr-only">
+                    Dra eller trykk på håndtaket for å endre høyden. Utforsk
+                    kart, prosjekter og dem du har lagret.
+                  </DrawerDescription>
+                  {drawerReady && drawerBody}
+                </DrawerContent>
+              </DrawerVirtualKeyboardProvider>
+            </Drawer>
+            {panelDrawers}
+          </SheetLayer>
+        )}
+        {panelShell}
+        {settingsOpen && user?.username && (
+          <AccountSettingsSheet
+            user={user}
+            onClose={() => setSettingsOpen(false)}
+            onSignedOut={() => signedOut()}
+          />
+        )}
+        {signOutOpen && (
+          <SignOutPrompt
+            mobile={isMobile}
+            onClose={() => setSignOutOpen(false)}
+            onSignedOut={signedOut}
+          />
+        )}
+      </div>
     </DrawSurfaceContext>
   );
 });
