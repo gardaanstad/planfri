@@ -8,7 +8,7 @@ import {
   type RefObject,
 } from "react";
 import { flushSync } from "react-dom";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Search, X } from "lucide-react";
 import { cn } from "../lib/cn";
 import { reducedMotion, sheetLeave } from "../lib/media";
 import { useBackgroundPush } from "../lib/background-push";
@@ -27,6 +27,16 @@ export type FilterSection = {
   summary: ReactNode;
   /** Its options, shown once its row is chosen. */
   content: ReactNode;
+};
+
+/** A search field over the sections (phones, where it has no room of its own). */
+export type FilterSearch = {
+  value: string;
+  onChange: (value: string) => void;
+  /** On Enter, once the sheet has closed. */
+  onSubmit?: () => void;
+  /** Focused as the sheet opens, rather than the sheet itself. */
+  focus?: boolean;
 };
 
 // Rows and options move in the sheets' own easing.
@@ -227,16 +237,72 @@ function FilterRows({
   });
 }
 
+/** The sheet's search field, in the drawers' pill. */
+function SearchField({
+  search,
+  onSubmit,
+}: {
+  search: FilterSearch;
+  onSubmit: () => void;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  return (
+    <div
+      className={cn(
+        "flex h-11 items-center gap-2 rounded-full border border-border bg-surface pl-3.5 text-muted",
+        "transition-[border-color,box-shadow] duration-150 focus-within:border-accent/50 focus-within:ring-3 focus-within:ring-accent/10 motion-reduce:transition-none",
+        !search.value && "pr-3.5",
+      )}
+      data-search-field=""
+    >
+      <Search className="shrink-0" size={17} aria-hidden="true" />
+      <input
+        ref={input}
+        className="h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-base text-ink outline-none shadow-none placeholder:truncate placeholder:text-sm placeholder:text-muted"
+        id="project-search"
+        enterKeyHint="search"
+        autoComplete="off"
+        value={search.value}
+        onChange={(event) => search.onChange(event.target.value)}
+        placeholder="Søk prosjekt eller sted"
+        aria-label="Søk etter prosjekt eller sted"
+        onKeyDown={(event) => {
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          onSubmit();
+        }}
+      />
+      {search.value && (
+        <button
+          type="button"
+          className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted [-webkit-tap-highlight-color:transparent]"
+          aria-label="Tøm søk"
+          data-press=""
+          onClick={() => {
+            search.onChange("");
+            input.current?.focus({ preventScroll: true });
+          }}
+        >
+          <X size={16} aria-hidden="true" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function FilterSheet({
   label,
   title,
   sections,
+  search,
   onClose,
 }: {
   label: string;
   /** Shown at its top, under the handle. */
   title: string;
   sections: FilterSection[];
+  /** A search field between the title and the sections. */
+  search?: FilterSearch;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -253,16 +319,22 @@ export default function FilterSheet({
   const trigger = useRef<Element | null>(null);
   const closing = useRef(false);
   const releasePush = useBackgroundPush(true);
+  // Read once, as it opens.
+  const [focusSearch] = useState(!!search?.focus);
 
   useLayoutEffect(() => {
     const dialog = ref.current;
     trigger.current = document.activeElement;
     dialog?.showModal();
-    if (openedByKeyboard(trigger.current))
+    if (focusSearch)
+      dialog
+        ?.querySelector<HTMLElement>("#project-search")
+        ?.focus({ preventScroll: true });
+    else if (openedByKeyboard(trigger.current))
       dialog?.querySelector<HTMLElement>("[data-filter-section]")?.focus();
     else dialog?.focus();
     return () => dialog?.close();
-  }, []);
+  }, [focusSearch]);
 
   useSwipeDismiss({
     enabled: true,
@@ -271,7 +343,7 @@ export default function FilterSheet({
     onDismiss: () => close(false),
   });
 
-  function close(animate = true) {
+  function close(animate = true, after?: () => void) {
     const dialog = ref.current;
     const panel = sheet.current;
     if (closing.current) return;
@@ -283,6 +355,7 @@ export default function FilterSheet({
       if (target instanceof HTMLElement && target.isConnected)
         target.focus({ preventScroll: true });
       onClose();
+      after?.();
     };
     if (!dialog || !panel || !animate || reducedMotion()) return done();
     const out = panel.animate(
@@ -344,6 +417,14 @@ export default function FilterSheet({
               {title}
             </span>
           </div>
+          {search && (
+            <div className="shrink-0 px-4 pb-2">
+              <SearchField
+                search={search}
+                onSubmit={() => close(true, search.onSubmit)}
+              />
+            </div>
+          )}
           <FilterRows
             sections={sections}
             active={active}

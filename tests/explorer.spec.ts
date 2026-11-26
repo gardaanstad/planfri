@@ -363,7 +363,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     expect(await firstMoveCancelled(gallery, 12, 2)).toBe(true);
   });
 
-  test("the tabs, the order and the views share a line; views come from a sheet", async ({
+  test("the tabs share a line with the filters and place, the count with the order and views; views come from a sheet", async ({
     page,
   }) => {
     // Zoomed in on central Oslo: the count names the view and Oslo.
@@ -383,23 +383,41 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     const sort = page.getByRole("button", { name: /^Sorter prosjekter:/ });
     const tabs = page.getByRole("navigation", { name: "Liste" });
     const nytt = tabs.getByRole("button", { name: /^Nytt/ });
+    const filters = page.getByRole("region", {
+      name: "Filtrer prosjekter",
+      exact: true,
+    });
+    const filterButton = filters.getByRole("button", {
+      name: "Filtre",
+      exact: true,
+    });
+    const placeButton = filters.getByRole("button", { name: /^Sted/ });
 
-    // The tabs, the order and the views share one line; the count is below.
-    const [viewsBox, sortBox, nyttBox, countBox] = await Promise.all([
-      views.boundingBox(),
-      sort.boundingBox(),
-      nytt.boundingBox(),
-      inOslo.boundingBox(),
-    ]);
-    const middle = (box: { y: number; height: number }) =>
-      box.y + box.height / 2;
-    expect(Math.abs(viewsBox!.y - sortBox!.y)).toBeLessThan(1);
-    expect(Math.abs(middle(nyttBox!) - middle(sortBox!))).toBeLessThan(2);
-    expect(nyttBox!.x + nyttBox!.width).toBeLessThanOrEqual(sortBox!.x);
-    expect(countBox!.y).toBeGreaterThan(sortBox!.y + sortBox!.height);
+    // The tabs, then the filters and the place at the line's end; the
+    // count below, the order and the views at its end.
+    const [viewsBox, sortBox, nyttBox, countBox, filterBox, placeBox, listBox] =
+      await Promise.all(
+        [views, sort, nytt, inOslo, filterButton, placeButton, list].map(
+          (locator) => locator.boundingBox(),
+        ),
+      );
+    const middle = (box: { y: number; height: number } | null) =>
+      box!.y + box!.height / 2;
+    const right = (box: { x: number; width: number } | null) =>
+      box!.x + box!.width;
+    expect(Math.abs(middle(filterBox) - middle(nyttBox))).toBeLessThan(2);
+    expect(Math.abs(middle(placeBox) - middle(nyttBox))).toBeLessThan(2);
+    expect(right(nyttBox)).toBeLessThanOrEqual(filterBox!.x);
+    expect(right(filterBox)).toBeLessThanOrEqual(placeBox!.x + 1);
+    expect(right(listBox) - right(placeBox)).toBeLessThan(18);
+    expect(Math.abs(middle(viewsBox) - middle(sortBox))).toBeLessThan(1);
+    expect(Math.abs(middle(countBox) - middle(sortBox))).toBeLessThan(2);
+    expect(right(countBox)).toBeLessThanOrEqual(sortBox!.x);
+    expect(sortBox!.y).toBeGreaterThan(nyttBox!.y + nyttBox!.height - 1);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(320);
+    await shot(page, "mobile-list-rows");
 
     // The sheet lists the card layouts.
     await expect(async () => {
@@ -1234,14 +1252,14 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       page.getByRole("button", { name: "Utvid prosjektlisten", exact: true }),
     );
     await expectDrawerHeight(page, 124 / viewport.height);
-    await filters
-      .getByRole("button", { name: "Åpne søk", exact: true })
-      .click();
-    const search = page.getByRole("textbox", {
+    // The search sits in the same sheet, over the sections.
+    await filterButton.click();
+    const search = sheet.getByRole("textbox", {
       name: "Søk etter prosjekt eller sted",
     });
-    await expect(search).toBeFocused();
-    await expectDrawerHeight(page, 1);
+    await expect(search).toBeVisible();
+    const searchBox = await search.boundingBox();
+    expect(searchBox!.y).toBeLessThan((await categoryRow.boundingBox())!.y);
     await shot(page, "mobile-search-open");
     await search.fill("Ingen slike prosjekter");
     await expect(
@@ -1251,23 +1269,24 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     ).toBeVisible();
     await search.fill(project.title);
     await search.press("Enter");
+    await expect(sheet).toBeHidden();
     await expect(page).toHaveURL(atProject);
-    // Over the map, the list come down behind it.
     await expectDrawerHeight(page, 0.58, "project");
-    await expectDrawerHeight(page, 0.58);
     await page
       .getByRole("button", { name: "Lukk prosjekt", exact: true })
       .click();
-    await page.getByRole("button", { name: "Lukk søk", exact: true }).click();
-    await expect(search).toBeHidden();
-    await expect(
-      filters.getByRole("button", { name: "Åpne søk", exact: true }),
-    ).toBeFocused();
+    // The filters' button marks the search kept behind it.
+    await expect(filterButton).toHaveAttribute("data-active");
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.keyboard.press("/");
     await expect(search).toBeFocused();
+    await expect(search).toHaveValue(project.title);
+    await sheet.getByRole("button", { name: "Tøm søk", exact: true }).click();
+    await expect(search).toHaveValue("");
+    await expect(search).toBeFocused();
     await search.press("Escape");
-    await expect(search).toBeHidden();
+    await expect(sheet).toBeHidden();
+    await expect(filterButton).not.toHaveAttribute("data-active");
     await expect
       .poll(() =>
         page.evaluate(

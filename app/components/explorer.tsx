@@ -175,6 +175,13 @@ const densityChoices = densityOptions.map(({ value, label, Icon }) => ({
   icon: <Icon size={18} aria-hidden="true" />,
 }));
 const pickDensity = (value: string) => storeDensity(value as ListDensity);
+// Phones: the view's trigger shows the chosen view's symbol, at the sort's size.
+const densityIcons = Object.fromEntries(
+  densityOptions.map(({ value, Icon }) => [
+    value,
+    <Icon key={value} size={14} aria-hidden="true" />,
+  ]),
+) as Record<ListDensity, ReactNode>;
 const statusOptions = statusOrder.map((value) => ({
   value,
   label: statuses[value].label,
@@ -678,8 +685,11 @@ export default memo(function Explorer({
     parseExploreState(new URLSearchParams(initialSearch)),
   );
   const [query, setQuery] = useState(initial.query);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  // Phones: the filter sheet, which holds the search too, opened on it
+  // when asked for the search.
+  const [filterSheetOpen, setFilterSheetOpen] = useState<boolean | "search">(
+    false,
+  );
   const [status, setStatus] = useState<string[]>(initial.status);
   const [category, setCategory] = useState<string[]>(initial.category);
   const [sort, setSort] = useState(initial.sort);
@@ -784,7 +794,6 @@ export default memo(function Explorer({
   const editorClose = useRef<(() => void) | null>(null);
   const editorDirty = useRef<(() => boolean) | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const searchTriggerRef = useRef<HTMLButtonElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLElement>(null);
   const listContentRef = useRef<HTMLDivElement>(null);
@@ -860,23 +869,16 @@ export default memo(function Explorer({
 
   const openSearch = useCallback(() => {
     if (postId || profileName || modal || savedOnly || suggestionsOpen) return;
-    // Focus during the tap so mobile browsers also open the keyboard.
-    flushSync(() => {
-      // Phones open the field out of its button; desktop always shows it.
-      if (isMobile) setSearchOpen(true);
-      // A collapsed list comes back to be listedProjects.
-      else if (storedCollapsed()) storeCollapsed(false);
-    });
+    // Phones search in the filter sheet.
+    if (isMobile) return setFilterSheetOpen("search");
+    // A collapsed list comes back to be listedProjects.
+    if (storedCollapsed()) flushSync(() => storeCollapsed(false));
     searchRef.current?.focus({ preventScroll: true });
   }, [isMobile, modal, postId, profileName, savedOnly, suggestionsOpen]);
 
   function closeSearch() {
-    flushSync(() => {
-      setSearchOpen(false);
-      setQuery("");
-    });
-    if (isMobile) searchTriggerRef.current?.focus({ preventScroll: true });
-    else searchRef.current?.blur();
+    setQuery("");
+    searchRef.current?.blur();
   }
 
   const { syncUrl, syncSoon, withSearch } = useUrlSync({
@@ -1495,7 +1497,6 @@ export default memo(function Explorer({
         trigger.focus({ preventScroll: true });
       else if (isMobile)
         drawerHandleRef.current?.focus({ preventScroll: true });
-      else searchTriggerRef.current?.focus({ preventScroll: true });
     });
     if (state.projectOverlay) {
       // The history step leaves the map view as well (see onPopState).
@@ -1592,7 +1593,6 @@ export default memo(function Explorer({
   const filtersChanged = statusChanged || category.length > 0 || !!needle;
   function resetFilters() {
     setQuery("");
-    setSearchOpen(false);
     setStatus(defaultStatus);
     setCategory([]);
   }
@@ -1673,89 +1673,11 @@ export default memo(function Explorer({
       )}
     </div>
   );
-  // Phones: one field that opens out of its button over the filters.
-  const search = (
-    <div
-      className={cn(
-        "flex h-full w-full min-w-0 items-center gap-2 rounded-full border border-border bg-surface pl-3.5 text-muted",
-        isMobile &&
-          "transition-[border-color,box-shadow] duration-150 focus-within:border-accent/50 focus-within:ring-3 focus-within:ring-accent/10 motion-reduce:transition-none",
-      )}
-      data-base-ui-swipe-ignore
-      onBlur={(event) => {
-        if (isMobile || event.currentTarget.contains(event.relatedTarget))
-          return;
-        setSearchOpen(false);
-      }}
-    >
-      <Search className="shrink-0" size={isMobile ? 17 : 15} />
-      <input
-        ref={searchRef}
-        className={cn(
-          "h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-ink outline-none shadow-none placeholder:truncate placeholder:text-muted",
-          isMobile ? "text-base placeholder:text-sm" : "text-ui",
-        )}
-        id="project-search"
-        enterKeyHint="search"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        onFocus={() => {
-          if (isMobile) setSnapPoint(1);
-        }}
-        placeholder="Søk prosjekt eller sted"
-        aria-label="Søk etter prosjekt eller sted"
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.preventDefault();
-            event.stopPropagation();
-            closeSearch();
-          }
-          if (event.key === "Enter" && listedProjects.length === 1)
-            openPost(listedProjects[0].id, {}, true);
-        }}
-      />
-      <button
-        type="button"
-        className={cn(
-          compactIconAction,
-          "shrink-0 rounded-full text-muted hover:text-ink",
-          isMobile ? "size-11" : "size-8.5",
-        )}
-        aria-label="Lukk søk"
-        onClick={closeSearch}
-      >
-        <X size={16} />
-      </button>
-    </div>
-  );
-  const searchActive = !searchOpen && !!needle;
-  const searchButton = (
-    <button
-      ref={searchTriggerRef}
-      type="button"
-      className={cn(
-        // Hover tints and colours at once, as the sort beside it does.
-        "relative flex shrink-0 items-center justify-center text-muted",
-        isMobile
-          ? "size-11 rounded-full [-webkit-tap-highlight-color:transparent]"
-          : [
-              "size-9 rounded-lg hover:bg-ink/[0.05] hover:text-ink",
-              searchActive && "text-accent hover:text-accent-strong",
-            ],
-      )}
-      aria-label="Åpne søk"
-      aria-expanded={searchOpen}
-      aria-controls="project-search-field"
-      data-active={searchActive || undefined}
-      data-press=""
-      onClick={openSearch}
-    >
-      <Search size={isMobile ? 19 : 16} aria-hidden="true" />
-    </button>
-  );
   // Category and status gather in one sheet (phones) or popover, behind
-  // this button.
-  const filtersSet = statusChanged || category.length > 0;
+  // this button; on phones, the search too.
+  const filtersSet = isMobile
+    ? filtersChanged
+    : statusChanged || category.length > 0;
   const filterButton = (
     <button
       ref={filterButtonRef}
@@ -1770,7 +1692,7 @@ export default memo(function Explorer({
       )}
       aria-label="Filtre"
       aria-haspopup="dialog"
-      aria-expanded={filterSheetOpen}
+      aria-expanded={!!filterSheetOpen}
       data-active={filtersSet || undefined}
       data-press=""
       data-tooltip={isMobile ? undefined : "Filtre"}
@@ -1790,53 +1712,6 @@ export default memo(function Explorer({
       )}
     </button>
   );
-  // The filters fade as the field opens out of the button at their end.
-  const filterBar = (filters: ReactNode) => (
-    <section
-      className={cn(
-        "relative",
-        isMobile
-          ? "-mx-2 mt-1.5 h-11 [--search-button:2.75rem]"
-          : "mb-1 h-9 [--search-button:2.25rem]",
-      )}
-      aria-label="Filtrer prosjekter"
-    >
-      <div
-        className={cn(
-          "flex h-full min-w-0 items-center transition-opacity duration-200 ease-out motion-reduce:transition-none",
-          searchOpen ? "pointer-events-none opacity-0" : "opacity-100",
-        )}
-        inert={searchOpen}
-        aria-hidden={searchOpen || undefined}
-      >
-        {filters}
-        <div
-          // Desktop: the buttons, tinted on hover, end on the list's edge.
-          className={cn(
-            "ml-auto flex shrink-0 items-center pl-1",
-            !isMobile && "gap-0.5",
-          )}
-        >
-          {filterButton}
-          {searchButton}
-        </div>
-      </div>
-      <div
-        id="project-search-field"
-        className={cn(
-          "absolute inset-0 z-20 transition-[clip-path,opacity] duration-250 ease-out-soft motion-reduce:transition-none",
-          searchOpen
-            ? "opacity-100 [clip-path:inset(-4px_round_9999px)]"
-            : "pointer-events-none opacity-0 [clip-path:inset(0_0_0_calc(100%_-_var(--search-button))_round_9999px)]",
-        )}
-        inert={!searchOpen}
-        aria-hidden={!searchOpen}
-      >
-        {search}
-      </div>
-    </section>
-  );
-
   // The main cities, then other cities and counties with projects, A–Å;
   // `PlaceSelect` puts those pinned above them.
   const placeOptions = useMemo(() => {
@@ -1873,20 +1748,28 @@ export default memo(function Explorer({
     if (next.length === 0) return;
     setStatus(next);
   }, []);
-  const mobileFilters = filterBar(
-    <LivePlaceSelect
-      live={livePlace}
-      label="Sted"
-      goTo
-      place={place}
-      fallback={placeFallback}
-      onChange={choosePlace}
-      className={cn(
-        inlineChoiceClasses,
-        "[&_[data-slot=choice-trigger]>span:nth-of-type(2)]:hidden",
-      )}
-      options={placeOptions}
-    />,
+  // Phones: at the end of the tabs' line, the filters, then the place, its
+  // chevron on the list's edge.
+  const mobileFilters = (
+    <section
+      className="-mr-2 ml-auto flex min-w-0 items-center"
+      aria-label="Filtrer prosjekter"
+    >
+      {filterButton}
+      <LivePlaceSelect
+        live={livePlace}
+        label="Sted"
+        goTo
+        place={place}
+        fallback={placeFallback}
+        onChange={choosePlace}
+        className={cn(
+          inlineChoiceClasses,
+          "[&_[data-slot=choice-trigger]>span:nth-of-type(2)]:hidden",
+        )}
+        options={placeOptions}
+      />
+    </section>
   );
   const shownStatuses = statusOrder.filter((value) =>
     statusValue.includes(value),
@@ -1936,6 +1819,18 @@ export default memo(function Explorer({
       title="Filtrer prosjekter"
       onClose={() => setFilterSheetOpen(false)}
       sections={filterSections}
+      search={{
+        value: query,
+        onChange: setQuery,
+        focus: filterSheetOpen === "search",
+        onSubmit: () => {
+          // One hit opens; more show in the list, raised to show them.
+          if (listedProjects.length === 1)
+            openPost(listedProjects[0].id, {}, true);
+          else if (snapPoint === compactSnapPoint)
+            setSnapPoint(middleSnapPoint);
+        },
+      }}
     />
   );
   const filterPopover = (
@@ -1960,8 +1855,8 @@ export default memo(function Explorer({
         "mr-0",
         sortLabel,
         outsideHits > 0 ? sortLabelFolded : sortLabelNarrow,
-        // Phones: beside the view button, a narrow list keeps the icon alone.
-        "max-md:@max-[360px]/list:[&_[data-slot=choice-trigger]>span]:sr-only",
+        // Phones: its icon alone, as the view button's beside it.
+        "max-md:[&_[data-slot=choice-trigger]>span]:sr-only",
       )}
       icon={sortIcon}
       triggerTooltip={isMobile ? undefined : "Sorter prosjekter"}
@@ -1971,12 +1866,15 @@ export default memo(function Explorer({
     />
   );
   // Phones: one button naming the view, its views in a sheet.
+  // Phones: one button showing the view's symbol, its views in a sheet,
+  // which name them.
   const densityMenu = (
     <ChoiceSelect
       label="Visning"
       value={density}
       onChange={pickDensity}
-      className={sortChoice}
+      icon={densityIcons[density]}
+      className={cn(sortChoice, "[&_[data-slot=choice-trigger]>span]:sr-only")}
       options={densityChoices}
     />
   );
@@ -2338,34 +2236,46 @@ export default memo(function Explorer({
           "@container/list flex min-h-full flex-col pb-5 max-md:px-4.5 max-md:pt-0 max-md:pb-6 md:px-gutter-scroll",
         )}
       >
-        {isMobile ? mobileFilters : desktopFilters}
-        {isMobile ? filterSheet : filterPopover}
-        {/* The list's tabs, with the projects' order and layout beside them. */}
-        <div className="flex min-h-12 items-stretch justify-between gap-x-3 border-b border-border max-md:min-h-11">
+        {isMobile ? filterSheet : desktopFilters}
+        {!isMobile && filterPopover}
+        {/* The list's tabs, with the projects' order and layout beside them
+            on desktop, and the filters and place on phones. */}
+        <div className="flex min-h-12 items-stretch justify-between gap-x-3 border-b border-border max-md:min-h-11 max-md:gap-x-2">
           <h1 className="sr-only">Prosjekter</h1>
-          <nav className="flex items-stretch gap-5" aria-label="Liste">
+          <nav className="flex shrink-0 items-stretch gap-5" aria-label="Liste">
             {listTabs}
           </nav>
-          <div className="ml-auto flex shrink-0 items-center gap-1.5 max-md:gap-0">
-            {/* "Nytt" has its own order, and rows of its own. */}
-            {!feedOn && sortFilter}
-            {!feedOn && (isMobile ? densityMenu : densitySwitch)}
-          </div>
+          {isMobile ? (
+            mobileFilters
+          ) : (
+            <div className="ml-auto flex shrink-0 items-center gap-1.5">
+              {/* "Nytt" has its own order, and rows of its own. */}
+              {!feedOn && sortFilter}
+              {!feedOn && densitySwitch}
+            </div>
+          )}
         </div>
-        {/* What the list holds, and a way back from the filters. */}
+        {/* What the list holds, and a way back from the filters; on phones,
+            the order and layout at its end. */}
         <div
-          className="flex min-h-9 items-center justify-between gap-x-3 pt-2 text-ui text-muted tabular-nums max-md:-mb-1"
+          className="flex min-h-9 items-center justify-between gap-x-3 pt-2 text-ui text-muted tabular-nums max-md:-mb-1 max-md:min-h-11 max-md:gap-x-2 max-md:pt-0"
           data-list-count=""
         >
           {listCount}
-          {filtersChanged && (
-            <button
-              type="button"
-              className="relative shrink-0 text-xs whitespace-nowrap text-muted underline-offset-3 hover:text-ink hover:underline pointer-coarse:after:absolute pointer-coarse:after:-inset-2"
-              onClick={resetFilters}
-            >
-              Nullstill filtre
-            </button>
+          {(filtersChanged || (isMobile && !feedOn)) && (
+            <div className="flex shrink-0 items-center">
+              {filtersChanged && (
+                <button
+                  type="button"
+                  className="relative shrink-0 text-xs whitespace-nowrap text-muted underline-offset-3 hover:text-ink hover:underline pointer-coarse:after:absolute pointer-coarse:after:-inset-2 max-md:mr-1"
+                  onClick={resetFilters}
+                >
+                  Nullstill filtre
+                </button>
+              )}
+              {isMobile && !feedOn && sortFilter}
+              {isMobile && !feedOn && densityMenu}
+            </div>
           )}
         </div>
         {!feedOn && !searching && <WelcomeRow />}
