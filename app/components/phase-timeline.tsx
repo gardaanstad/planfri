@@ -3,6 +3,8 @@ import { X } from "lucide-react";
 import {
   type CSSProperties,
   Fragment,
+  type HTMLAttributes,
+  type ReactNode,
   useEffectEvent,
   useLayoutEffect,
   useRef,
@@ -10,37 +12,33 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import {
-  finishYear,
+  dateTime,
+  formatEventDate,
   formatPhaseDate,
-  type Milestone,
+  isPost,
   type Project,
+  projectEvents,
   projectPhases,
+  projectPosts,
+  type ProjectUpdate,
   type Status,
 } from "../lib/data";
 import { cn } from "../lib/cn";
 import {
-  dateTime,
+  phaseDate,
   phaseTrack,
   type TrackPlace,
   trackPlace,
   trackProgress,
 } from "../lib/phase-track";
+import { phaseEntryId, phaseLabels } from "../lib/project-timeline";
 import { statusTone } from "../lib/ui";
 import { useNow } from "./relative-time";
 
-// The timeline's own words: short, so four fit side by side on a phone.
-const phaseLabels: Record<Status, string> = {
-  proposed: "Foreslått",
-  planned: "Planstart",
-  construction: "Byggestart",
-  completed: "Ferdig",
-};
-
 /** When each phase began, or for "Ferdig" the year it's done or due. */
-function phaseDate(project: Project, status: Status) {
-  if (status === "completed") return finishYear(project);
-  const date = project.phaseDates?.[status];
-  return date ? formatPhaseDate(date) : "";
+function shownPhaseDate(project: Project, status: Status) {
+  const date = phaseDate(project, status);
+  return date && formatPhaseDate(date);
 }
 
 // What the fill of the stretch under way measures, for screen readers.
@@ -62,15 +60,18 @@ export type TimelineEditing = {
   setStatus: (phase: Status) => void;
   /** Takes a phase off the line; none for Under bygging. */
   remove: (phase: Status) => void;
-  /** The draft's milestones, their dates as typed. */
-  milestones: Milestone[];
-  milestoneInvalid: (milestone: Milestone) => boolean;
+  /**
+   * The draft's events, their dates as typed. Its posts show on the line
+   * too, as they are: an edit never changes one.
+   */
+  milestones: ProjectUpdate[];
+  milestoneInvalid: (milestone: ProjectUpdate) => boolean;
   /**
    * The stored date a milestone is placed by: while its date is being typed,
    * the one it last read clearly as.
    */
-  placedBy: (milestone: Milestone) => string | undefined;
-  changeMilestone: (id: string, patch: Partial<Milestone>) => void;
+  placedBy: (milestone: ProjectUpdate) => string | undefined;
+  changeMilestone: (id: string, patch: Partial<ProjectUpdate>) => void;
   removeMilestone: (id: string) => void;
   /** Adds a milestone, dated as typed where the line was pressed, if it can be told. */
   addMilestone: (date?: string) => void;
@@ -88,8 +89,16 @@ const rowTop = (row: number) => labelTop + row * (rowHeight + rowGap);
 const labelGap = 8;
 // Below the dot on the line, where a leader to a lower label starts.
 const leaderTop = 9;
+// Least room between two dots, centre to centre, in px: enough for a
+// milestone's beside the ring of the phase under way.
+const dotGap = 12;
 
 type Layout = {
+  /**
+   * How far each milestone moves from where its date puts it, in px, so
+   * that dots close together each show.
+   */
+  nudges: Record<string, number>;
   /** Each milestone's row, and how far its label shifts to stay inside. */
   labels: Record<string, { row: number; shift: number }>;
   /** Placed by its milestone's dot, so it stays under it whatever the zoom. */
@@ -97,8 +106,63 @@ type Layout = {
 };
 
 /**
- * Sets each milestone's label in the first row where it fits beside the
- * others, kept within the line's ends. One that can't sit by its dot hangs
+ * Where dots at `xs` show, at least `dotGap` apart: those too close spread
+ * out evenly around where they'd sit, kept within `0` to `width`. A fixed
+ * dot (a phase's) never moves; those near it move aside, to whichever side
+ * has the room.
+ */
+function spread(
+  xs: { id: string; x: number; fixed?: boolean }[],
+  width: number,
+) {
+  type Dot = (typeof xs)[number];
+  /** A run of dots `dotGap` apart, in order, from `at`. */
+  type Run = { dots: Dot[]; at: number };
+  const span = (dots: Dot[]) => (dots.length - 1) * dotGap;
+  const lay = (dots: Dot[]): Run => {
+    const last = Math.max(width - span(dots), 0);
+    const fixed = dots.findIndex((dot) => dot.fixed);
+    if (fixed < 0) {
+      const mean = dots.reduce((sum, dot) => sum + dot.x, 0) / dots.length;
+      return { dots, at: Math.min(Math.max(mean - span(dots) / 2, 0), last) };
+    }
+    // As many go before the fixed dot as fit and its date allows.
+    const { x } = dots[fixed];
+    const before = Math.min(
+      Math.max(fixed, Math.ceil((x - last) / dotGap)),
+      Math.floor(x / dotGap),
+      dots.length - 1,
+    );
+    const others = dots.filter((_, index) => index !== fixed);
+    return {
+      dots: [...others.slice(0, before), dots[fixed], ...others.slice(before)],
+      at: x - before * dotGap,
+    };
+  };
+  const runs: Run[] = [];
+  for (const dot of [...xs].sort((a, b) => a.x - b.x)) {
+    let run = lay([dot]);
+    // Joins the run before it while they'd overlap, which may then reach
+    // back to the one before that.
+    while (runs.length) {
+      const before = runs.at(-1)!;
+      if (before.at + span(before.dots) + dotGap <= run.at) break;
+      runs.pop();
+      run = lay([...before.dots, ...run.dots].sort((a, b) => a.x - b.x));
+    }
+    runs.push(run);
+  }
+  return new Map(
+    runs.flatMap((run) =>
+      run.dots.map(({ id }, order) => [id, run.at + order * dotGap] as const),
+    ),
+  );
+}
+
+/**
+ * Spreads out milestones whose dots would meet, then sets each one's label
+ * in the first row where it fits beside the others, kept within the line's
+ * ends. One that can't sit by its dot hangs
  * from it by a leader, broken where it passes behind a label.
  */
 function measure(list: HTMLElement): Layout {
@@ -115,21 +179,41 @@ function measure(list: HTMLElement): Layout {
       relative(element.getBoundingClientRect()),
     ),
   ];
+  // Where each dot's date puts it, less how far it was last moved.
+  const dots = [
+    ...list.querySelectorAll<HTMLElement>("[data-milestone-dot]"),
+  ].map((dot) => {
+    const rect = dot.getBoundingClientRect();
+    return {
+      id: dot.dataset.milestoneDot!,
+      x:
+        (rect.left + rect.right) / 2 -
+        box.left -
+        Number(dot.dataset.nudge ?? 0),
+    };
+  });
+  const steps = [
+    ...list.querySelectorAll<HTMLElement>("[data-phase-dot]"),
+  ].map((dot) => {
+    const rect = dot.getBoundingClientRect();
+    return {
+      id: `phase:${dot.dataset.phaseDot}`,
+      x: (rect.left + rect.right) / 2 - box.left,
+      fixed: true,
+    };
+  });
+  const placed = spread([...steps, ...dots], box.width);
+  const nudges = Object.fromEntries(
+    dots.map(({ id, x }) => [id, Math.round(placed.get(id)! - x)]),
+  );
   const milestones = [
     ...list.querySelectorAll<HTMLElement>("[data-milestone-label]"),
   ].map((label) => {
     const id = label.dataset.milestoneLabel!;
-    const dot = list
-      .querySelector(`[data-milestone-dot="${CSS.escape(id)}"]`)!
-      .getBoundingClientRect();
-    return {
-      id,
-      x: (dot.left + dot.right) / 2 - box.left,
-      width: label.offsetWidth,
-    };
+    return { id, x: placed.get(id)!, width: label.offsetWidth };
   });
   milestones.sort((a, b) => a.x - b.x);
-  const layout: Layout = { labels: {}, leaders: [] };
+  const layout: Layout = { nudges, labels: {}, leaders: [] };
   const hanging: { id: string; x: number; row: number }[] = [];
   for (const { id, x, width } of milestones) {
     const centred = x - width / 2;
@@ -185,27 +269,34 @@ const inlineInput = cn(
 /**
  * The phases a project passes through, on a line across the panel: those
  * behind it quiet, the one it's in marked in its status colour, those ahead
- * hollow. Each step carries its date when it has one, and milestones sit
- * where theirs fall between them.
+ * hollow. Each step carries its date when it has one, and its events sit as
+ * milestones where theirs fall between them: named, or for a post a dot.
  *
  * The stretches it has passed are drawn solid. Each step sits where its date
  * falls between its neighbours' (see `phaseTrack`). When the stretch it's in
  * has both ends dated (a start of building and a year it's due, say), it
  * fills in the phase's colour as far as time has come.
  *
- * With `edit`, the line is its own editor: dates are typed where they show,
- * a step's dot takes it off the line, and "Nå" above a step makes it the
- * phase the project is in.
+ * With `open`, a step or milestone that Oppdateringer tells of opens it
+ * there. With `edit`, the line is its own editor: dates are typed where they
+ * show, a step's dot takes it off the line, and "Nå" above a step makes it
+ * the phase the project is in.
  */
 export default function PhaseTimeline({
   project,
   label = "Fase",
   className = "mt-3",
+  open,
   edit,
 }: {
   project: Project;
   label?: string;
   className?: string;
+  open?: {
+    /** The entries Oppdateringer lists (see `timelineEntries`). */
+    ids: ReadonlySet<string>;
+    onOpen: (id: string) => void;
+  };
   edit?: TimelineEditing;
 }) {
   const now = useNow();
@@ -218,14 +309,20 @@ export default function PhaseTimeline({
       ? edit.undatable(status)
         ? ""
         : edit.value(status).padEnd(5, "0")
-      : phaseDate(project, status),
+      : shownPhaseDate(project, status),
   }));
   const last = phases.length - 1;
-  // Milestones, placed by their dates. While one's date is being typed it
-  // stays where it last read clearly.
-  const milestones = edit?.milestones ?? project.milestones ?? [];
+  // Events, placed by their dates. While one's date is being typed it stays
+  // where it last read clearly.
+  const milestones = edit
+    ? [...edit.milestones, ...projectPosts(project)]
+    : projectEvents(project);
+  /** Editing, the editor for an event; posts stay as they are. */
+  const editorOf = (milestone: ProjectUpdate) =>
+    isPost(milestone) ? undefined : edit;
   const times = milestones.map((milestone) => {
-    const date = edit ? edit.placedBy(milestone) : milestone.date;
+    const editor = editorOf(milestone);
+    const date = editor ? editor.placedBy(milestone) : milestone.date;
     return date ? dateTime(date) : (now ?? undefined);
   });
   const track = phaseTrack(
@@ -276,7 +373,7 @@ export default function PhaseTimeline({
   }, [steps]);
   const shape = JSON.stringify([
     texts,
-    milestones.map(({ id, label, date }) => [id, label, date]),
+    milestones.map(({ id, title, date }) => [id, title, date]),
     places,
     track.weights,
     track.minimums,
@@ -306,14 +403,14 @@ export default function PhaseTimeline({
 
   // Events that have happened past the phase it's in: the line counts as
   // passed as far as the latest of them.
-  const reach = milestones.reduce<TrackPlace | undefined>(
-    (furthest, _, index) => {
+  const reach = milestones.reduce<(TrackPlace & { id: string }) | undefined>(
+    (furthest, { id }, index) => {
       const place = places[index]!;
       if (place.index < current || !passedMilestone(index)) return furthest;
       return !furthest ||
         place.index > furthest.index ||
         (place.index === furthest.index && place.fraction > furthest.fraction)
-        ? place
+        ? { ...place, id }
         : furthest;
     },
     undefined,
@@ -325,6 +422,10 @@ export default function PhaseTimeline({
       : index < reach.index
         ? 1
         : Math.min(1, Math.max(0, reach.fraction));
+  // Where the latest event's dot shows on its stretch, moved aside as it is.
+  const reachAt =
+    reach &&
+    `calc(${(reached(reach.index) * 100).toFixed(2)}% + ${layout?.nudges[reach.id] ?? 0}px)`;
 
   const dotStyle = (state: "current" | "passed" | "ahead") =>
     state === "current"
@@ -334,16 +435,21 @@ export default function PhaseTimeline({
         : "size-1.5 border border-border-strong bg-surface";
 
   /**
-   * A dot on the line, centred where `left` says. Editing, it takes its
-   * point off the line, and shows a cross to say so.
+   * A dot on the line, centred where `left` says. With an action it's a
+   * button: editing, one that takes its point off the line, showing a cross
+   * to say so. One that opens what its label does is left to the label for
+   * keyboards and screen readers, and underlines it under the pointer.
    */
   const dot = (
     state: "current" | "passed" | "ahead",
     style: CSSProperties,
-    remove?: { label: string; onClick: () => void },
+    action?:
+      | { label: string; tooltip: string; onClick: () => void; remove?: boolean }
+      | { opensLabel: true; onClick: () => void },
     data?: Record<string, string>,
     layer = "z-1",
   ) => {
+    const remove = action && "remove" in action && action.remove;
     const mark = (
       <i
         aria-hidden="true"
@@ -355,27 +461,46 @@ export default function PhaseTimeline({
       />
     );
     const place = cn("absolute top-1.25 -translate-1/2", layer);
-    return remove ? (
+    if (action && "opensLabel" in action)
+      return (
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-hidden="true"
+          className={cn(
+            place,
+            "peer/dot flex size-5 cursor-pointer items-center justify-center rounded-full outline-none pointer-coarse:size-8",
+          )}
+          style={style}
+          onClick={action.onClick}
+          {...data}
+        >
+          {mark}
+        </button>
+      );
+    return action ? (
       <button
         type="button"
         className={cn(
           place,
-          "group/dot flex size-5 items-center justify-center rounded-full outline-none",
+          "group/dot flex size-5 cursor-pointer items-center justify-center rounded-full outline-none",
           "focus-visible:ring-2 focus-visible:ring-accent pointer-coarse:size-8",
         )}
         style={style}
-        aria-label={remove.label}
-        data-tooltip="Fjern fra tidslinjen"
-        onClick={remove.onClick}
+        aria-label={action.label}
+        data-tooltip={action.tooltip}
+        onClick={action.onClick}
         {...data}
       >
         {mark}
-        <span
-          aria-hidden="true"
-          className="absolute flex size-3.5 items-center justify-center rounded-full border border-border-strong bg-surface text-ink opacity-0 transition-opacity group-hover/dot:opacity-100"
-        >
-          <X size={9} strokeWidth={2.5} />
-        </span>
+        {remove && (
+          <span
+            aria-hidden="true"
+            className="absolute flex size-3.5 items-center justify-center rounded-full border border-border-strong bg-surface text-ink opacity-0 transition-opacity group-hover/dot:opacity-100"
+          >
+            <X size={9} strokeWidth={2.5} />
+          </span>
+        )}
       </button>
     ) : (
       <span className={place} style={style} {...data}>
@@ -383,6 +508,45 @@ export default function PhaseTimeline({
       </span>
     );
   };
+  const removing = (label: string, onClick: () => void) => ({
+    label: `Fjern ${label} fra tidslinjen`,
+    tooltip: "Fjern fra tidslinjen",
+    onClick,
+    remove: true,
+  });
+
+  /**
+   * A label under the line. One whose entry Oppdateringer lists is a button
+   * that opens it there.
+   */
+  const hanging = (
+    entry: string,
+    props: HTMLAttributes<HTMLElement> & Record<`data-${string}`, string>,
+    children: ReactNode,
+  ) =>
+    open && !edit && open.ids.has(entry) ? (
+      <button
+        type="button"
+        {...props}
+        className={cn(
+          props.className,
+          "cursor-pointer rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-accent",
+          // Its name underlined under the pointer, on it or on its dot.
+          "hover:[&_[data-name]]:underline peer-hover/dot:[&_[data-name]]:underline",
+        )}
+        data-opens={entry}
+        onClick={() => open.onOpen(entry)}
+      >
+        {children}
+      </button>
+    ) : (
+      <span {...props}>{children}</span>
+    );
+  /** A dot that opens what its label does, as the label lets it. */
+  const opening = (entry: string) =>
+    open && !edit && open.ids.has(entry)
+      ? { opensLabel: true as const, onClick: () => open.onOpen(entry) }
+      : undefined;
 
   const step = (status: Status, index: number) => {
     const edge =
@@ -439,71 +603,111 @@ export default function PhaseTimeline({
           {
             left: edge === "start" ? radius : edge === "end" ? -radius : 0,
           },
-          edit && status !== "construction"
-            ? {
-                label: `Fjern ${statusNames[status]} fra tidslinjen`,
-                onClick: () => edit.remove(status),
-              }
-            : undefined,
+          edit
+            ? status !== "construction"
+              ? removing(statusNames[status], () => edit.remove(status))
+              : undefined
+            : opening(phaseEntryId(status)),
+          { "data-phase-dot": status },
         )}
-        <span
-          className={cn("absolute top-4 whitespace-nowrap", align)}
-          data-step-label=""
-        >
-          <span
-            className={cn(
-              "block",
-              index === current
-                ? "font-medium text-ink"
-                : index < current
-                  ? "text-ink-soft"
-                  : "text-muted",
-            )}
-          >
-            {texts[index].label}
-          </span>
-          {edit
-            ? !edit.undatable(status) && (
-                <input
-                  id={id || undefined}
-                  className={cn(
-                    inlineInput,
-                    "text-muted",
-                    edge === "start"
-                      ? "text-left"
-                      : edge === "end"
-                        ? "ml-auto text-right"
-                        : "mx-auto text-center",
-                  )}
-                  aria-label={dateNames[status]}
-                  aria-invalid={edit.invalid(status) || undefined}
-                  inputMode={status === "completed" ? "numeric" : "decimal"}
-                  maxLength={status === "completed" ? 4 : 7}
-                  size={Math.max(edit.value(status).length, 4)}
-                  placeholder={status === "completed" ? "år" : "dato"}
-                  autoComplete="off"
-                  value={edit.value(status)}
-                  onChange={(event) =>
-                    edit.setValue(status, event.target.value)
-                  }
-                />
-              )
-            : texts[index].date && (
-                <span className="block text-muted tabular-nums">
-                  <span className="sr-only">, </span>
-                  {texts[index].date}
-                </span>
+        {hanging(
+          phaseEntryId(status),
+          {
+            className: cn("absolute top-4 whitespace-nowrap", align),
+            "data-step-label": "",
+          },
+          <>
+            <span
+              data-name=""
+              className={cn(
+                "block decoration-border-strong underline-offset-2",
+                  index === current
+                  ? "font-medium text-ink"
+                  : index < current
+                    ? "text-ink-soft"
+                    : "text-muted",
               )}
-        </span>
+            >
+              {texts[index].label}
+            </span>
+            {edit
+              ? !edit.undatable(status) && (
+                  <input
+                    id={id || undefined}
+                    className={cn(
+                      inlineInput,
+                      "text-muted",
+                      edge === "start"
+                        ? "text-left"
+                        : edge === "end"
+                          ? "ml-auto text-right"
+                          : "mx-auto text-center",
+                    )}
+                    aria-label={dateNames[status]}
+                    aria-invalid={edit.invalid(status) || undefined}
+                    inputMode={status === "completed" ? "numeric" : "decimal"}
+                    maxLength={status === "completed" ? 4 : 7}
+                    size={Math.max(edit.value(status).length, 4)}
+                    placeholder={status === "completed" ? "år" : "dato"}
+                    autoComplete="off"
+                    value={edit.value(status)}
+                    onChange={(event) =>
+                      edit.setValue(status, event.target.value)
+                    }
+                  />
+                )
+              : texts[index].date && (
+                  <span className="block text-muted tabular-nums">
+                    <span className="sr-only">, </span>
+                    {texts[index].date}
+                  </span>
+                )}
+          </>,
+        )}
       </>
     );
   };
 
-  const milestone = (milestone: Milestone, index: number) => {
+  const milestone = (milestone: ProjectUpdate, index: number) => {
     const place = places[index]!;
     const fitted = layout?.labels[milestone.id];
     const passed = passedMilestone(index);
-    const left = `${(place.fraction * 100).toFixed(2)}%`;
+    // Where its date falls, moved aside from any too close to tell apart.
+    const nudge = layout?.nudges[milestone.id] ?? 0;
+    const left = `calc(${(place.fraction * 100).toFixed(2)}% + ${nudge}px)`;
+    const nudged = { "data-nudge": String(nudge) };
+    const name = milestone.title.trim() || "hendelsen";
+    const editor = editorOf(milestone);
+    // Posts come often and close together: a dot each, named on hover, so
+    // the labels stay for the events that shape the timeline.
+    if (isPost(milestone)) {
+      const tooltip = `${milestone.title} · ${formatEventDate(milestone.date)}`;
+      const linked = open && !edit && open.ids.has(milestone.id);
+      return (
+        <Fragment key={milestone.id}>
+          {dot(
+            passed ? "passed" : "ahead",
+            { left },
+            linked
+              ? {
+                  label: tooltip,
+                  tooltip,
+                  onClick: () => open.onOpen(milestone.id),
+                }
+              : undefined,
+            {
+              "data-milestone-dot": milestone.id,
+              ...nudged,
+              "data-post": milestone.id,
+              ...(linked
+                ? { "data-opens": milestone.id }
+                : { "data-tooltip": tooltip }),
+            },
+            "z-2",
+          )}
+        </Fragment>
+      );
+    }
     return (
       <Fragment key={milestone.id}>
         {!edit && <span className="sr-only">. </span>}
@@ -523,28 +727,29 @@ export default function PhaseTimeline({
           {dot(
             passed ? "passed" : "ahead",
             { left },
-            edit && {
-              label: `Fjern ${milestone.label.trim() || "hendelsen"} fra tidslinjen`,
-              onClick: () => edit.removeMilestone(milestone.id),
-            },
-            { "data-milestone-dot": milestone.id },
+            editor
+              ? removing(name, () => editor.removeMilestone(milestone.id))
+              : opening(milestone.id),
+            { "data-milestone-dot": milestone.id, ...nudged },
             // Over the phases' dots, should they meet.
             "z-2",
           )}
-          <span
-            className={cn(
-              "absolute z-1 text-center whitespace-nowrap",
-              // Unseen until it's been fitted in.
-              !fitted && "opacity-0",
-            )}
-            style={{
-              left,
-              top: rowTop(fitted?.row ?? 0),
-              transform: `translateX(calc(-50% + ${fitted?.shift ?? 0}px))`,
-            }}
-            data-milestone-label={milestone.id}
-          >
-            {edit ? (
+          {hanging(
+            milestone.id,
+            {
+              className: cn(
+                "absolute z-1 text-center whitespace-nowrap",
+                // Unseen until it's been fitted in.
+                !fitted && "opacity-0",
+              ),
+              style: {
+                left,
+                top: rowTop(fitted?.row ?? 0),
+                transform: `translateX(calc(-50% + ${fitted?.shift ?? 0}px))`,
+              },
+              "data-milestone-label": milestone.id,
+            },
+            editor ? (
               <>
                 <input
                   className={cn(
@@ -555,20 +760,20 @@ export default function PhaseTimeline({
                   aria-label="Hendelse"
                   placeholder="Hva skjer?"
                   maxLength={80}
-                  size={Math.max(milestone.label.length, 9)}
+                  size={Math.max(milestone.title.length, 9)}
                   autoComplete="off"
-                  autoFocus={edit.focus === milestone.id}
-                  value={milestone.label}
+                  autoFocus={editor.focus === milestone.id}
+                  value={milestone.title}
                   onChange={(event) =>
-                    edit.changeMilestone(milestone.id, {
-                      label: event.target.value,
+                    editor.changeMilestone(milestone.id, {
+                      title: event.target.value,
                     })
                   }
                 />
                 <input
                   className={cn(inlineInput, "mx-auto text-center text-muted")}
-                  aria-label={`Dato for ${milestone.label.trim() || "hendelsen"}`}
-                  aria-invalid={edit.milestoneInvalid(milestone) || undefined}
+                  aria-label={`Dato for ${name}`}
+                  aria-invalid={editor.milestoneInvalid(milestone) || undefined}
                   inputMode="decimal"
                   maxLength={7}
                   size={Math.max(milestone.date.length, 4)}
@@ -576,7 +781,7 @@ export default function PhaseTimeline({
                   autoComplete="off"
                   value={milestone.date}
                   onChange={(event) =>
-                    edit.changeMilestone(milestone.id, {
+                    editor.changeMilestone(milestone.id, {
                       date: event.target.value,
                     })
                   }
@@ -585,20 +790,21 @@ export default function PhaseTimeline({
             ) : (
               <>
                 <span
+                  data-name=""
                   className={cn(
-                    "block max-w-[16em] truncate",
-                    passed ? "text-ink-soft" : "text-muted",
+                    "block max-w-[16em] truncate decoration-border-strong underline-offset-2",
+                          passed ? "text-ink-soft" : "text-muted",
                   )}
                 >
-                  {milestone.label}
+                  {milestone.title}
                 </span>
                 <span className="block text-muted tabular-nums">
                   <span className="sr-only">, </span>
-                  {formatPhaseDate(milestone.date)}
+                  {formatEventDate(milestone.date)}
                 </span>
               </>
-            )}
-          </span>
+            ),
+          )}
         </span>
       </Fragment>
     );
@@ -648,7 +854,7 @@ export default function PhaseTimeline({
               !(index === last && index === current)
                 ? {
                     // Passed as far as its latest event, then still ahead.
-                    background: `linear-gradient(to right, color-mix(in oklab, var(--color-ink-soft) 55%, transparent) ${(reached(index) * 100).toFixed(2)}%, var(--color-border) 0)`,
+                    background: `linear-gradient(to right, color-mix(in oklab, var(--color-ink-soft) 55%, transparent) ${reachAt}, var(--color-border) 0)`,
                   }
                 : undefined
             }
@@ -663,7 +869,14 @@ export default function PhaseTimeline({
                   "absolute inset-y-0 left-0 rounded-full motion-safe:transition-[width] motion-safe:duration-700 motion-safe:ease-out",
                   tone.dot,
                 )}
-                style={{ width: `${progress * 100}%` }}
+                style={{
+                  // As far as time has come, and on to the dot of an event
+                  // that has happened, should it show a little further.
+                  width:
+                    reach?.index === index
+                      ? `max(${progress * 100}%, ${reachAt})`
+                      : `${progress * 100}%`,
+                }}
                 data-phase-progress={progress.toFixed(3)}
               />
             )}

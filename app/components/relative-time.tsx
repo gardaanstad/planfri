@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { cn } from "../lib/cn";
 import {
   formatDate,
   formatDateYear,
@@ -34,12 +35,11 @@ export function useNow() {
   return useSyncExternalStore(subscribe, getNow, getServerNow);
 }
 
-type Mode = "auto" | "relative" | "suffix";
+type Mode = "auto" | "relative";
 
 /**
  * `auto`: relative while recent, else the date. `relative`: always relative.
- * `suffix`: the date, followed by the relative time in parentheses while
- * recent.
+ * A relative time has the date as its tooltip.
  */
 export default function RelativeTime({
   date,
@@ -57,14 +57,12 @@ export default function RelativeTime({
   const recent = now !== null && now - Date.parse(date) < relativeTimeLimit;
   const relative = now === null ? null : formatRelative(date, now);
   let text = absolute;
-  if (relative && (mode === "relative" || (mode === "auto" && recent)))
-    text = relative;
-  else if (relative && mode === "suffix" && recent)
-    text = `${absolute} (${relative})`;
+  if (relative && (mode === "relative" || recent)) text = relative;
   return (
     <time
       dateTime={date}
-      className={className}
+      // A relative time reads as a label, its date in the tooltip.
+      className={cn(className, text === relative && "select-none")}
       data-tooltip={text === relative ? formatDateYear(date) : undefined}
     >
       {text}

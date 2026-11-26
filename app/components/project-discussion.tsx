@@ -9,7 +9,7 @@ import {
   Megaphone,
   MessageCircle,
 } from "lucide-react";
-import { type Comment, type ProjectUpdate } from "../lib/data";
+import { type Comment, isPost, type ProjectUpdate } from "../lib/data";
 import RelativeTime from "./relative-time";
 import { discussionThreads, type DiscussionSort } from "../lib/discussion";
 import { useAuth } from "./auth-provider";
@@ -77,6 +77,7 @@ export default function ProjectDiscussion({
 }: {
   projectId: string;
   comments: Comment[];
+  /** The project's events, newest first; comments can reference each. */
   updates: ProjectUpdate[];
   /** A comment opened as the first unread: scrolled to and marked. */
   initialCommentId?: string;
@@ -216,7 +217,7 @@ export default function ProjectDiscussion({
     });
   }, [member, scoped, projectId]);
   const thread = discussionThreads(comments, sort, {
-    latest: updates[0]?.date,
+    latest: updates.find(isPost)?.date,
     updateId,
   });
   function resizeComposer(element: HTMLTextAreaElement) {

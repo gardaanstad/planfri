@@ -7,6 +7,7 @@ import {
   datedPhases,
   finishYear,
   formatPhaseDate,
+  isPost,
   type PhaseDates,
   ownPhotos,
   projectPlace,
@@ -15,6 +16,7 @@ import {
   statuses,
   type Project,
   unknownDeveloper,
+  withEvents,
 } from "../lib/data";
 import { cn } from "../lib/cn";
 import { reducedMotion } from "../lib/media";
@@ -36,6 +38,13 @@ const plural = (count: number, one: string, many: string) =>
 
 const minimumPoints = (project: Project) =>
   project.geometryType === "area" ? 3 : 2;
+
+/**
+ * The events the timeline edits: those only named on it, never the posts
+ * among them. They're what a change to `updates` carries (see `withEvents`).
+ */
+const timelineEvents = (project: Pick<Project, "updates">) =>
+  project.updates.filter((update) => !isPost(update));
 
 /** Every editable part of a project: what it stores, how it reads, what's wrong. */
 export const fields: Record<
@@ -71,7 +80,7 @@ export const fields: Record<
   },
   timeline: {
     label: "Tidslinje",
-    keys: ["status", "year", "phaseDates", "skippedPhases", "milestones"],
+    keys: ["status", "year", "phaseDates", "skippedPhases", "updates"],
     show: (p) =>
       [
         statuses[p.status].label,
@@ -85,9 +94,8 @@ export const fields: Record<
           `${p.status === "completed" ? "Ferdigstilt" : "Ferdig"} ${finishYear(p)}`,
         p.skippedPhases?.length &&
           `Uten ${p.skippedPhases.map((phase) => skippedNames[phase]).join(" og ")}`,
-        ...(p.milestones ?? []).map(
-          (milestone) =>
-            `${milestone.label} ${formatPhaseDate(milestone.date)}`,
+        ...timelineEvents(p).map(
+          (event) => `${event.title} ${formatPhaseDate(event.date)}`,
         ),
       ]
         .filter(Boolean)
@@ -95,7 +103,7 @@ export const fields: Record<
     error: (p) =>
       !datedPhases.every((phase) =>
         validDate(p.phaseDates?.[phase] ?? "0000"),
-      ) || !(p.milestones ?? []).every((milestone) => validDate(milestone.date))
+      ) || !timelineEvents(p).every((event) => validDate(event.date))
         ? "Bruk år, eller måned.år"
         : !/^(\d{4})?$/.test(p.year)
           ? "Bruk fire sifre for året den er ferdig"
@@ -139,6 +147,7 @@ export const fields: Record<
   },
 };
 const fieldOrder = Object.keys(fields) as FieldId[];
+
 
 /** Skipped phases, as the review of a change lists them. */
 const skippedNames: Record<SkippablePhase, string> = {
@@ -187,29 +196,28 @@ export function toDraft(project: Project): Project {
     district: project.district === project.city ? "" : project.district,
     developer: project.developer === unknownDeveloper ? "" : project.developer,
     phaseDates: mapDates(project.phaseDates, typedDate),
-    milestones: project.milestones?.map((milestone) => ({
-      ...milestone,
-      date: typedDate(milestone.date),
-    })),
+    updates: project.updates.map((update) =>
+      isPost(update) ? update : { ...update, date: typedDate(update.date) },
+    ),
   };
 }
 
-/** Named milestones, oldest first; none at all reads as none. */
-function finalMilestones(milestones: Project["milestones"]) {
-  const named = (milestones ?? [])
-    .map((milestone) => ({
-      ...milestone,
-      label: milestone.label.trim(),
-      date: storedDate(milestone.date),
+/** The posts as they are, then the named events, oldest first. */
+function finalUpdates(project: Project) {
+  const named = timelineEvents(project)
+    .map((event) => ({
+      ...event,
+      title: event.title.trim(),
+      date: storedDate(event.date),
     }))
-    .filter((milestone) => milestone.label)
+    .filter((event) => event.title)
     // Unclear dates sort last; the field says what's wrong with them.
     .sort((a, b) =>
       validDate(a.date) && validDate(b.date)
         ? a.date.localeCompare(b.date)
         : Number(!validDate(a.date)) - Number(!validDate(b.date)),
     );
-  return named.length ? named : undefined;
+  return withEvents(project, named);
 }
 
 /** What a draft saves as: trimmed, with the fallbacks new projects get. */
@@ -235,7 +243,7 @@ export function finalize(project: Project): Project {
         : project.year.trim(),
     phaseDates: mapDates(dates, storedDate),
     skippedPhases: skipped.length ? skipped : undefined,
-    milestones: finalMilestones(project.milestones),
+    updates: finalUpdates(project),
     developer: project.developer.trim() || unknownDeveloper,
     website: project.website?.trim() || undefined,
   };
@@ -285,6 +293,7 @@ export function changesToSave(draft: Project, changed: FieldId[]) {
   for (const id of changed)
     for (const key of fields[id].keys)
       Object.assign(patch, { [key]: next[key] });
+  if (patch.updates) patch.updates = timelineEvents({ updates: patch.updates });
   if (changed.includes("geometry")) patch.center = centroid(next.geometry);
   return patch;
 }

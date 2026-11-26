@@ -27,6 +27,8 @@ const photo = z.object({
   alt: z.string().max(300).optional(),
   credit: z.string().max(300).optional(),
 });
+/** A year or a month: `2027`, `2027-03`. */
+const phaseDate = /^\d{4}(-(0[1-9]|1[0-2]))?$/;
 export const projectFields = z.object({
   id,
   title: z.string().trim().min(3).max(160),
@@ -60,7 +62,7 @@ export const projectFields = z.object({
           phase,
           z
             .string()
-            .regex(/^\d{4}(-(0[1-9]|1[0-2]))?$/)
+            .regex(phaseDate)
             .optional(),
         ]),
       ) as Record<DatedPhase, z.ZodOptional<z.ZodString>>,
@@ -68,18 +70,6 @@ export const projectFields = z.object({
     .strict()
     .optional(),
   skippedPhases: z.array(z.enum(skippablePhases)).max(3).optional(),
-  milestones: z
-    .array(
-      z
-        .object({
-          id,
-          label: z.string().trim().min(1).max(80),
-          date: z.string().regex(/^\d{4}(-(0[1-9]|1[0-2]))?$/),
-        })
-        .strict(),
-    )
-    .max(30)
-    .optional(),
   updated: z.string().min(1).max(40),
   comments: z.number().int().nonnegative(),
   developer: z.string().max(200),
@@ -88,12 +78,18 @@ export const projectFields = z.object({
       z.object({
         id,
         title: z.string().trim().min(1).max(200),
-        body: z.string().trim().min(1).max(10_000),
+        // None for an event only named on the timeline, dated by its year
+        // or month; a post is dated by the moment it was published.
+        body: z.string().trim().min(1).max(10_000).optional(),
         date: z.string().min(1).max(40),
         origin: z.boolean().optional(),
         sourceUrl: sourceUrl.optional(),
         images: z.array(photo).max(10).optional(),
-      }),
+      })
+      .refine(
+        (update) => update.body || phaseDate.test(update.date),
+        "En hendelse dateres med år, eller måned og år.",
+      ),
     )
     .max(500),
 });

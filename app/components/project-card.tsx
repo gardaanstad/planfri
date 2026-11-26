@@ -4,7 +4,7 @@ import { Bookmark, MapPin, Megaphone, MessageCircle } from "lucide-react";
 import {
   finishYear,
   formatDate,
-  getProjectUpdates,
+  projectPosts,
   hasPhoto,
   type Project,
   projectPhotos,
@@ -124,7 +124,7 @@ export default memo(function ProjectCard({
   /** Pointer or keyboard focus entering (true) or leaving the card. */
   onHover?: (id: string, hovering: boolean) => void;
 }) {
-  const updates = getProjectUpdates(project);
+  const updates = projectPosts(project);
   const expanded = density === "expanded";
   const fresh = news && unreadCount(news) > 0 ? news : undefined;
   const title = (

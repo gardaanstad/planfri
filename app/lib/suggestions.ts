@@ -2,9 +2,11 @@ import {
   arrangePhotos,
   centroid,
   hasPhoto,
+  isPost,
   ownPhotos,
   projectPhotos,
   type Project,
+  withEvents,
 } from "./data";
 
 export type SuggestionKind = "project" | "correction" | "update";
@@ -18,7 +20,7 @@ export const correctionKeys = [
   "year",
   "phaseDates",
   "skippedPhases",
-  "milestones",
+  "updates",
   "categories",
   "city",
   "district",
@@ -31,7 +33,10 @@ export const correctionKeys = [
   "images",
 ] as const;
 export type CorrectionKey = (typeof correctionKeys)[number];
-/** An empty website means the link is removed. */
+/**
+ * An empty website means the link is removed. `updates` carries the
+ * timeline's events alone; a correction never touches a post.
+ */
 export type CorrectionChanges = Partial<Pick<Project, CorrectionKey>>;
 
 type CorrectionData = {
@@ -98,6 +103,13 @@ export function tipTitle(text: string) {
   return first.length > 80 ? `${first.slice(0, 79).trimEnd()}…` : first;
 }
 
+/** A project's value for a correction key, as a correction carries it. */
+export function correctionValue(project: Project, key: CorrectionKey) {
+  return key === "updates"
+    ? project.updates.filter((update) => !isPost(update))
+    : project[key];
+}
+
 /**
  * Lays changes over a project the way a moderator's edit would save. Photos
  * keep what the project knows about them; new ones get `credit`.
@@ -118,8 +130,8 @@ export function applyChanges(
     if (next.image !== current.image) next.imageSource = undefined;
   }
   if ("website" in changes) next.website = changes.website || undefined;
-  if ("milestones" in changes && !changes.milestones?.length)
-    next.milestones = undefined;
+  if ("updates" in changes)
+    next.updates = withEvents(current, changes.updates ?? []);
   if (changes.city !== undefined || changes.district !== undefined)
     next.district = next.district.trim() || next.city;
   if (changes.geometry) next.center = centroid(changes.geometry);

@@ -1,4 +1,11 @@
-import { finishYear, type Project, projectPhases, type Status } from "./data";
+import {
+  datePeriod,
+  dateTime,
+  finishYear,
+  type Project,
+  projectPhases,
+  type Status,
+} from "./data";
 
 /**
  * The timeline's shape: how much room each stretch between two phases gets,
@@ -42,36 +49,22 @@ const emPerCharacter = 0.58;
 const gap = 1;
 const year = 365.25 * 86_400_000;
 
-/** A phase date's span in ms: a whole year, or a month. */
-function period(date: string) {
-  const [year, month] = date.split("-").map(Number);
-  return month
-    ? [Date.UTC(year, month - 1, 1), Date.UTC(year, month, 1)]
-    : [Date.UTC(year, 0, 1), Date.UTC(year + 1, 0, 1)];
-}
-
 /**
  * The stretch from one dated phase to the next: from the middle of the period
  * it began in to the middle of the one it's due in, or across both periods
  * when they're the same or overlap.
  */
 function stretch(from: string, to: string) {
-  const [startFrom, startTo] = period(from);
-  const [endFrom, endTo] = period(to);
+  const [startFrom, startTo] = datePeriod(from);
+  const [endFrom, endTo] = datePeriod(to);
   const start = (startFrom + startTo) / 2;
   const end = (endFrom + endTo) / 2;
   if (end > start) return { start, end };
   return endTo > startFrom ? { start: startFrom, end: endTo } : undefined;
 }
 
-/** The middle of a date's period, in ms. */
-export function dateTime(date: string) {
-  const [from, to] = period(date);
-  return (from + to) / 2;
-}
-
 /** When a phase began, or for Ferdig the year it's done or due. */
-function phaseDate(project: Project, phase: Status | undefined) {
+export function phaseDate(project: Project, phase: Status | undefined) {
   if (!phase) return "";
   if (phase === "completed") return finishYear(project);
   return project.phaseDates?.[phase] ?? "";
@@ -81,7 +74,7 @@ export function phaseTrack(
   project: Project,
   /** Each of `projectPhases(project)`'s label and date, as shown under the line. */
   texts: { label: string; date: string }[],
-  /** When its milestones fall, in ms. */
+  /** When its events fall, in ms. */
   milestones: number[] = [],
 ): PhaseTrack {
   const phases = projectPhases(project);
@@ -184,6 +177,25 @@ function estimatedSpans(
   return spans.map(
     (span, index) => span ?? { start: at(index), end: at(index + 1) },
   );
+}
+
+/**
+ * When each of `projectPhases(project)` begins, or for Ferdig ends, in ms:
+ * by its date, or where the line has it between those dated around it.
+ * Unknown while none is dated.
+ */
+export function phaseTimes(project: Project): (number | undefined)[] {
+  const phases = projectPhases(project);
+  const { spans } = phaseTrack(
+    project,
+    phases.map(() => ({ label: "", date: "" })),
+  );
+  return phases.map((phase, index) => {
+    const date = phaseDate(project, phase);
+    return date
+      ? dateTime(date)
+      : (spans[index]?.start ?? spans[index - 1]?.end);
+  });
 }
 
 /**

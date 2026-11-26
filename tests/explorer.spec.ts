@@ -6,7 +6,7 @@ import {
   type Page,
 } from "@playwright/test";
 import { seedProjects } from "../scripts/seed-data";
-import { getProjectUpdates } from "../app/lib/data";
+import { projectPosts } from "../app/lib/data";
 import { mainCities, placeInView, projectPlaces } from "../app/lib/places";
 import {
   accountMenuItem,
@@ -1573,7 +1573,7 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     if (seed)
       await expect(row.locator("[data-feed-context]")).toHaveText(seed.title);
     if (seed && kind === "update")
-      await expect(row).toContainText(getProjectUpdates(seed)[0].title);
+      await expect(row).toContainText(projectPosts(seed)[0].title);
     await row.getByRole("button").first().click();
     await expect(page).toHaveURL(new RegExp(`/prosjekt/${id}`));
     await expect(

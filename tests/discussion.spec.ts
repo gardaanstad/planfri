@@ -399,13 +399,12 @@ test("the timeline's line is passed as far as the latest event that has happened
     year: "2031",
     // No Byggestart, so the stretch under way has no fill of its own.
     phaseDates: { proposed: "2018", planned: "2020" },
-    milestones: [
-      { id: "vedtatt", label: "Plan vedtatt", date: "2022-06" },
-      { id: "anbud", label: "Anbud", date: "2022-09" },
-      { id: "kontrakt", label: "Kontrakt", date: "2023-01" },
-      { id: "senere", label: "Senere", date: "2099" },
+    updates: [
+      { id: "vedtatt", title: "Plan vedtatt", date: "2022-06" },
+      { id: "anbud", title: "Anbud", date: "2022-09" },
+      { id: "kontrakt", title: "Kontrakt", date: "2023-01" },
+      { id: "senere", title: "Senere", date: "2099" },
     ],
-    updates: [],
   };
   expect(
     (
@@ -452,6 +451,146 @@ test("the timeline's line is passed as far as the latest event that has happened
     ).length;
   });
   expect(crossings).toBe(0);
+});
+
+test("Oppdateringer tells the timeline's events and the phases reached, the next one first, and the line opens each", async ({
+  page,
+  request,
+}) => {
+  const moderator = await member({
+    username: uniqueName(),
+    email: "timeline-entries-moderator@example.test",
+  });
+  const id = `test-project-${randomUUID()}`;
+  const fresh = {
+    ...project,
+    id,
+    title: "Hendelser i oppdateringene",
+    // Out of the way of the specs that look at the map in Oslo.
+    center: [62.0, 9.0] as [number, number],
+    geometry: [
+      [61.999, 8.998],
+      [62.001, 8.998],
+      [62.001, 9.002],
+      [61.999, 9.002],
+    ] as [number, number][],
+    status: "construction" as const,
+    year: "2099",
+    phaseDates: { planned: "2020", construction: "2024-04" },
+    updates: [
+      { id: "vedtatt", title: "Plan vedtatt", date: "2022-06" },
+      {
+        id: "post",
+        title: "Spaden i jorda",
+        body: "Arbeidet er i gang.",
+        date: "2024-05-02T10:00:00",
+      },
+      {
+        id: "fersk",
+        title: "Første tunnel er ferdig",
+        body: "Gjennombrudd.",
+        date: new Date(Date.now() - 3.5 * 86_400_000).toISOString(),
+      },
+      {
+        id: "post-2",
+        title: "Riggen er på plass",
+        body: "Brakkene står.",
+        date: "2024-05-09T10:00:00",
+      },
+      { id: "apning", title: "Første del åpner", date: "2098-05" },
+      { id: "senere", title: "Siste del åpner", date: "2098-09" },
+    ],
+  };
+  expect(
+    (
+      await mutation(
+        request,
+        "/api/community",
+        { action: "project", project: fresh, create: true },
+        moderator,
+      )
+    ).ok(),
+  ).toBe(true);
+  await page.goto(`/prosjekt/${id}`);
+  const panel = page.locator("#project-panel-updates");
+  const entries = panel.locator("article");
+  // What's next comes once the reader's clock is known: a ready sign too.
+  await expect(entries.first()).toHaveAttribute("data-upcoming", "true");
+  await expect(entries.first().locator("p").first()).toHaveText("mai 2098");
+  // A recent post says how long ago, its date under the pointer.
+  const recent = panel.locator("#update-fersk time");
+  await expect(recent).toHaveText("for 3 dager siden");
+  await expect(recent).toHaveAttribute("data-tooltip", /\d{4}$/);
+  await expect(recent).toHaveCSS("user-select", "none");
+  // Posts and events newest first, the phases reached among them; a phase
+  // nothing dates last. Later events and Ferdig wait on the line alone.
+  await expect(entries.locator("h3")).toHaveText([
+    "Første del åpner",
+    "Første tunnel er ferdig",
+    "Riggen er på plass",
+    "Spaden i jorda",
+    "Byggestart",
+    "Plan vedtatt",
+    "Planstart",
+    "Foreslått",
+  ]);
+  await expect(panel.locator("#update-phase-construction")).toContainText(
+    "apr. 2024",
+  );
+  await shot(page, "timeline-entries");
+  const phases = page
+    .locator("[data-project-meta]")
+    .getByRole("list", { name: "Fase" });
+  await expect(phases.locator("[data-opens]")).toHaveCount(8);
+  // Posts a week apart, on a line of decades, each still show a dot.
+  const dotX = (id: string) =>
+    phases
+      .locator(`[data-milestone-dot="${id}"]`)
+      .evaluate((dot) => {
+        const box = dot.getBoundingClientRect();
+        return (box.left + box.right) / 2;
+      });
+  await expect
+    .poll(async () => Math.abs((await dotX("post-2")) - (await dotX("post"))))
+    .toBeGreaterThanOrEqual(8);
+  // The fill under way reaches the dot of the latest that has happened,
+  // wherever it was moved aside to.
+  await expect
+    .poll(async () =>
+      (await phases
+        .locator("[data-phase-progress]")
+        .evaluate((fill) => fill.getBoundingClientRect().right)) -
+      (await dotX("fersk")),
+    )
+    .toBeGreaterThanOrEqual(-0.5);
+  await expect(
+    phases.locator('[data-milestone-label="senere"]'),
+  ).not.toHaveAttribute("data-opens");
+  // From the other tab, a step or an event on the line opens its entry.
+  await page
+    .locator("#project-sections")
+    .getByRole("button", { name: "Kommentarer" })
+    .click();
+  await expect(panel).toBeHidden();
+  await phases.getByRole("button", { name: /^Plan vedtatt/ }).click();
+  await expect(panel).toBeVisible();
+  await expect(panel.locator("#update-vedtatt")).toHaveAttribute(
+    "data-highlighted",
+    "true",
+  );
+  await expect(panel.locator("#update-vedtatt")).toBeInViewport();
+  // A step's dot opens it too, underlining its name under the pointer.
+  const step = phases.locator('[data-phase="construction"]');
+  await step.locator("button[aria-hidden]").first().hover();
+  await expect(step.locator("[data-step-label] [data-name]")).toHaveCSS(
+    "text-decoration-line",
+    "underline",
+  );
+  await step.locator("button[aria-hidden]").first().click();
+  await expect(panel.locator("#update-phase-construction")).toHaveAttribute(
+    "data-highlighted",
+    "true",
+  );
 });
 
 test("on desktop the drawing takes the map area, its tools over it", async ({

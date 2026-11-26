@@ -8,10 +8,21 @@ export type ProjectImage = {
   alt?: string;
   credit?: string;
 };
+/**
+ * Something that happened on a project's way, or will: a plan approved, say.
+ * Every one is a point on the project's timeline, by its date. Told in full
+ * (a body, perhaps photos and a source) it's a post: what Oppdateringer
+ * calls an update, written by a moderator or from a member's tip.
+ */
 export type ProjectUpdate = {
   id: string;
   title: string;
-  body: string;
+  /** What happened, in full. None for an event only named on the timeline. */
+  body?: string;
+  /**
+   * A post's is the moment it was published; an event's, a year or a month
+   * (`2027`, `2027-03`) like the phases' dates.
+   */
   date: string;
   images?: ProjectImage[];
   origin?: boolean;
@@ -23,13 +34,6 @@ export type ProjectUpdate = {
 export const datedPhases = ["proposed", "planned", "construction"] as const;
 export type DatedPhase = (typeof datedPhases)[number];
 export type PhaseDates = Partial<Record<DatedPhase, string>>;
-/** Something that happened, or will, on the way: a plan approved, say. */
-export type Milestone = {
-  id: string;
-  label: string;
-  /** A year or a month, like the phases' dates. */
-  date: string;
-};
 export type Project = {
   id: string;
   title: string;
@@ -59,13 +63,12 @@ export type Project = {
    * no planning of its own, or (as a joke, mostly) never done.
    */
   skippedPhases?: SkippablePhase[];
-  /** Further points on its timeline, oldest first. */
-  milestones?: Milestone[];
   updated: string;
   /** Set by the server when a moderator adds the project. */
   created?: string;
   comments: number;
   developer: string;
+  /** Its events and posts, in no particular order. */
   updates: ProjectUpdate[];
   /**
    * Usernames of members whose approved suggestions created or corrected
@@ -95,11 +98,34 @@ export function hasPhoto(project: Pick<Project, "image">) {
 function isOriginUpdate(update: ProjectUpdate, projectId: string) {
   return update.origin === true || update.id === `${projectId}-origin`;
 }
-/** Timeline entries, newest first; historical "Om prosjektet" entries excluded. */
-export function getProjectUpdates(project: Project): ProjectUpdate[] {
+/** Told in full, rather than only named on the timeline. */
+export const isPost = (update: ProjectUpdate) => Boolean(update.body);
+/**
+ * Every event on the project's timeline, posts included, oldest first;
+ * historical "Om prosjektet" entries excluded.
+ */
+export function projectEvents(project: Project): ProjectUpdate[] {
   return project.updates
     .filter((update) => !isOriginUpdate(update, project.id))
-    .sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
+    .sort((a, b) => dateTime(a.date) - dateTime(b.date));
+}
+/** The project's posts, newest first: its news, as cards and unread marks count it. */
+export function projectPosts(project: Project): ProjectUpdate[] {
+  return projectEvents(project).filter(isPost).reverse();
+}
+/**
+ * The project's updates with its events, those only named on the timeline,
+ * replaced by those among `updates`. Its posts stay as they are: editing
+ * the timeline never changes one, and one published meanwhile is kept.
+ */
+export function withEvents(
+  project: Pick<Project, "updates">,
+  updates: ProjectUpdate[],
+): ProjectUpdate[] {
+  return [
+    ...project.updates.filter(isPost),
+    ...updates.filter((update) => !isPost(update)),
+  ];
 }
 /** The project's own photos first, then every distinct photo from its updates. */
 export function projectPhotos(project: Project): ProjectImage[] {
@@ -108,7 +134,7 @@ export function projectPhotos(project: Project): ProjectImage[] {
     : [];
   const more = [
     ...(project.images ?? []),
-    ...getProjectUpdates(project).flatMap((update) => update.images ?? []),
+    ...projectPosts(project).flatMap((update) => update.images ?? []),
   ];
   for (const image of more)
     if (!photos.some((photo) => photo.src === image.src)) photos.push(image);
@@ -166,14 +192,16 @@ export function centroid(points: Point[]): Point {
     points.reduce((sum, point) => sum + point[1], 0) / points.length,
   ];
 }
-/** Older projects predate `created`; their first entry stands in. */
+/** Older projects predate `created`; their first post stands in. */
 export function projectAddedAt(project: Project) {
   return (
     project.created ??
-    project.updates.reduce(
-      (first, update) => (update.date < first ? update.date : first),
-      project.updated,
-    )
+    project.updates
+      .filter(isPost)
+      .reduce(
+        (first, update) => (update.date < first ? update.date : first),
+        project.updated,
+      )
   );
 }
 // Map colours; Leaflet can't read CSS variables. Keep in sync with --color-status-*.
@@ -408,6 +436,29 @@ export function formatDate(date: string) {
 export function formatDateYear(date: string) {
   const { year, month, day } = dateParts(date);
   return `${day}. ${nbMonthsShort[month - 1]} ${year}`;
+}
+/**
+ * When a date runs, in ms: a whole year, a month, or, for a moment, just
+ * that moment.
+ */
+export function datePeriod(date: string): [number, number] {
+  if (date.length > 7) {
+    const time = Date.parse(date);
+    return [time, time];
+  }
+  const [year, month] = date.split("-").map(Number);
+  return month
+    ? [Date.UTC(year, month - 1, 1), Date.UTC(year, month, 1)]
+    : [Date.UTC(year, 0, 1), Date.UTC(year + 1, 0, 1)];
+}
+/** The middle of a date's period, in ms. */
+export function dateTime(date: string) {
+  const [from, to] = datePeriod(date);
+  return (from + to) / 2;
+}
+/** An event's date: a post's day, or an event's month or year. */
+export function formatEventDate(date: string) {
+  return date.length > 7 ? formatDateYear(date) : formatPhaseDate(date);
 }
 /** A phase date: `2024`, or `2024-03` as "mars 2024". */
 export function formatPhaseDate(date: string) {

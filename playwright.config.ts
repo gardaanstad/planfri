@@ -61,6 +61,7 @@ export default defineConfig({
           "discussion-moderator@example.test",
           "timeline-moderator@example.test",
           "timeline-line-moderator@example.test",
+          "timeline-entries-moderator@example.test",
           "drawing-moderator@example.test",
           "upload-moderator@example.test",
           "upload-api-moderator@example.test",

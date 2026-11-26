@@ -3,13 +3,15 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 import {
   type DatedPhase,
-  type Milestone,
+  isPost,
   type Project,
   projectPhases,
+  type ProjectUpdate,
   skippablePhases,
   type SkippablePhase,
   type Status,
   statusOrder,
+  withEvents,
 } from "../lib/data";
 import { cn } from "../lib/cn";
 import PhaseTimeline from "./phase-timeline";
@@ -53,8 +55,9 @@ const chip = cn(
 /**
  * A project's phase and dates, edited on its timeline as it shows: dates
  * typed where they read, "Nå" above the step it's at, and a step's dot to
- * take it off the line. Milestones go on the line too, by their dates; what
- * was taken off waits below to be put back.
+ * take it off the line. Events go on the line too, by their dates; what
+ * was taken off waits below to be put back. Posts show among them as they
+ * are, since editing the timeline never changes one.
  */
 export default function TimelineInput({
   draft,
@@ -69,10 +72,10 @@ export default function TimelineInput({
   showErrors?: boolean;
 }) {
   const [added, setAdded] = useState<string>();
-  // Each milestone's last clear date, to hold it in place while it's retyped.
+  // Each event's last clear date, to hold it in place while it's retyped.
   const [held, setHeld] = useState<Record<string, string>>({});
   const phases = projectPhases(draft);
-  const milestones = draft.milestones ?? [];
+  const milestones = draft.updates.filter((update) => !isPost(update));
 
   const value = (phase: Status) =>
     phase === "completed"
@@ -104,12 +107,12 @@ export default function TimelineInput({
     change({ skippedPhases: skipped, status });
   };
 
-  const setMilestones = (next: Milestone[]) =>
-    change({ milestones: next.length ? next : undefined });
+  const setMilestones = (next: ProjectUpdate[]) =>
+    change({ updates: withEvents(draft, next) });
   const addMilestone = (date = thisMonth()) => {
     const id = `m-${crypto.randomUUID().slice(0, 8)}`;
     setAdded(id);
-    setMilestones([...milestones, { id, label: "", date }]);
+    setMilestones([...milestones, { id, title: "", date }]);
   };
 
   const skipped = skippablePhases.filter((phase) => !phases.includes(phase));

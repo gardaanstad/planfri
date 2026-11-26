@@ -3,7 +3,7 @@ import { and, eq, gte, inArray, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { getDb } from "../db/client";
 import { comment, project, projectView } from "../db/schema";
-import { getProjectUpdates, type Project } from "../data";
+import { projectPosts, type Project } from "../data";
 import type { ProjectNews, Unread } from "../unread";
 import { HttpError } from "./http";
 import { serverNow } from "./clock";
@@ -92,7 +92,7 @@ export async function unreadActivity(
         commentId: row.id,
       });
   for (const { data } of projects)
-    for (const update of getProjectUpdates(data))
+    for (const update of projectPosts(data))
       if (isNew(data.id, update.date))
         items.push({
           projectId: data.id,
@@ -128,7 +128,7 @@ export async function readUnread(userId: string): Promise<Unread> {
       data.id,
       {
         projectId: data.id,
-        latest: getProjectUpdates(data)[0]?.date,
+        latest: projectPosts(data)[0]?.date,
         comments: 0,
         replies: 0,
         updates: 0,

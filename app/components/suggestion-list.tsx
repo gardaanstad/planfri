@@ -50,6 +50,7 @@ import {
 import {
   applyChanges,
   type CorrectionChanges,
+  correctionValue,
   type CorrectionKey,
   kindLabels,
   statusLabels,
@@ -475,7 +476,9 @@ function CorrectionBody({
       (key) =>
         key in data.base &&
         JSON.stringify(data.base[key as CorrectionKey] ?? "") !==
-          JSON.stringify(project[key] ?? ""),
+          JSON.stringify(
+            correctionValue(project, key as CorrectionKey) ?? "",
+          ),
     );
   return (
     <ul className="divide-y divide-border" aria-label="Endringer">

@@ -85,6 +85,13 @@
       "when": 1796600000000,
       "tag": "0011_category_merge",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1797600000000,
+      "tag": "0012_events_in_updates",
+      "breakpoints": true
     }
   ]
 }

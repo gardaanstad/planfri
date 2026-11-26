@@ -32,12 +32,16 @@ import {
 import { foldAway, useFoldAway } from "../lib/use-fold-away";
 import {
   arrangePhotos,
-  getProjectUpdates,
+  formatPhaseDate,
+  isPost,
   type Project,
+  projectEvents,
   projectHref,
+  projectPosts,
   hasPhoto,
   projectPhotos,
   projectPlace,
+  type ProjectUpdate,
   type Status,
   statuses,
   statusOrder,
@@ -45,6 +49,11 @@ import {
   unknownDeveloper,
 } from "../lib/data";
 import { applyChanges } from "../lib/suggestions";
+import {
+  phaseLabels,
+  type TimelineEntry,
+  timelineEntries,
+} from "../lib/project-timeline";
 import { useAuth } from "./auth-provider";
 import { useComments, useCommunity } from "./community-provider";
 import { projectComments } from "../lib/community";
@@ -68,7 +77,7 @@ import ProjectDiscussion, { DiscussionSortSelect } from "./project-discussion";
 import type { DiscussionSort } from "../lib/discussion";
 import CategoryPicker from "./category-picker";
 import PlacePicker from "./place-picker";
-import RelativeTime from "./relative-time";
+import RelativeTime, { useNow } from "./relative-time";
 import PhaseTimeline from "./phase-timeline";
 import TimelineInput from "./timeline-input";
 import { usePanelExpand } from "./panel";
@@ -138,6 +147,40 @@ type Props = {
   onNotify: (message: string) => void;
 };
 /** A suggester's username, quietly linked to their profile. */
+/**
+ * An entry's date and name in Oppdateringer: a post's day, or how long ago
+ * while recent, and an event's or a phase's month or year.
+ */
+function EntryHeading({ entry }: { entry: TimelineEntry }) {
+  const update = entry.kind === "event" ? entry.event : undefined;
+  const date = entry.kind === "event" ? entry.event.date : entry.date;
+  return (
+    <>
+      <p className="text-xs leading-normal text-muted first-letter:uppercase">
+        {update && isPost(update) ? (
+          <RelativeTime date={update.date} withYear />
+        ) : (
+          date && formatPhaseDate(date)
+        )}
+        {update?.via && (
+          <>
+            {" · via "}
+            <Credit username={update.via} />
+          </>
+        )}
+      </p>
+      <h3
+        className={cn(
+          "mt-1 text-heading max-sm:mt-0.5 max-sm:text-item",
+          update?.body && "mb-2.5 max-sm:mb-2",
+        )}
+      >
+        {entry.kind === "event" ? entry.event.title : phaseLabels[entry.phase]}
+      </h3>
+    </>
+  );
+}
+
 function Credit({ username }: { username: string }) {
   return (
     <Link
@@ -399,9 +442,12 @@ function morph(
  */
 function ProjectMeta({
   project,
+  timeline,
   children,
 }: {
   project: Project;
+  /** What a step or milestone opens in Oppdateringer. */
+  timeline: ComponentProps<typeof PhaseTimeline>["open"];
   children?: ReactNode;
 }) {
   const developer =
@@ -435,7 +481,11 @@ function ProjectMeta({
         </p>
       </div>
       {children}
-      <PhaseTimeline project={project} className="mt-5 max-md:mt-4" />
+      <PhaseTimeline
+        project={project}
+        open={timeline}
+        className="mt-5 max-md:mt-4"
+      />
     </div>
   );
 }
@@ -1140,7 +1190,7 @@ export default function ProjectPost({
       initialSection ??
       (initialUpdateId
         ? "updates"
-        : !initialCommentId && getProjectUpdates(project).length > 0
+        : !initialCommentId && projectPosts(project).length > 0
           ? "updates"
           : "discussion"),
   );
@@ -1269,11 +1319,6 @@ export default function ProjectPost({
               project.skippedPhases && {
                 skippedPhases: changes.skippedPhases ?? [],
               }),
-            // As do milestones all taken off.
-            ...("milestones" in changes &&
-              project.milestones && {
-                milestones: changes.milestones ?? [],
-              }),
           },
           note,
         });
@@ -1293,7 +1338,15 @@ export default function ProjectPost({
       setSavingEdit(false);
     }
   }
-  const updates = getProjectUpdates(project);
+  const now = useNow();
+  // Oppdateringer tells the timeline: each entry an event or phase on it.
+  const entries = timelineEntries(project, now);
+  const timeline = {
+    ids: new Set(entries.map((entry) => entry.id)),
+    onOpen: readUpdate,
+  };
+  // Newest first; comments can reference any.
+  const updates = projectEvents(project).reverse();
   const referenceCounts = new Map<string, number>();
   for (const comment of comments ?? [])
     if (comment.updateId)
@@ -1378,6 +1431,98 @@ export default function ProjectPost({
         ?.scrollIntoView({ block: "start" }),
     );
   }
+  /** An event's text, photos, source and comments, under its heading. */
+  const updateDetails = (update: ProjectUpdate) => (
+    <>
+      {update.body?.split("\n\n").map((paragraph, index) => (
+        <p
+          key={index}
+          className="mb-4 text-body leading-[1.65] whitespace-pre-wrap wrap-anywhere text-ink-soft max-sm:mb-3"
+        >
+          {paragraph}
+        </p>
+      ))}
+      {!!update.images?.length && (
+        <div className="mt-3.5 mb-0.5">
+          <ImageGallery
+            images={update.images}
+            label={`Bilder til ${update.title}`}
+            sizes="(max-width: 640px) 100vw, 720px"
+            className="aspect-2/1 max-sm:aspect-3/2"
+          />
+        </div>
+      )}
+      <div className="mt-2.5 flex flex-wrap items-center gap-x-5">
+        <button
+          type="button"
+          className={updateAction}
+          data-comments-toggle=""
+          aria-expanded={!!openComments[update.id]}
+          aria-controls={`update-comments-${update.id}`}
+          onClick={() => toggleComments(update.id)}
+        >
+          <MessagesSquare size={16} aria-hidden="true" />
+          <span>
+            {openComments[update.id]
+              ? "Skjul kommentarer"
+              : "Se kommentarer"}
+          </span>
+          {!openComments[update.id] && (
+            <small className="text-ui font-medium text-muted tabular-nums">
+              {referenceCounts.get(update.id) ?? 0}
+            </small>
+          )}
+        </button>
+        {update.sourceUrl && (
+          <a
+            className={updateAction}
+            href={update.sourceUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <span>Les kilden</span>
+            <ArrowUpRight size={14} aria-hidden="true" />
+          </a>
+        )}
+      </div>
+      {/* An update's own comment section, unfolding below its actions. */}
+      <div
+        id={`update-comments-${update.id}`}
+        className={cn(
+          "grid grid-rows-[0fr] opacity-0 transition-[grid-template-rows,opacity] duration-280 ease-out-soft motion-reduce:transition-none",
+          "data-[open=true]:grid-rows-[1fr] data-[open=true]:opacity-100",
+        )}
+        data-update-comments=""
+        data-open={!!openComments[update.id]}
+        inert={!openComments[update.id]}
+      >
+        {/* Clip, not hidden: the mobile dock inside must stay sticky.
+            The margin leaves room for focus outlines. */}
+        <div className="-mx-1.5 min-h-0 overflow-clip px-1.5">
+          {update.id in openComments &&
+            (comments ? (
+              <ProjectDiscussion
+                projectId={project.id}
+                comments={comments}
+                updates={updates}
+                updateId={update.id}
+                onReadUpdate={readUpdate}
+                onNotify={onNotify}
+              />
+            ) : (
+              <CommentsLoading />
+            ))}
+          {update.id in openComments && (
+            <CommentsDock
+              id={update.id}
+              open={!!openComments[update.id]}
+              onClose={() => toggleComments(update.id)}
+            />
+          )}
+        </div>
+      </div>
+    </>
+  );
   function toggleComments(id: string) {
     setOpenComments((open) => ({ ...open, [id]: !open[id] }));
   }
@@ -1471,7 +1616,7 @@ export default function ProjectPost({
                     </>
                   )}
                   {/* Desktop: under the title and its row, over the phases. */}
-                  <ProjectMeta project={project}>
+                  <ProjectMeta project={project} timeline={timeline}>
                     {!mobile && gallery && (
                       <div className="mt-3.5">{gallery}</div>
                     )}
@@ -1579,120 +1724,34 @@ export default function ProjectPost({
                     }
                     onNotify={onNotify}
                     onPublished={readUpdate}
-                    empty={!updates.length}
+                    empty={!entries.length}
                   />
-                  {updates.length > 0 && (
+                  {entries.length > 0 && (
                     <div className={styles.timeline}>
-                      {updates.map((update) => (
+                      {entries.map((entry) => (
                         <article
-                          id={`update-${update.id}`}
-                          key={update.id}
+                          id={`update-${entry.id}`}
+                          key={entry.id}
                           className={styles.entry}
-                          data-highlighted={highlightId === update.id}
+                          data-entry={entry.kind}
+                          data-upcoming={entry.upcoming || undefined}
+                          data-current={
+                            (entry.kind === "phase" &&
+                              entry.phase === project.status) ||
+                            undefined
+                          }
+                          style={
+                            entry.kind === "phase"
+                              ? ({
+                                  "--tone": `var(--color-status-${entry.phase})`,
+                                } as React.CSSProperties)
+                              : undefined
+                          }
+                          data-highlighted={highlightId === entry.id}
                         >
-                          <p className="text-xs leading-normal text-muted">
-                            <RelativeTime
-                              date={update.date}
-                              mode="suffix"
-                              withYear
-                            />
-                            {update.via && (
-                              <>
-                                {" · via "}
-                                <Credit username={update.via} />
-                              </>
-                            )}
-                          </p>
-                          <h3 className="mt-1 mb-2.5 text-heading max-sm:mt-0.5 max-sm:mb-2 max-sm:text-item">
-                            {update.title}
-                          </h3>
-                          {update.body.split("\n\n").map((paragraph, index) => (
-                            <p
-                              key={index}
-                              className="mb-4 text-body leading-[1.65] whitespace-pre-wrap wrap-anywhere text-ink-soft max-sm:mb-3"
-                            >
-                              {paragraph}
-                            </p>
-                          ))}
-                          {!!update.images?.length && (
-                            <div className="mt-3.5 mb-0.5">
-                              <ImageGallery
-                                images={update.images}
-                                label={`Bilder til ${update.title}`}
-                                sizes="(max-width: 640px) 100vw, 720px"
-                                className="aspect-2/1 max-sm:aspect-3/2"
-                              />
-                            </div>
-                          )}
-                          <div className="mt-2.5 flex flex-wrap items-center gap-x-5">
-                            <button
-                              type="button"
-                              className={updateAction}
-                              data-comments-toggle=""
-                              aria-expanded={!!openComments[update.id]}
-                              aria-controls={`update-comments-${update.id}`}
-                              onClick={() => toggleComments(update.id)}
-                            >
-                              <MessagesSquare size={16} aria-hidden="true" />
-                              <span>
-                                {openComments[update.id]
-                                  ? "Skjul kommentarer"
-                                  : "Se kommentarer"}
-                              </span>
-                              {!openComments[update.id] && (
-                                <small className="text-ui font-medium text-muted tabular-nums">
-                                  {referenceCounts.get(update.id) ?? 0}
-                                </small>
-                              )}
-                            </button>
-                            {update.sourceUrl && (
-                              <a
-                                className={updateAction}
-                                href={update.sourceUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                <span>Les kilden</span>
-                                <ArrowUpRight size={14} aria-hidden="true" />
-                              </a>
-                            )}
-                          </div>
-                          {/* An update's own comment section, unfolding below its actions. */}
-                          <div
-                            id={`update-comments-${update.id}`}
-                            className={cn(
-                              "grid grid-rows-[0fr] opacity-0 transition-[grid-template-rows,opacity] duration-280 ease-out-soft motion-reduce:transition-none",
-                              "data-[open=true]:grid-rows-[1fr] data-[open=true]:opacity-100",
-                            )}
-                            data-update-comments=""
-                            data-open={!!openComments[update.id]}
-                            inert={!openComments[update.id]}
-                          >
-                            {/* Clip, not hidden: the mobile dock inside must stay sticky.
-                                The margin leaves room for focus outlines. */}
-                            <div className="-mx-1.5 min-h-0 overflow-clip px-1.5">
-                              {update.id in openComments &&
-                                (comments ? (
-                                  <ProjectDiscussion
-                                    projectId={project.id}
-                                    comments={comments}
-                                    updates={updates}
-                                    updateId={update.id}
-                                    onReadUpdate={readUpdate}
-                                    onNotify={onNotify}
-                                  />
-                                ) : (
-                                  <CommentsLoading />
-                                ))}
-                              {update.id in openComments && (
-                                <CommentsDock
-                                  id={update.id}
-                                  open={!!openComments[update.id]}
-                                  onClose={() => toggleComments(update.id)}
-                                />
-                              )}
-                            </div>
-                          </div>
+                          <EntryHeading entry={entry} />
+                          {entry.kind === "event" &&
+                            updateDetails(entry.event)}
                         </article>
                       ))}
                     </div>

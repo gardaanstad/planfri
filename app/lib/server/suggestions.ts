@@ -14,11 +14,12 @@ import type { z } from "zod";
 import { getDb } from "../db/client";
 import { project, suggestion, user } from "../db/schema";
 import { projectSchema } from "../community-rules";
-import type { Project } from "../data";
+import { isPost, type Project } from "../data";
 import {
   applyChanges,
   correctionKeys,
   type CorrectionChanges,
+  correctionValue,
   type CorrectionKey,
   type Suggestion,
   type SuggestionLists,
@@ -92,6 +93,9 @@ export async function submitSuggestion(userId: string, input: Submission) {
     case "correction": {
       const current = await findProject(input.projectId);
       const proposed: CorrectionChanges = { ...input.changes };
+      // The timeline's events alone: a correction never touches a post.
+      if (proposed.updates)
+        proposed.updates = proposed.updates.filter((update) => !isPost(update));
       if ("image" in proposed || "images" in proposed) {
         // Credits and captions are the project's, never the member's.
         const next = applyChanges(current, proposed);
@@ -103,7 +107,10 @@ export async function submitSuggestion(userId: string, input: Submission) {
       }
       const changes: CorrectionChanges = {};
       for (const key of correctionKeys)
-        if (key in proposed && !sameValue(proposed[key], current[key]))
+        if (
+          key in proposed &&
+          !sameValue(proposed[key], correctionValue(current, key))
+        )
           Object.assign(changes, { [key]: proposed[key] });
       // The centre follows the drawing and never changes on its own.
       delete changes.center;
@@ -111,7 +118,10 @@ export async function submitSuggestion(userId: string, input: Submission) {
         throw new HttpError(400, "Forslaget endrer ingenting.");
       projectSchema.parse(applyChanges(current, changes));
       const before = Object.fromEntries(
-        Object.keys(changes).map((key) => [key, current[key as CorrectionKey]]),
+        Object.keys(changes).map((key) => [
+          key,
+          correctionValue(current, key as CorrectionKey),
+        ]),
       );
       await db.insert(suggestion).values({
         ...base,

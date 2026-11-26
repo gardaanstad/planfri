@@ -11,7 +11,7 @@ const correctionFields = projectFields
     year: true,
     phaseDates: true,
     skippedPhases: true,
-    milestones: true,
+    updates: true,
     categories: true,
     city: true,
     district: true,

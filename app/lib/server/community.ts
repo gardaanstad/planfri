@@ -11,7 +11,7 @@ import {
   user,
   vote,
 } from "../db/schema";
-import { getProjectUpdates, type Comment, type Project } from "../data";
+import { projectEvents, type Comment, type Project } from "../data";
 import type {
   CommentList,
   CommunityData,
@@ -209,7 +209,7 @@ export async function readComments(list: CommentList): Promise<Comment[]> {
   const updateIds = new Map(
     projects.map(({ data }) => [
       data.id,
-      new Set(getProjectUpdates(data).map((update) => update.id)),
+      new Set(projectEvents(data).map((update) => update.id)),
     ]),
   );
   return rows.map((row) => ({
@@ -372,7 +372,7 @@ export async function addComment(
   const target = await findProject(input.projectId);
   if (
     input.updateId &&
-    !getProjectUpdates(target).some((update) => update.id === input.updateId)
+    !projectEvents(target).some((update) => update.id === input.updateId)
   )
     throw new HttpError(400, "Oppdateringen finnes ikke.");
   const db = getDb();
