@@ -282,6 +282,20 @@ test("moderators set a project's phase, dates and milestones on its timeline, wi
     .getByRole("textbox", { name: "Dato for Anbud" })
     .fill("3.2024");
   await expect(editor.locator("[data-milestone-leader]").first()).toBeVisible();
+  // Pressing the line adds one there, dated where it's pressed.
+  await editor.locator('[data-add-milestone="construction"]').click();
+  await expect(
+    timeline
+      .getByRole("textbox", { name: "Hendelse", exact: true })
+      .and(page.locator('[value=""]')),
+  ).toBeFocused();
+  await expect(
+    timeline.getByRole("textbox", { name: "Dato for hendelsen" }),
+  ).toHaveValue(/^\d{1,2}\.202[4-9]$/);
+  await timeline
+    .getByRole("button", { name: "Fjern hendelsen fra tidslinjen" })
+    .click();
+  await expect(editor.locator("[data-milestone]")).toHaveCount(2);
   await shot(page, "timeline-editor");
   const bar = page.getByRole("region", { name: "Redigering", exact: true });
   await expect(bar).toContainText("1 endring");
@@ -366,6 +380,78 @@ test("moderators set a project's phase, dates and milestones on its timeline, wi
     "Plan vedtatt, juni 2022",
   ]);
   await expect(phases).toHaveAttribute("data-phase-strip", "construction");
+});
+
+test("the timeline's line is passed as far as the latest event that has happened, and leaders break behind every label", async ({
+  page,
+  request,
+}) => {
+  const moderator = await member({
+    username: uniqueName(),
+    email: "timeline-line-moderator@example.test",
+  });
+  const id = `test-project-${randomUUID()}`;
+  const fresh = {
+    ...project,
+    id,
+    title: "Hendelser etter planstart",
+    status: "planned" as const,
+    year: "2031",
+    // No Byggestart, so the stretch under way has no fill of its own.
+    phaseDates: { proposed: "2018", planned: "2020" },
+    milestones: [
+      { id: "vedtatt", label: "Plan vedtatt", date: "2022-06" },
+      { id: "anbud", label: "Anbud", date: "2022-09" },
+      { id: "kontrakt", label: "Kontrakt", date: "2023-01" },
+      { id: "senere", label: "Senere", date: "2099" },
+    ],
+    updates: [],
+  };
+  expect(
+    (
+      await mutation(
+        request,
+        "/api/community",
+        { action: "project", project: fresh, create: true },
+        moderator,
+      )
+    ).ok(),
+  ).toBe(true);
+  await page.goto(`/prosjekt/${id}`);
+  const phases = page
+    .locator("[data-project-meta]")
+    .getByRole("list", { name: "Fase" });
+  // Passed up to Kontrakt, partway along the stretch from Planstart.
+  const reached = Number(
+    await phases
+      .locator('[data-phase="planned"] [data-phase-reached]')
+      .getAttribute("data-phase-reached"),
+  );
+  expect(reached).toBeGreaterThan(0);
+  expect(reached).toBeLessThan(1);
+  await expect(
+    phases.locator('[data-phase="construction"] [data-phase-reached]'),
+  ).toHaveCount(0);
+  // No leader crosses a label, whichever was placed first.
+  await expect(phases.locator("[data-milestone-leader]").first()).toBeVisible();
+  const crossings = await phases.evaluate((list) => {
+    const labels = [
+      ...list.querySelectorAll("[data-step-label], [data-milestone-label]"),
+    ].map((label) => label.getBoundingClientRect());
+    return [...list.querySelectorAll("[data-milestone-leader]")].filter(
+      (leader) => {
+        const line = leader.getBoundingClientRect();
+        return labels.some(
+          (label) =>
+            line.left < label.right &&
+            line.right > label.left &&
+            line.top < label.bottom &&
+            line.bottom > label.top,
+        );
+      },
+    ).length;
+  });
+  expect(crossings).toBe(0);
 });
 
 test("on desktop the drawing takes the map area, its tools over it", async ({

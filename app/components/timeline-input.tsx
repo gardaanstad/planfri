@@ -106,10 +106,10 @@ export default function TimelineInput({
 
   const setMilestones = (next: Milestone[]) =>
     change({ milestones: next.length ? next : undefined });
-  const addMilestone = () => {
+  const addMilestone = (date = thisMonth()) => {
     const id = `m-${crypto.randomUUID().slice(0, 8)}`;
     setAdded(id);
-    setMilestones([...milestones, { id, label: "", date: thisMonth() }]);
+    setMilestones([...milestones, { id, label: "", date }]);
   };
 
   const skipped = skippablePhases.filter((phase) => !phases.includes(phase));
@@ -154,6 +154,7 @@ export default function TimelineInput({
             setMilestones(
               milestones.filter((milestone) => milestone.id !== id),
             ),
+          addMilestone,
           focus: added,
         }}
       />
@@ -162,7 +163,7 @@ export default function TimelineInput({
           type="button"
           className={chip}
           aria-label="Legg til hendelse"
-          onClick={addMilestone}
+          onClick={() => addMilestone()}
         >
           <Plus size={12} aria-hidden="true" />
           Hendelse

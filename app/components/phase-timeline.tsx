@@ -72,6 +72,8 @@ export type TimelineEditing = {
   placedBy: (milestone: Milestone) => string | undefined;
   changeMilestone: (id: string, patch: Partial<Milestone>) => void;
   removeMilestone: (id: string) => void;
+  /** Adds a milestone, dated as typed where the line was pressed, if it can be told. */
+  addMilestone: (date?: string) => void;
   /** A milestone just added, to type its name into. */
   focus?: string;
 };
@@ -90,7 +92,8 @@ const leaderTop = 9;
 type Layout = {
   /** Each milestone's row, and how far its label shifts to stay inside. */
   labels: Record<string, { row: number; shift: number }>;
-  leaders: { x: number; top: number; bottom: number }[];
+  /** Placed by its milestone's dot, so it stays under it whatever the zoom. */
+  leaders: { id: string; top: number; bottom: number }[];
 };
 
 /**
@@ -127,6 +130,7 @@ function measure(list: HTMLElement): Layout {
   });
   milestones.sort((a, b) => a.x - b.x);
   const layout: Layout = { labels: {}, leaders: [] };
+  const hanging: { id: string; x: number; row: number }[] = [];
   for (const { id, x, width } of milestones) {
     const centred = x - width / 2;
     const left = Math.min(Math.max(centred, 0), Math.max(box.width - width, 0));
@@ -142,8 +146,12 @@ function measure(list: HTMLElement): Layout {
     const top = rowTop(row);
     (rows[row] ??= []).push({ left, right, top, bottom: top + rowHeight });
     layout.labels[id] = { row, shift: Math.round(left - centred) };
-    if (!row) continue;
-    // The leader runs down to its label, behind any it passes.
+    if (row) hanging.push({ id, x, row });
+  }
+  // Once every label is placed, each leader runs down to its own, behind any
+  // it passes, those placed after it too.
+  for (const { id, x, row } of hanging) {
+    const top = rowTop(row);
     const behind = rows
       .slice(0, row)
       .flat()
@@ -152,10 +160,10 @@ function measure(list: HTMLElement): Layout {
     let from = leaderTop;
     for (const other of behind) {
       if (other.top - 2 > from)
-        layout.leaders.push({ x, top: from, bottom: other.top - 2 });
+        layout.leaders.push({ id, top: from, bottom: other.top - 2 });
       from = Math.max(from, other.bottom + 2);
     }
-    if (top - 2 > from) layout.leaders.push({ x, top: from, bottom: top - 2 });
+    if (top - 2 > from) layout.leaders.push({ id, top: from, bottom: top - 2 });
   }
   return layout;
 }
@@ -243,6 +251,8 @@ export default function PhaseTimeline({
   });
 
   const listRef = useRef<HTMLOListElement>(null);
+  // The stretches on the line, so each is observed as it comes and goes.
+  const steps = phases.join();
   const [layout, setLayout] = useState<Layout | null>(null);
   // Labels can only be fitted once they're laid out; until then they wait
   // unseen. Fitted as the line is first laid out and on resize, from the
@@ -258,10 +268,12 @@ export default function PhaseTimeline({
     const list = listRef.current;
     if (!list) return;
     // Before the frame paints, so labels show fitted from the first.
+    // Its stretches too: their share of it can change while it doesn't.
     const observer = new ResizeObserver(() => flushSync(fit));
     observer.observe(list);
+    for (const stretch of list.children) observer.observe(stretch);
     return () => observer.disconnect();
-  }, []);
+  }, [steps]);
   const shape = JSON.stringify([
     texts,
     milestones.map(({ id, label, date }) => [id, label, date]),
@@ -291,6 +303,28 @@ export default function PhaseTimeline({
     now !== null && times[index] !== undefined
       ? times[index]! <= now
       : places[index]!.index < current;
+
+  // Events that have happened past the phase it's in: the line counts as
+  // passed as far as the latest of them.
+  const reach = milestones.reduce<TrackPlace | undefined>(
+    (furthest, _, index) => {
+      const place = places[index]!;
+      if (place.index < current || !passedMilestone(index)) return furthest;
+      return !furthest ||
+        place.index > furthest.index ||
+        (place.index === furthest.index && place.fraction > furthest.fraction)
+        ? place
+        : furthest;
+    },
+    undefined,
+  );
+  /** How much of a stretch from the phase it's in on is passed, from 0 to 1. */
+  const reached = (index: number) =>
+    !reach || index < current || index > reach.index
+      ? 0
+      : index < reach.index
+        ? 1
+        : Math.min(1, Math.max(0, reach.fraction));
 
   const dotStyle = (state: "current" | "passed" | "ahead") =>
     state === "current"
@@ -474,6 +508,18 @@ export default function PhaseTimeline({
       <Fragment key={milestone.id}>
         {!edit && <span className="sr-only">. </span>}
         <span className="contents" data-milestone={milestone.id}>
+          {layout?.leaders.map(
+            ({ id, top, bottom }, order) =>
+              id === milestone.id && (
+                <span
+                  key={order}
+                  aria-hidden="true"
+                  className="pointer-events-none absolute w-px -translate-x-1/2 bg-border-strong"
+                  style={{ left, top, height: bottom - top }}
+                  data-milestone-leader=""
+                />
+              ),
+          )}
           {dot(
             passed ? "passed" : "ahead",
             { left },
@@ -587,16 +633,29 @@ export default function PhaseTimeline({
             aria-hidden="true"
             className={cn(
               "absolute inset-x-0 top-1.25 h-0.5 -translate-y-1/2 overflow-hidden rounded-full",
-              index < current
-                ? "bg-ink-soft/55"
-                : index === last && index === current
-                  ? tone.dot
+              index === last && index === current
+                ? tone.dot
+                : index < current || reached(index) === 1
+                  ? "bg-ink-soft/55"
                   : "bg-border",
               // Never done: the line runs on and fades out.
               index === last &&
                 "rounded-r-none mask-[linear-gradient(to_right,black_15%,transparent)]",
             )}
+            style={
+              reached(index) > 0 &&
+              reached(index) < 1 &&
+              !(index === last && index === current)
+                ? {
+                    // Passed as far as its latest event, then still ahead.
+                    background: `linear-gradient(to right, color-mix(in oklab, var(--color-ink-soft) 55%, transparent) ${(reached(index) * 100).toFixed(2)}%, var(--color-border) 0)`,
+                  }
+                : undefined
+            }
             data-phase-tail={index === last ? "" : undefined}
+            data-phase-reached={
+              reached(index) > 0 ? reached(index).toFixed(3) : undefined
+            }
           >
             {index === track.active?.index && (
               <span
@@ -609,6 +668,40 @@ export default function PhaseTimeline({
               />
             )}
           </span>
+          {edit && (
+            // Pressing the line puts a milestone where it's pressed.
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-hidden="true"
+              className="group/add absolute inset-x-0 top-0 h-3 cursor-pointer outline-none pointer-coarse:h-4"
+              data-tooltip="Legg til hendelse her"
+              data-add-milestone={status}
+              onPointerMove={(event) => {
+                const box = event.currentTarget.getBoundingClientRect();
+                event.currentTarget.style.setProperty(
+                  "--at",
+                  `${event.clientX - box.left}px`,
+                );
+              }}
+              onClick={(event) => {
+                const box = event.currentTarget.getBoundingClientRect();
+                const fraction = Math.min(
+                  1,
+                  Math.max(0, (event.clientX - box.left) / (box.width || 1)),
+                );
+                const span = track.spans[index];
+                edit.addMilestone(
+                  span &&
+                    typedMonth(span.start + fraction * (span.end - span.start)),
+                );
+              }}
+            >
+              <i
+                className="absolute top-1.25 left-(--at,50%) block size-1.5 -translate-1/2 rounded-full border border-border-strong bg-surface opacity-0 group-hover/add:opacity-100"
+              />
+            </button>
+          )}
           {step(status, index)}
           {milestonesOn(index)}
         </li>
@@ -622,15 +715,6 @@ export default function PhaseTimeline({
           {step(phases[last], last)}
         </li>
       )}
-      {layout?.leaders.map(({ x, top, bottom }, index) => (
-        <span
-          key={index}
-          aria-hidden="true"
-          className="pointer-events-none absolute w-px -translate-x-1/2 bg-border-strong"
-          style={{ left: x, top, height: bottom - top }}
-          data-milestone-leader=""
-        />
-      ))}
     </ol>
   );
 
@@ -651,6 +735,12 @@ export default function PhaseTimeline({
       )}
     </div>
   );
+}
+
+/** A time in ms as a month is typed: `3.2026`. */
+function typedMonth(time: number) {
+  const date = new Date(time);
+  return `${date.getUTCMonth() + 1}.${date.getUTCFullYear()}`;
 }
 
 /** Each phase as a status, as the editor's controls name it. */
