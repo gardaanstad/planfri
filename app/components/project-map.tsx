@@ -1234,8 +1234,38 @@ export default function ProjectMap({
         x: originalEvent.clientX,
         y: originalEvent.clientY,
       });
+    // The menu opens as the right button goes down, like the dropdowns.
+    // The context menu that follows, at once or only on release depending on
+    // the system, is spent wherever it lands: on the menu's backdrop it would
+    // close what just opened. The next press stops waiting for it.
+    let spend: (() => void) | null = null;
+    const press = (event: L.LeafletMouseEvent) => {
+      if (event.originalEvent.button !== 2) return;
+      spend?.();
+      const swallow = (menu: MouseEvent) => {
+        menu.preventDefault();
+        menu.stopPropagation();
+        spend?.();
+      };
+      const next = () => spend?.();
+      window.addEventListener("contextmenu", swallow, true);
+      // Registered after this press has passed the window.
+      const wait = setTimeout(() => window.addEventListener("mousedown", next, true));
+      spend = () => {
+        clearTimeout(wait);
+        window.removeEventListener("contextmenu", swallow, true);
+        window.removeEventListener("mousedown", next, true);
+        spend = null;
+      };
+      open(event);
+    };
+    // A context menu with no right press first, from the keyboard or a long
+    // touch, still opens it.
+    map.on("mousedown", press);
     map.on("contextmenu", open);
     return () => {
+      spend?.();
+      map.off("mousedown", press);
       map.off("contextmenu", open);
     };
   }, [ready, contextMenu]);

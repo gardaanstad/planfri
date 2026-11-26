@@ -249,9 +249,11 @@ test.describe("map menu", () => {
       const map = page.locator("[data-project-map] .leaflet-container");
       await expect(map).toBeVisible();
       const box = (await map.boundingBox())!;
-      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, {
-        button: "right",
-      });
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      // It opens as the button goes down, and stays open on release.
+      await page.mouse.down({ button: "right" });
+      await expect(page.locator("[data-map-menu]")).toBeVisible();
+      await page.mouse.up({ button: "right" });
       return page;
     };
 
