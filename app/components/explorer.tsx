@@ -145,7 +145,6 @@ import type { SidebarMode } from "./sidebar-panel";
 import { DrawSurfaceContext } from "./draw-surface";
 import WelcomeRow from "./welcome-row";
 import {
-  iconButton,
   primaryButton,
   sortChoice,
   statusTone,
