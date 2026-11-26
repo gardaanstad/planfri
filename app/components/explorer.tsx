@@ -1850,7 +1850,7 @@ export default memo(function Explorer({
       pinnable: true,
     });
     return [
-      { value: "", label: "Hele Norge" },
+      { value: "", label: "Norge" },
       ...mainCities.map(option),
       ...places
         .filter(({ name }) => listed.has(name) && !mainCities.includes(name))
@@ -1866,7 +1866,7 @@ export default memo(function Explorer({
       matching.every((project) => projectInBounds(project, listBounds)),
     [listBounds, matching],
   );
-  const placeFallback = allInView ? "Hele Norge" : "Velg sted";
+  const placeFallback = allInView ? "Norge" : "Velg sted";
   // Every status shown is no filter; the last one shown can't be hidden.
   const statusValue = status.length ? status : statusOrder;
   const pickStatus = useCallback((next: string[]) => {

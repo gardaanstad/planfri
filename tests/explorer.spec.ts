@@ -1096,7 +1096,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await drag(page, place.locator("[data-swipe-handle]"), 220, { steps: 8 });
     await expect(place).toBeHidden();
     await expect(
-      filters.getByRole("button", { name: "Sted: Hele Norge", exact: true }),
+      filters.getByRole("button", { name: "Sted: Norge", exact: true }),
     ).toBeVisible();
   });
 
@@ -3279,7 +3279,7 @@ test.describe("the place menu", () => {
       .getByRole("option")
       .evaluateAll((options) => options.map((option) => option.dataset.label));
     const main = 1 + mainCities.length;
-    expect(labels.slice(0, main)).toEqual(["Hele Norge", ...mainCities]);
+    expect(labels.slice(0, main)).toEqual(["Norge", ...mainCities]);
     const rest = labels.slice(main) as string[];
     expect(rest.length).toBeGreaterThan(0);
     expect(rest).toEqual([...rest].sort((a, b) => a.localeCompare(b, "nb")));
@@ -3317,7 +3317,7 @@ test.describe("the place menu", () => {
     await expect(pin("Bergen")).toHaveCSS("opacity", "1");
     await pin("Bergen").click();
     await expect(pin("Bergen")).toHaveAttribute("aria-pressed", "true");
-    expect((await labels()).slice(0, 2)).toEqual(["Bergen", "Hele Norge"]);
+    expect((await labels()).slice(0, 2)).toEqual(["Bergen", "Norge"]);
     await expect(
       menu.locator('[data-label="Bergen"] + [role="separator"]'),
     ).toHaveCount(1);
@@ -3330,7 +3330,7 @@ test.describe("the place menu", () => {
       "Bergen",
       "Trondheim",
       "Narvik",
-      "Hele Norge",
+      "Norge",
     ]);
     await menu.getByRole("option", { name: "Bærum", exact: true }).hover();
     await shot(page, "place-menu-pins");
@@ -3347,12 +3347,12 @@ test.describe("the place menu", () => {
       "Bergen",
       "Trondheim",
       "Narvik",
-      "Hele Norge",
+      "Norge",
     ]);
     // Unpinned, a place goes back among the rest.
     await pin("Trondheim").click();
     const after = await labels();
-    expect(after.slice(0, 3)).toEqual(["Bergen", "Narvik", "Hele Norge"]);
+    expect(after.slice(0, 3)).toEqual(["Bergen", "Narvik", "Norge"]);
     expect(after.indexOf("Trondheim")).toBeGreaterThan(3);
   });
 });
@@ -3382,7 +3382,7 @@ test.describe("the place follows the map", () => {
         "/?kart=59.9100,10.8500,9&status=proposed,planned,construction",
       );
       // Zoomed out over Oslo, the view names no place yet.
-      await expect(place(page, "Hele Norge")).toHaveText("Velg sted");
+      await expect(place(page, "Norge")).toHaveText("Velg sted");
       const zoomIn = page.getByRole("button", { name: "Zoom inn", exact: true });
       await zoomIn.click();
       await expect.poll(() => zoomOf(page)).toBe(10);
@@ -3405,9 +3405,9 @@ test.describe("the place follows the map", () => {
         await zoomOut.click();
         await expect.poll(() => zoomOf(page), { timeout: 1500 }).toBeLessThan(11);
       }).toPass();
-      await expect(place(page, "Hele Norge")).toHaveText("Velg sted");
+      await expect(place(page, "Norge")).toHaveText("Velg sted");
       // A picked county holds its wide framing until zoomed out of.
-      await place(page, "Hele Norge").click();
+      await place(page, "Norge").click();
       await options.getByRole("option", { name: /^Vestland/ }).click();
       await expect(place(page, "Vestland")).toBeVisible();
       await expect.poll(() => zoomOf(page)).toBeLessThan(9);
@@ -3418,19 +3418,19 @@ test.describe("the place follows the map", () => {
         await zoomOut.click();
         await expect.poll(() => zoomOf(page), { timeout: 1500 }).toBeLessThan(framed);
       }).toPass();
-      await expect(place(page, "Hele Norge")).toHaveText("Hele Norge");
+      await expect(place(page, "Norge")).toHaveText("Norge");
       await expect(async () => {
         await zoomOut.click();
         await expect.poll(() => zoomOf(page), { timeout: 1500 }).toBeLessThan(6);
       }).toPass();
-      await expect(place(page, "Hele Norge")).toHaveText("Hele Norge");
+      await expect(place(page, "Norge")).toHaveText("Norge");
       // Clearing shows all of Norway.
-      await place(page, "Hele Norge").click();
+      await place(page, "Norge").click();
       await options.getByRole("option", { name: /^Bergen/ }).click();
       await expect(place(page, "Bergen")).toBeVisible();
       await place(page, "Bergen").click();
-      await options.getByRole("option", { name: /^Hele Norge/ }).click();
-      await expect(place(page, "Hele Norge")).toHaveText("Hele Norge");
+      await options.getByRole("option", { name: /^Norge/ }).click();
+      await expect(place(page, "Norge")).toHaveText("Norge");
       await expect.poll(() => zoomOf(page)).toBeLessThan(7);
       await expect(listed(page, "Nyhavna")).toBeVisible();
     });
@@ -3602,13 +3602,13 @@ test.describe("the place follows the map", () => {
         await expect.poll(() => zoomOf(page)).toBeGreaterThanOrEqual(9.5);
       };
       // At the middle height it stays there.
-      await expect(place("Hele Norge")).toHaveText("Hele Norge");
-      await pick("Hele Norge", "Bergen");
+      await expect(place("Norge")).toHaveText("Norge");
+      await pick("Norge", "Bergen");
       await expectDrawerHeight(page, 0.58);
       await framedAbove();
       // Folded, it stays folded.
       await foldList(page);
-      await pick("Bergen", "Hele Norge");
+      await pick("Bergen", "Norge");
       await expectDrawerHeight(page, compact);
       await expect.poll(() => zoomOf(page)).toBeLessThan(7);
       // At the full height, it comes down to the middle one.
@@ -3616,7 +3616,7 @@ test.describe("the place follows the map", () => {
         .getByRole("button", { name: "Utvid prosjektlisten", exact: true })
         .click();
       await expectDrawerHeight(page, 1);
-      await pick("Hele Norge", "Bergen");
+      await pick("Norge", "Bergen");
       await expectDrawerHeight(page, 0.58);
       await framedAbove();
     });
