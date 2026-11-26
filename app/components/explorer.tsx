@@ -2293,9 +2293,10 @@ export default memo(function Explorer({
           )}
         </div>
         {/* What the list holds, and a way back from the filters; on phones,
-            the order and layout at its end. */}
+            the order and layout at its end. Ruled below, its text centred
+            between the rules, so the first row has a line above it too. */}
         <div
-          className="flex min-h-9 items-center justify-between gap-x-3 pt-2 text-ui text-muted tabular-nums max-md:-mb-1 max-md:min-h-11 max-md:gap-x-2 max-md:pt-0"
+          className="flex min-h-9 items-center justify-between gap-x-3 border-b border-border py-2 text-ui text-muted tabular-nums max-md:min-h-11 max-md:gap-x-2 max-md:py-0"
           data-list-count=""
         >
           {listCount}
