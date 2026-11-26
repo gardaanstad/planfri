@@ -546,11 +546,11 @@ test("members suggest new projects; moderators edit and publish them", async ({
   await expect(place).toHaveValue("");
   await place.click();
   const places = page.getByRole("listbox", { name: "Forslag til sted", exact: true });
-  await expect(places.getByRole("option").nth(2)).toHaveText("Stavanger");
-  await place.fill("san");
-  await expect(places.getByRole("option").first()).toHaveText("Sandnes");
+  await expect(places.getByRole("option").nth(3)).toHaveText("Stavanger");
+  await place.fill("nar");
+  await expect(places.getByRole("option").first()).toHaveText("Narvik");
   await place.press("Enter");
-  await expect(place).toHaveValue("Sandnes");
+  await expect(place).toHaveValue("Narvik");
   await expect(places).toBeHidden();
   await place.fill("Lysak");
   await expect(places.getByRole("option")).toHaveCount(1);

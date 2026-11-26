@@ -71,21 +71,7 @@ const cities: [string, Point, number, string][] = [
 ];
 
 /** The cities first in the place menus, largest first; the rest follow A–Å. */
-export const mainCities = [
-  "Oslo",
-  "Bergen",
-  "Stavanger",
-  "Sandnes",
-  "Trondheim",
-  "Drammen",
-  "Fredrikstad",
-  "Sarpsborg",
-  "Porsgrunn",
-  "Skien",
-  "Kristiansand",
-  "Tønsberg",
-  "Ålesund",
-];
+export const mainCities = ["Oslo", "Bergen", "Trondheim", "Stavanger"];
 
 function around([lat, lng]: Point, km: number): Extent {
   const dLat = km / 111;

@@ -3365,7 +3365,7 @@ test.describe("the place menu", () => {
     // A line sets the rest apart.
     await expect(menu.getByRole("separator")).toHaveCount(1);
     await expect(
-      menu.locator('[data-label="Ålesund"] + [role="separator"]'),
+      menu.locator('[data-label="Stavanger"] + [role="separator"]'),
     ).toHaveCount(1);
     // Oslo is where the map is, not a choice kept.
     await expect(menu.getByRole("option", { selected: true })).toHaveCount(0);
@@ -3403,14 +3403,14 @@ test.describe("the place menu", () => {
     await page.mouse.move(0, 0);
     await expect(pin("Bergen")).toHaveCSS("opacity", "0");
     await pin("Trondheim").click();
-    await pin("Ålesund").click();
+    await pin("Narvik").click();
     expect((await labels()).slice(0, 4)).toEqual([
       "Bergen",
       "Trondheim",
-      "Ålesund",
+      "Narvik",
       "Hele Norge",
     ]);
-    await menu.getByRole("option", { name: "Drammen", exact: true }).hover();
+    await menu.getByRole("option", { name: "Bærum", exact: true }).hover();
     await shot(page, "place-menu-pins");
     // Three is the most; a fourth can't be pinned.
     await expect(pin("Oslo")).toHaveAttribute("aria-disabled", "true");
@@ -3424,13 +3424,13 @@ test.describe("the place menu", () => {
     expect((await labels()).slice(0, 4)).toEqual([
       "Bergen",
       "Trondheim",
-      "Ålesund",
+      "Narvik",
       "Hele Norge",
     ]);
     // Unpinned, a place goes back among the rest.
     await pin("Trondheim").click();
     const after = await labels();
-    expect(after.slice(0, 3)).toEqual(["Bergen", "Ålesund", "Hele Norge"]);
+    expect(after.slice(0, 3)).toEqual(["Bergen", "Narvik", "Hele Norge"]);
     expect(after.indexOf("Trondheim")).toBeGreaterThan(3);
   });
 });
