@@ -11,7 +11,7 @@ import {
 } from "react";
 import { MapPin, Plus } from "lucide-react";
 import { cn } from "../lib/cn";
-import { mainCities, placeName } from "../lib/places";
+import { mainCities } from "../lib/places";
 import { useCommunity } from "./community-provider";
 
 const fold = (text: string) => text.trim().toLocaleLowerCase("nb");
@@ -43,7 +43,7 @@ export default function PlacePicker({
 
   const places = useMemo(() => {
     const others = new Set(
-      projects.map((project) => placeName(project.city.trim())),
+      projects.map((project) => project.city.trim()),
     );
     for (const city of mainCities) others.delete(city);
     others.delete("");

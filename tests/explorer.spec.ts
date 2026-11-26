@@ -3064,7 +3064,7 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
   });
 });
 
-test("a view of two places names both; twin cities count as one", () => {
+test("a view of two places names both; each city is its own place", () => {
   const oslo = projectPlaces("Oslo", [59.91, 10.75]);
   const baerum = projectPlaces("Bærum", [59.9, 10.53]);
   const bergen = projectPlaces("Bergen", [60.39, 5.32]);
@@ -3089,10 +3089,10 @@ test("a view of two places names both; twin cities count as one", () => {
   expect(placeInView([], 10, "", 11, around([59.99, 10.86]))).toBe("");
   expect(placeInView([], 10, "Oslo", 10, around([59.99, 10.86]))).toBe("Oslo");
   expect(projectPlaces("Sandnes", [58.85, 5.74])).toEqual([
-    "Stavanger/Sandnes",
+    "Sandnes",
     "Rogaland",
   ]);
-  expect(projectPlaces("Stavanger", [58.97, 5.73])[0]).toBe("Stavanger/Sandnes");
+  expect(projectPlaces("Stavanger", [58.97, 5.73])[0]).toBe("Stavanger");
 });
 
 test.describe("the place menu", () => {
@@ -3109,8 +3109,9 @@ test.describe("the place menu", () => {
     const labels = await menu
       .getByRole("option")
       .evaluateAll((options) => options.map((option) => option.dataset.label));
-    expect(labels.slice(0, 11)).toEqual(["Hele Norge", ...mainCities]);
-    const rest = labels.slice(11) as string[];
+    const main = 1 + mainCities.length;
+    expect(labels.slice(0, main)).toEqual(["Hele Norge", ...mainCities]);
+    const rest = labels.slice(main) as string[];
     expect(rest.length).toBeGreaterThan(0);
     expect(rest).toEqual([...rest].sort((a, b) => a.localeCompare(b, "nb")));
     expect(rest).not.toContain("Stavanger");

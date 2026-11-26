@@ -70,26 +70,18 @@ const cities: [string, Point, number, string][] = [
   ["Kirkenes", [69.73, 30.05], 4, "Finnmark"],
 ];
 
-// Neighbouring cities that grow into one, listed and named together. A
-// project naming either belongs to both.
-const pairs: [string, string][] = [
-  ["Stavanger", "Sandnes"],
-  ["Fredrikstad", "Sarpsborg"],
-  ["Porsgrunn", "Skien"],
-];
-const pairOf = new Map(
-  pairs.flatMap(([a, b]) => [a, b].map((name) => [name, `${a}/${b}`])),
-);
-
 /** The cities first in the place menus, largest first; the rest follow A–Å. */
 export const mainCities = [
   "Oslo",
   "Bergen",
-  "Stavanger/Sandnes",
+  "Stavanger",
+  "Sandnes",
   "Trondheim",
   "Drammen",
-  "Fredrikstad/Sarpsborg",
-  "Porsgrunn/Skien",
+  "Fredrikstad",
+  "Sarpsborg",
+  "Porsgrunn",
+  "Skien",
   "Kristiansand",
   "Tønsberg",
   "Ålesund",
@@ -107,31 +99,22 @@ const union = (a: Extent, b: Extent): Extent => [
   Math.max(a[3], b[3]),
 ];
 
-const cityPlaces = new Map<string, Place>();
-for (const [name, center, km, county] of cities) {
-  const extent = around(center, km);
-  const key = pairOf.get(name) ?? name;
-  const known = cityPlaces.get(key);
-  cityPlaces.set(
-    key,
-    known
-      ? { ...known, extent: union(known.extent, extent) }
-      : { name: key, kind: "city", extent, ...(county && { county }) },
-  );
-}
-
 export const places: Place[] = [
   ...Object.entries(counties).map(
     ([name, extent]): Place => ({ name, kind: "county", extent }),
   ),
-  ...cityPlaces.values(),
+  ...cities.map(
+    ([name, center, km, county]): Place => ({
+      name,
+      kind: "city",
+      extent: around(center, km),
+      ...(county && { county }),
+    }),
+  ),
 ];
 const byName = new Map(places.map((place) => [place.name, place]));
-/** A place by name, a city of a pair finding the pair. */
-export const findPlace = (name: string) =>
-  byName.get(pairOf.get(name) ?? name);
-/** The name a place is listed under: a city of a pair as the pair. */
-export const placeName = (name: string) => pairOf.get(name) ?? name;
+/** A place by name. */
+export const findPlace = (name: string) => byName.get(name);
 
 /**
  * Two places a view shows at once, named together. Its parts, as places;
