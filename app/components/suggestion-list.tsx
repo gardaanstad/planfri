@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { apiRequest, errorMessage } from "../lib/api-client";
 import { cn } from "../lib/cn";
+import { DropdownPopup } from "./dropdown";
 import {
   diffParagraphs,
   diffWords,
@@ -63,7 +64,6 @@ import {
   dangerButton,
   fieldControl,
   menuItem,
-  menuPopup,
   secondaryButton,
   textButton,
 } from "../lib/ui";
@@ -439,19 +439,15 @@ function FieldMenu({
       >
         <Ellipsis size={16} aria-hidden="true" />
       </Menu.Trigger>
-      <Menu.Portal>
-        <Menu.Positioner side="bottom" align="end" sideOffset={4} className="z-50">
-          <Menu.Popup className={menuPopup}>
-            <Menu.Item
-              className={menuItem}
-              onClick={() => onExclude(true)}
-            >
-              <CircleSlash size={16} aria-hidden="true" />
-              Ikke ta med denne endringen
-            </Menu.Item>
-          </Menu.Popup>
-        </Menu.Positioner>
-      </Menu.Portal>
+      <DropdownPopup>
+        <Menu.Item
+          className={menuItem}
+          onClick={() => onExclude(true)}
+        >
+          <CircleSlash size={16} aria-hidden="true" />
+          Ikke ta med denne endringen
+        </Menu.Item>
+      </DropdownPopup>
     </Menu.Root>
   );
 }

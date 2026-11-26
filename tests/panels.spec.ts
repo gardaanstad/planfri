@@ -10,6 +10,7 @@ import { seedProjects } from "../scripts/seed-data";
 import { projectPhotos } from "../app/lib/data";
 import {
   accountMenuItem,
+  expectDropdown,
   member,
   mutation,
   openDiscussion,
@@ -615,6 +616,22 @@ test.describe("desktop headers", () => {
     await page.getByRole("menuitemcheckbox", { name: "Lagre" }).click();
     await expect(page.getByRole("dialog", { name: "Logg inn" })).toContainText(
       "lagre prosjekter",
+    );
+  });
+
+  test("a project's menu keeps the panel from hovering, its button aside", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto(photolessPath);
+    const post = page.locator("[data-project-post]");
+    await expectDropdown(
+      page,
+      post
+        .locator("[data-project-actions]")
+        .getByRole("button", { name: "Flere valg" }),
+      page.getByRole("menu"),
+      post.locator("#project-card-title"),
     );
   });
 

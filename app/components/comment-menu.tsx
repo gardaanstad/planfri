@@ -3,12 +3,12 @@ import { useState } from "react";
 import { Menu } from "@base-ui/react/menu";
 import { Ellipsis, Trash2 } from "lucide-react";
 import { cn } from "../lib/cn";
+import { DropdownPopup } from "./dropdown";
 import { mobileQuery, useMediaQuery } from "../lib/media";
 import {
   dangerButton,
   menuItem,
   menuItemDanger,
-  menuPopup,
   secondaryButton,
 } from "../lib/ui";
 import ActionSheet from "./action-sheet";
@@ -61,27 +61,15 @@ export default function CommentMenu({
           >
             <Ellipsis size={16} aria-hidden="true" />
           </Menu.Trigger>
-          <Menu.Portal>
-            <Menu.Positioner
-              side="bottom"
-              align="end"
-              sideOffset={4}
-              className="z-[1000]"
+          <DropdownPopup aria-label={label}>
+            <Menu.Item
+              className={cn(menuItem, menuItemDanger)}
+              onClick={() => setConfirming(true)}
             >
-              <Menu.Popup
-                aria-label={label}
-                className={menuPopup}
-              >
-                <Menu.Item
-                  className={cn(menuItem, menuItemDanger)}
-                  onClick={() => setConfirming(true)}
-                >
-                  <Trash2 size={16} aria-hidden="true" />
-                  Slett
-                </Menu.Item>
-              </Menu.Popup>
-            </Menu.Positioner>
-          </Menu.Portal>
+              <Trash2 size={16} aria-hidden="true" />
+              Slett
+            </Menu.Item>
+          </DropdownPopup>
         </Menu.Root>
       )}
       {sheetOpen && (

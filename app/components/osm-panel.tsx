@@ -30,10 +30,10 @@ import {
   osmStatusLabels,
 } from "../lib/osm-candidates";
 import { cn } from "../lib/cn";
+import { DropdownPopup } from "./dropdown";
 import {
   iconButton,
   menuItem,
-  menuPopup,
   menuSeparator,
   primaryButton,
   secondaryButton,
@@ -110,69 +110,60 @@ function MoreMenu({ review }: { review: OsmReview }) {
       >
         <Ellipsis size={18} aria-hidden="true" />
       </Menu.Trigger>
-      <Menu.Portal>
-        <Menu.Positioner
-          side="bottom"
-          align="end"
-          sideOffset={6}
-          className="z-[1000]"
+      <DropdownPopup sideOffset={6} className="w-64">
+        <Menu.CheckboxItem
+          className={cn(menuItem, disabled)}
+          checked={review.showHidden}
+          disabled={!hidden && !review.showHidden}
+          closeOnClick
+          onCheckedChange={review.setShowHidden}
         >
-          <Menu.Popup className={cn(menuPopup, "w-64")}>
-            <Menu.CheckboxItem
-              className={cn(menuItem, disabled)}
-              checked={review.showHidden}
-              disabled={!hidden && !review.showHidden}
-              closeOnClick
-              onCheckedChange={review.setShowHidden}
-            >
-              {review.showHidden ? (
-                <EyeOff size={16} aria-hidden="true" />
-              ) : (
-                <Eye size={16} aria-hidden="true" />
-              )}
-              <span className="flex-1">
-                {review.showHidden ? "Ikke vis skjulte" : "Vis skjulte"}
+          {review.showHidden ? (
+            <EyeOff size={16} aria-hidden="true" />
+          ) : (
+            <Eye size={16} aria-hidden="true" />
+          )}
+          <span className="flex-1">
+            {review.showHidden ? "Ikke vis skjulte" : "Vis skjulte"}
+          </span>
+          <span className="text-xs text-muted tabular-nums">{hidden}</span>
+        </Menu.CheckboxItem>
+        <Menu.Item
+          className={cn(menuItem, disabled)}
+          disabled={!hidden}
+          onClick={() => void review.resetDismissed()}
+        >
+          <RotateCcw size={16} aria-hidden="true" />
+          Nullstill skjulte
+        </Menu.Item>
+        <Menu.Separator className={menuSeparator} />
+        <Menu.CheckboxItem
+          className={menuItem}
+          checked={review.hideProjects}
+          closeOnClick
+          onCheckedChange={review.setHideProjects}
+        >
+          <MapPinOff size={16} aria-hidden="true" />
+          <span className="mr-3 flex-1">Skjul eksisterende prosjekter</span>
+          <SwitchTrack on={review.hideProjects} />
+        </Menu.CheckboxItem>
+        <Menu.Separator className={menuSeparator} />
+        <Menu.Item
+          className={cn(menuItem, disabled)}
+          disabled={review.refreshing}
+          onClick={() => void review.refresh()}
+        >
+          <RefreshCw size={16} aria-hidden="true" />
+          <span className="flex flex-col">
+            Oppdater fra OpenStreetMap
+            {fetchedAt && (
+              <span className="text-xs text-muted">
+                Hentet {fetchedFormat.format(new Date(fetchedAt))}
               </span>
-              <span className="text-xs text-muted tabular-nums">{hidden}</span>
-            </Menu.CheckboxItem>
-            <Menu.Item
-              className={cn(menuItem, disabled)}
-              disabled={!hidden}
-              onClick={() => void review.resetDismissed()}
-            >
-              <RotateCcw size={16} aria-hidden="true" />
-              Nullstill skjulte
-            </Menu.Item>
-            <Menu.Separator className={menuSeparator} />
-            <Menu.CheckboxItem
-              className={menuItem}
-              checked={review.hideProjects}
-              closeOnClick
-              onCheckedChange={review.setHideProjects}
-            >
-              <MapPinOff size={16} aria-hidden="true" />
-              <span className="mr-3 flex-1">Skjul eksisterende prosjekter</span>
-              <SwitchTrack on={review.hideProjects} />
-            </Menu.CheckboxItem>
-            <Menu.Separator className={menuSeparator} />
-            <Menu.Item
-              className={cn(menuItem, disabled)}
-              disabled={review.refreshing}
-              onClick={() => void review.refresh()}
-            >
-              <RefreshCw size={16} aria-hidden="true" />
-              <span className="flex flex-col">
-                Oppdater fra OpenStreetMap
-                {fetchedAt && (
-                  <span className="text-xs text-muted">
-                    Hentet {fetchedFormat.format(new Date(fetchedAt))}
-                  </span>
-                )}
-              </span>
-            </Menu.Item>
-          </Menu.Popup>
-        </Menu.Positioner>
-      </Menu.Portal>
+            )}
+          </span>
+        </Menu.Item>
+      </DropdownPopup>
     </Menu.Root>
   );
 }

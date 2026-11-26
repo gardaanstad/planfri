@@ -38,11 +38,12 @@ export const unselectable =
   "select-none [&_:is(input,textarea,[contenteditable=true])]:select-text";
 
 /**
- * A desktop dropdown (Base UI `Menu.Popup`): actions or settings. Menus
- * with long rows or switches widen it with `min-w-60`.
+ * A desktop dropdown (Base UI `Menu.Popup`, through `DropdownPopup`):
+ * actions or settings. Menus with long rows or switches widen it with
+ * `min-w-60`. No motion: it's there as the mouse goes down.
  */
 export const menuPopup =
-  "min-w-52 rounded-xl border border-border bg-surface p-1.5 text-ui shadow-popover outline-none motion-safe:animate-menu-enter";
+  "min-w-52 rounded-xl border border-border bg-surface p-1.5 text-ui shadow-popover outline-none";
 
 /** A row in `menuPopup`: the same wash for hover and the keyboard. */
 export const menuItem = cn(

@@ -9,10 +9,10 @@ import {
   iconButton,
   menuItem as item,
   menuItemDanger,
-  menuPopup,
   menuSeparator,
 } from "../lib/ui";
 import { SwitchTrack } from "./action-sheet";
+import { DropdownPopup } from "./dropdown";
 
 export type OverflowAction = {
   id: string;
@@ -54,70 +54,61 @@ export function OverflowMenu({ actions }: { actions: OverflowAction[] }) {
           />
         )}
       </Menu.Trigger>
-      <Menu.Portal>
-        <Menu.Positioner
-          side="bottom"
-          align="end"
-          sideOffset={4}
-          className="z-[1000]"
-        >
-          <Menu.Popup className={menuPopup}>
-            {actions.map((action, index) => {
-              const end =
-                (action.count ?? 0) > 0 ? (
-                  <span className={cn(countBadge, "ml-auto")}>
-                    {action.count! > 99 ? "99+" : action.count}
-                  </span>
-                ) : action.checked !== undefined ? (
-                  <span className="ml-auto flex pl-3">
-                    <SwitchTrack on={action.checked} />
-                  </span>
-                ) : null;
-              const label =
-                action.count && action.count > 0
-                  ? `${action.label} (${action.count})`
-                  : undefined;
-              const separator = action.danger && index > 0 && (
-                <Menu.Separator className={menuSeparator} />
-              );
-              const toggle = action.checked ?? action.pressed;
-              return toggle === undefined ? (
-                <Fragment key={action.id}>
-                  {separator}
-                <Menu.Item
-                  key={action.id}
-                  className={cn(
-                    item,
-                    action.danger && menuItemDanger,
-                  )}
-                  onClick={action.onSelect}
-                  aria-label={label}
-                  data-overflow-action={action.id}
-                >
-                  {action.icon}
-                  {action.label}
-                  {end}
-                </Menu.Item>
-                </Fragment>
-              ) : (
-                <Menu.CheckboxItem
-                  key={action.id}
-                  className={item}
-                  checked={toggle}
-                  closeOnClick
-                  onCheckedChange={action.onSelect}
-                  aria-label={label}
-                  data-overflow-action={action.id}
-                >
-                  {action.icon}
-                  {action.label}
-                  {end}
-                </Menu.CheckboxItem>
-              );
-            })}
-          </Menu.Popup>
-        </Menu.Positioner>
-      </Menu.Portal>
+      <DropdownPopup>
+        {actions.map((action, index) => {
+          const end =
+            (action.count ?? 0) > 0 ? (
+              <span className={cn(countBadge, "ml-auto")}>
+                {action.count! > 99 ? "99+" : action.count}
+              </span>
+            ) : action.checked !== undefined ? (
+              <span className="ml-auto flex pl-3">
+                <SwitchTrack on={action.checked} />
+              </span>
+            ) : null;
+          const label =
+            action.count && action.count > 0
+              ? `${action.label} (${action.count})`
+              : undefined;
+          const separator = action.danger && index > 0 && (
+            <Menu.Separator className={menuSeparator} />
+          );
+          const toggle = action.checked ?? action.pressed;
+          return toggle === undefined ? (
+            <Fragment key={action.id}>
+              {separator}
+            <Menu.Item
+              key={action.id}
+              className={cn(
+                item,
+                action.danger && menuItemDanger,
+              )}
+              onClick={action.onSelect}
+              aria-label={label}
+              data-overflow-action={action.id}
+            >
+              {action.icon}
+              {action.label}
+              {end}
+            </Menu.Item>
+            </Fragment>
+          ) : (
+            <Menu.CheckboxItem
+              key={action.id}
+              className={item}
+              checked={toggle}
+              closeOnClick
+              onCheckedChange={action.onSelect}
+              aria-label={label}
+              data-overflow-action={action.id}
+            >
+              {action.icon}
+              {action.label}
+              {end}
+            </Menu.CheckboxItem>
+          );
+        })}
+      </DropdownPopup>
     </Menu.Root>
   );
 }

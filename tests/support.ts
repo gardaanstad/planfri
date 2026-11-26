@@ -227,3 +227,70 @@ export async function openDiscussion(page: Page) {
     });
   }).toPass();
 }
+
+/**
+ * Desktop: what every dropdown does (see app/components/dropdown.tsx). From
+ * `trigger`, `popup` opens as the mouse goes down, without motion; while
+ * it's open `behind` takes no pointer and a press on it only closes the
+ * dropdown, while the trigger stays in reach and closes it on a second
+ * press. Specs calling it emulate `reducedMotion: "no-preference"`, so an
+ * entrance would show.
+ */
+export async function expectDropdown(
+  page: Page,
+  trigger: Locator,
+  popup: Locator,
+  behind: Locator,
+) {
+  const centre = async (locator: Locator) => {
+    const box = (await locator.boundingBox())!;
+    return [box.x + box.width / 2, box.y + box.height / 2] as const;
+  };
+  const under = (locator: Locator, [x, y]: readonly [number, number]) =>
+    locator.evaluate(
+      (element, [x, y]) => element.contains(document.elementFromPoint(x, y)),
+      [x, y] as const,
+    );
+  await expect(behind).toBeVisible();
+  // The server renders the trigger; React takes it over as it hydrates.
+  await expect
+    .poll(() =>
+      trigger.evaluate((element) =>
+        Object.keys(element).some((key) => key.startsWith("__reactProps")),
+      ),
+    )
+    .toBe(true);
+  const [tx, ty] = await centre(trigger);
+  const back = await centre(behind);
+  await page.mouse.move(tx, ty);
+  await page.mouse.down();
+  await expect(popup).toBeVisible();
+  await page.mouse.up();
+  expect(
+    await popup.evaluate((element) =>
+      element.getAnimations({ subtree: true }).map((animation) => animation.id || "motion"),
+    ),
+  ).toEqual([]);
+  // Nothing behind it is under the pointer; the trigger is.
+  expect(await under(behind, back)).toBe(false);
+  expect(await under(trigger, [tx, ty])).toBe(true);
+  // A second press on the trigger closes it, as the mouse goes down.
+  await page.mouse.down();
+  await expect(popup).toBeHidden();
+  await page.mouse.up();
+  await expect(popup).toBeHidden();
+  // A press behind it only closes it: what's there never hears of it.
+  await page.mouse.click(tx, ty);
+  await expect(popup).toBeVisible();
+  await behind.evaluate((element) => {
+    element.dataset.pressed = "";
+    for (const type of ["pointerdown", "mousedown", "click"])
+      element.addEventListener(type, () => (element.dataset.pressed += type), {
+        capture: true,
+      });
+  });
+  await page.mouse.click(...back);
+  await expect(popup).toBeHidden();
+  await expect(behind).toHaveAttribute("data-pressed", "");
+  expect(await under(behind, back)).toBe(true);
+}

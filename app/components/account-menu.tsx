@@ -15,11 +15,11 @@ import { toggleTheme, useTheme } from "./theme-toggle";
 import ActionSheet, { SwitchTrack, type SheetAction } from "./action-sheet";
 import ProfileAvatar from "./profile-avatar";
 import { cn } from "../lib/cn";
+import { DropdownPopup } from "./dropdown";
 import {
   countBadge,
   menuItem as item,
   menuItemDangerHover,
-  menuPopup,
   menuSeparator as separator,
 } from "../lib/ui";
 
@@ -195,110 +195,98 @@ export default function AccountMenu({
       >
         {trigger}
       </Menu.Trigger>
-      <Menu.Portal>
-        <Menu.Positioner
-          side="bottom"
-          align="end"
-          sideOffset={4}
-          className="z-[1000]"
-        >
-          <Menu.Popup
-            aria-label="Konto"
-            className={cn(menuPopup, "min-w-60")}
+      <DropdownPopup aria-label="Konto" className="min-w-60">
+        <div className="flex gap-1">
+          <Menu.Item
+            // Reaches across the gap to settings, so none is dead.
+            className={cn(
+              item,
+              "relative min-w-0 flex-1 before:absolute before:inset-y-0 before:left-0 before:-right-1",
+            )}
+            onClick={() => run(onProfile)}
           >
-            <div className="flex gap-1">
-              <Menu.Item
-                // Reaches across the gap to settings, so none is dead.
-                className={cn(
-                  item,
-                  "relative min-w-0 flex-1 before:absolute before:inset-y-0 before:left-0 before:-right-1",
-                )}
-                onClick={() => run(onProfile)}
-              >
-                <ProfileAvatar
-                  name={username}
-                  className="-mx-0.5 size-5 text-2xs"
-                />
-                Din profil
-                <ChevronRight
-                  size={14}
-                  className="-ml-1 shrink-0 text-muted"
-                  aria-hidden="true"
-                />
-              </Menu.Item>
-              <Menu.Item
-                className={cn(item, "w-9 justify-center px-0 py-0 pointer-coarse:w-11")}
-                aria-label="Kontoinnstillinger"
-                data-tooltip="Kontoinnstillinger"
-                onClick={() => run(onSettings)}
-              >
-                <Settings size={16} aria-hidden="true" />
-              </Menu.Item>
-            </div>
-            <Menu.Separator className={separator} />
-            <Menu.Item className={item} onClick={() => run(onSaved)}>
-              <Bookmark size={16} aria-hidden="true" />
-              Lagret
-            </Menu.Item>
-            {!canModerate && (
-              <Menu.Item
-                className={item}
-                aria-label={suggestionsLabel}
-                onClick={() => run(onSuggestions)}
-              >
-                <Inbox size={16} aria-hidden="true" />
-                <span className="flex-1">{suggestionsName}</span>
-                <Count count={reviewed} />
-              </Menu.Item>
-            )}
-            {isModerator && (
-              <>
-                <Menu.Separator className={separator} />
-                <Menu.CheckboxItem
-                  className={item}
-                  checked={!memberView}
-                  onCheckedChange={(on) => onMemberView(!on)}
-                  closeOnClick
-                >
-                  <ShieldCheck size={16} aria-hidden="true" />
-                  <span className="mr-3 flex-1">Moderatormodus</span>
-                  <SwitchTrack on={!memberView} />
-                </Menu.CheckboxItem>
-              </>
-            )}
-            {canModerate && (
-              <Menu.Item
-                className={item}
-                aria-label={suggestionsLabel}
-                onClick={() => run(onSuggestions)}
-              >
-                <Inbox size={16} aria-hidden="true" />
-                <span className="flex-1">Forslag</span>
-                <Count count={suggestions} />
-              </Menu.Item>
-            )}
+            <ProfileAvatar
+              name={username}
+              className="-mx-0.5 size-5 text-2xs"
+            />
+            Din profil
+            <ChevronRight
+              size={14}
+              className="-ml-1 shrink-0 text-muted"
+              aria-hidden="true"
+            />
+          </Menu.Item>
+          <Menu.Item
+            className={cn(item, "w-9 justify-center px-0 py-0 pointer-coarse:w-11")}
+            aria-label="Kontoinnstillinger"
+            data-tooltip="Kontoinnstillinger"
+            onClick={() => run(onSettings)}
+          >
+            <Settings size={16} aria-hidden="true" />
+          </Menu.Item>
+        </div>
+        <Menu.Separator className={separator} />
+        <Menu.Item className={item} onClick={() => run(onSaved)}>
+          <Bookmark size={16} aria-hidden="true" />
+          Lagret
+        </Menu.Item>
+        {!canModerate && (
+          <Menu.Item
+            className={item}
+            aria-label={suggestionsLabel}
+            onClick={() => run(onSuggestions)}
+          >
+            <Inbox size={16} aria-hidden="true" />
+            <span className="flex-1">{suggestionsName}</span>
+            <Count count={reviewed} />
+          </Menu.Item>
+        )}
+        {isModerator && (
+          <>
             <Menu.Separator className={separator} />
             <Menu.CheckboxItem
               className={item}
-              checked={dark}
-              onCheckedChange={toggleTheme}
+              checked={!memberView}
+              onCheckedChange={(on) => onMemberView(!on)}
               closeOnClick
             >
-              <Moon size={16} aria-hidden="true" />
-              <span className="mr-3 flex-1">Mørk modus</span>
-              <SwitchTrack on={dark} />
+              <ShieldCheck size={16} aria-hidden="true" />
+              <span className="mr-3 flex-1">Moderatormodus</span>
+              <SwitchTrack on={!memberView} />
             </Menu.CheckboxItem>
-            <Menu.Separator className={separator} />
-            <Menu.Item
-              className={cn(item, menuItemDangerHover)}
-              onClick={() => run(onSignOut)}
-            >
-              <LogOut size={16} aria-hidden="true" />
-              Logg ut
-            </Menu.Item>
-          </Menu.Popup>
-        </Menu.Positioner>
-      </Menu.Portal>
+          </>
+        )}
+        {canModerate && (
+          <Menu.Item
+            className={item}
+            aria-label={suggestionsLabel}
+            onClick={() => run(onSuggestions)}
+          >
+            <Inbox size={16} aria-hidden="true" />
+            <span className="flex-1">Forslag</span>
+            <Count count={suggestions} />
+          </Menu.Item>
+        )}
+        <Menu.Separator className={separator} />
+        <Menu.CheckboxItem
+          className={item}
+          checked={dark}
+          onCheckedChange={toggleTheme}
+          closeOnClick
+        >
+          <Moon size={16} aria-hidden="true" />
+          <span className="mr-3 flex-1">Mørk modus</span>
+          <SwitchTrack on={dark} />
+        </Menu.CheckboxItem>
+        <Menu.Separator className={separator} />
+        <Menu.Item
+          className={cn(item, menuItemDangerHover)}
+          onClick={() => run(onSignOut)}
+        >
+          <LogOut size={16} aria-hidden="true" />
+          Logg ut
+        </Menu.Item>
+      </DropdownPopup>
     </Menu.Root>
   );
 }

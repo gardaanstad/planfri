@@ -151,12 +151,27 @@ components built on it).
 
 ### Desktop menus
 
-Base UI `Menu` with the shared classes in `ui.ts`; never a hand-built
-`role="menu"`.
+Base UI `Menu` with `DropdownPopup` (`dropdown.tsx`) and the shared
+classes in `ui.ts`; never a hand-built `role="menu"`.
+
+Every desktop dropdown, menus, `ChoiceSelect` and `FilterPopover` alike,
+behaves one way:
+
+- **At once**: it opens and closes as the mouse goes down, with no motion.
+- **It takes the pointer**: while it's open, a clear layer covers
+  everything but the dropdown and its trigger. Nothing behind it hovers,
+  and a press there only closes it. Menus get the layer from
+  `DropdownPopup`, hand-built dropdowns in the top layer from
+  `useDropdownShield`.
+- **The trigger stays in reach**: it still hovers, and pressing it again
+  closes what it opened.
+
+`expectDropdown` in `tests/support.ts` checks all of this; a new dropdown
+gets a spec calling it.
 
 - **Popup** (`menuPopup`): `rounded-xl border bg-surface p-1.5 text-ui
-  shadow-popover`, entering with `animate-menu-enter` (140ms). 208px wide at
-  least; `min-w-60` for menus with long rows or switches.
+  shadow-popover`. 208px wide at least; `min-w-60` for menus with long rows
+  or switches.
 - **Rows** (`menuItem`, `menuItemDanger`): 36px (44px on a coarse
   pointer), `rounded-lg px-2.5 py-1.5`, 10px gap, a 16px muted icon.
   Highlight is `bg-surface-muted`, the same for hover and keyboard.
@@ -169,7 +184,7 @@ Base UI `Menu` with the shared classes in `ui.ts`; never a hand-built
 - A menu may name itself in a first row (`text-body font-semibold`), smaller
   than a phone drawer's title.
 - Menus open on press (`data-press` or Base UI's own), close on choosing,
-  Escape or a press outside.
+  Escape, a press outside or a second press on the trigger.
 
 ### Dialogs
 

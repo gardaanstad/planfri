@@ -19,6 +19,7 @@ import {
   sheetTitleGap,
 } from "./action-sheet";
 import { useSwipeDismiss } from "./use-swipe-dismiss";
+import { useDropdownShield } from "./dropdown";
 import { unselectable } from "../lib/ui";
 
 export type FilterSection = {
@@ -472,6 +473,11 @@ export function FilterPopover({
   useLayoutEffect(() => {
     changed.current = onOpenChange;
   });
+  const {
+    shield,
+    show: showShield,
+    hide: hideShield,
+  } = useDropdownShield(anchor, () => ref.current?.hidePopover());
 
   useEffect(() => {
     const popover = ref.current;
@@ -495,47 +501,63 @@ export function FilterPopover({
       flushSync(() => opening.current());
       place();
     };
+    // The button opens it by hand, the layer first so it lands under it (a
+    // popover can't be shown while another is showing). `popoverTarget`
+    // stays for its tie to the button: a press there isn't a press outside.
+    const button = anchor.current;
+    const onPress = (event: MouseEvent) => {
+      event.preventDefault();
+      if (popover.matches(":popover-open")) return popover.hidePopover();
+      showShield();
+      popover.showPopover();
+    };
     const onToggle = (event: Event) => {
       const open = (event as ToggleEvent).newState === "open";
+      if (!open) hideShield();
       changed.current?.(open);
       if (open && openedByKeyboard(anchor.current))
         popover.querySelector<HTMLElement>("[data-filter-section]")?.focus();
     };
     popover.addEventListener("beforetoggle", onBeforeToggle);
     popover.addEventListener("toggle", onToggle);
+    button?.addEventListener("click", onPress);
     window.addEventListener("resize", place);
     return () => {
+      button?.removeEventListener("click", onPress);
       popover.removeEventListener("beforetoggle", onBeforeToggle);
       popover.removeEventListener("toggle", onToggle);
       window.removeEventListener("resize", place);
     };
-  }, [anchor, ref]);
+  }, [anchor, ref, showShield, hideShield]);
 
   return (
-    <div
-      ref={ref}
-      id={id}
-      popover="auto"
-      role="dialog"
-      aria-label={label}
-      data-filter-popover=""
-      className={cn(
-        // Shows at once, as the other menus do.
-        "fixed inset-auto top-0 left-0 m-0 w-80 flex-col overflow-visible border-0 bg-transparent p-0 text-ink open:flex",
-      )}
-    >
+    <>
+      {shield}
       <div
-        ref={body}
-        className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-surface py-1.5 shadow-[0_12px_40px_rgb(20_28_24/0.14),0_2px_6px_rgb(20_28_24/0.04)]"
+        ref={ref}
+        id={id}
+        popover="auto"
+        role="dialog"
+        aria-label={label}
+        data-filter-popover=""
+        className={cn(
+          // Shows at once, as the other menus do.
+          "fixed inset-auto top-0 left-0 m-0 w-80 flex-col overflow-visible border-0 bg-transparent p-0 text-ink open:flex",
+        )}
       >
-        <FilterRows
-          sections={sections}
-          active={active}
-          leaving={leaving}
-          onToggle={toggle}
-          compact
-        />
+        <div
+          ref={body}
+          className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-surface py-1.5 shadow-[0_12px_40px_rgb(20_28_24/0.14),0_2px_6px_rgb(20_28_24/0.04)]"
+        >
+          <FilterRows
+            sections={sections}
+            active={active}
+            leaving={leaving}
+            onToggle={toggle}
+            compact
+          />
+        </div>
       </div>
-    </div>
+    </>
   );
 }

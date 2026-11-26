@@ -2,8 +2,8 @@
 import { Menu } from "@base-ui/react/menu";
 import { ExternalLink, Plus } from "lucide-react";
 import type { Point } from "../lib/data";
-import { cn } from "../lib/cn";
-import { menuItem, menuPopup } from "../lib/ui";
+import { menuItem } from "../lib/ui";
+import { DropdownPopup } from "./dropdown";
 
 /**
  * The desktop map's right-click menu, opened at the pointer: starts a
@@ -35,42 +35,33 @@ export default function MapContextMenu({
         if (!open) onClose();
       }}
     >
-      <Menu.Portal>
-        <Menu.Positioner
-          anchor={anchor}
-          side="bottom"
-          align="start"
-          sideOffset={2}
-          className="z-[1000]"
+      <DropdownPopup
+        anchor={anchor}
+        align="start"
+        sideOffset={2}
+        aria-label="Valg for stedet i kartet"
+        data-map-menu=""
+      >
+        <Menu.Item
+          className={menuItem}
+          onClick={onCreate}
         >
-          <Menu.Popup
-            aria-label="Valg for stedet i kartet"
-            data-map-menu=""
-            // At the pointer, at once, as the system's own menu would.
-            className={cn(menuPopup, "motion-safe:animate-none")}
+          <Plus size={16} aria-hidden="true" />
+          {canModerate ? "Legg til prosjekt her" : "Foreslå prosjekt her"}
+        </Menu.Item>
+        {googleMaps && (
+          <Menu.LinkItem
+            className={menuItem}
+            href={googleMaps}
+            target="_blank"
+            rel="noreferrer"
+            closeOnClick
           >
-            <Menu.Item
-              className={menuItem}
-              onClick={onCreate}
-            >
-              <Plus size={16} aria-hidden="true" />
-              {canModerate ? "Legg til prosjekt her" : "Foreslå prosjekt her"}
-            </Menu.Item>
-            {googleMaps && (
-              <Menu.LinkItem
-                className={menuItem}
-                href={googleMaps}
-                target="_blank"
-                rel="noreferrer"
-                closeOnClick
-              >
-                <ExternalLink size={16} aria-hidden="true" />
-                Åpne Google Maps her
-              </Menu.LinkItem>
-            )}
-          </Menu.Popup>
-        </Menu.Positioner>
-      </Menu.Portal>
+            <ExternalLink size={16} aria-hidden="true" />
+            Åpne Google Maps her
+          </Menu.LinkItem>
+        )}
+      </DropdownPopup>
     </Menu.Root>
   );
 }
