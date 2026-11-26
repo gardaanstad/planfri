@@ -896,8 +896,16 @@ test.describe("account menu", () => {
     await expect(page.locator('[data-sidebar-panel="suggestions"]')).toBeVisible();
     await page.keyboard.press("Escape");
     await trigger.click();
-    await menu.getByRole("menuitemcheckbox", { name: "Mørk modus" }).click();
-    await expect(page.locator("html")).toHaveAttribute("data-theme", /dark|light/);
+    const dark = menu.getByRole("menuitemcheckbox", { name: "Mørk modus" });
+    await expect(dark).toHaveAttribute("aria-checked", "false");
+    await dark.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    // A switch leaves the menu open, to be flipped back.
+    await expect(dark).toHaveAttribute("aria-checked", "true");
+    await dark.click();
+    await expect(dark).toHaveAttribute("aria-checked", "false");
+    await expect(page.locator("html")).not.toHaveAttribute("data-theme", "dark");
+    await page.keyboard.press("Escape");
 
     // Logging out asks first, and can log out every other device too.
     await trigger.click();
@@ -965,7 +973,8 @@ test.describe("account menu", () => {
     await toggle.click();
     await expect(add).toBeVisible();
     expect((await osm()).status()).not.toBe(403);
-    await trigger.click();
+    // The menu stays open, and the queue comes back into it.
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
     await queue.click();
     await expect(page.locator('[data-sidebar-layer="suggestions"]')).toBeVisible();
   });

@@ -23,6 +23,8 @@
   --color-danger: #a63f38;
   --color-danger-strong: #88332e;
   --color-danger-soft: #fbf0ee;
+  /* A leaving item's hover, such as Logg ut: a touch deeper than soft. */
+  --color-danger-hover: #f8e6e3;
   --color-warning: #9a681e;
   /* Text and icons on solid accent and danger fills. */
   --color-on-accent: #ffffff;
@@ -317,6 +319,7 @@
       --color-danger: #e5766d;
       --color-danger-strong: #f09a93;
       --color-danger-soft: #2b1513;
+      --color-danger-hover: var(--color-danger-soft);
       --color-warning: #dda54f;
       --color-on-accent: #04140c;
       --color-on-danger: #1f0705;
@@ -530,13 +533,6 @@
       transition: none !important;
     }
   }
-}
-
-/* Switching themes: the whole page cross-fades (`setTheme` in lib/theme.ts). */
-:root[data-theme-transition]::view-transition-old(root),
-:root[data-theme-transition]::view-transition-new(root) {
-  animation-duration: 360ms;
-  animation-timing-function: var(--ease-out-soft);
 }
 
 /*

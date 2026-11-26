@@ -57,7 +57,7 @@ export const menuItemDanger = "text-danger [&>svg:first-child]:text-danger";
 
 /** Destructive only on second look: a danger wash under the pointer. */
 export const menuItemDangerHover =
-  "pointer-fine:data-highlighted:bg-danger-soft pointer-fine:data-highlighted:text-danger pointer-fine:data-highlighted:[&>svg:first-child]:text-danger";
+  "pointer-fine:data-highlighted:bg-danger-hover";
 
 /**
  * A hairline between groups in `menuPopup`, out to its edges. A border

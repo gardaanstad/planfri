@@ -37,6 +37,8 @@ export type SheetAction = {
   opens?: boolean;
   /** A switch: on or off, shown on the right. */
   checked?: boolean;
+  /** Choosing it leaves the sheet open, as a switch one may flip back. */
+  keepsOpen?: boolean;
   /** A second line under the label. */
   detail?: string;
   /** On the right, such as a count. */
@@ -271,7 +273,9 @@ function SheetActions({
                 "active:bg-danger-soft active:text-danger active:[&>svg]:text-danger",
               action.selected && "font-medium",
             )}
-            onClick={() => close(action.onSelect)}
+            onClick={() =>
+              action.keepsOpen ? action.onSelect() : close(action.onSelect)
+            }
           >
             {action.icon}
             <span className="flex min-w-0 flex-1 flex-col">

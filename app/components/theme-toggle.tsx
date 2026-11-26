@@ -1,7 +1,5 @@
 "use client";
 import { useEffect, useSyncExternalStore } from "react";
-import { flushSync } from "react-dom";
-import { reducedMotion } from "../lib/media";
 import { parseTheme, themeColors, themeCookie, type Theme } from "../lib/theme";
 
 const darkQuery = "(prefers-color-scheme: dark)";
@@ -35,31 +33,18 @@ function syncThemeColor(chosen: Theme | undefined) {
   }
 }
 
+// Switched at once: a cross-fade would cover the page with a snapshot that
+// takes no hover or press until it ends.
 function setTheme(theme: Theme) {
   const root = document.documentElement;
   const chosen = theme === systemTheme() ? undefined : theme;
-  const apply = () => {
-    if (chosen) root.dataset.theme = chosen;
-    else delete root.dataset.theme;
-    document.cookie = chosen
-      ? `${themeCookie}=${chosen}; path=/; max-age=31536000; samesite=lax`
-      : `${themeCookie}=; path=/; max-age=0; samesite=lax`;
-    syncThemeColor(chosen);
-    // Rendered now, so the transition's new view already has it.
-    flushSync(() => listeners.forEach((listener) => listener()));
-  };
-  // The page cross-fades from one palette to the other.
-  if (
-    !document.startViewTransition ||
-    reducedMotion()
-  ) {
-    apply();
-    return;
-  }
-  root.dataset.themeTransition = "";
-  document
-    .startViewTransition(apply)
-    .finished.finally(() => delete root.dataset.themeTransition);
+  if (chosen) root.dataset.theme = chosen;
+  else delete root.dataset.theme;
+  document.cookie = chosen
+    ? `${themeCookie}=${chosen}; path=/; max-age=31536000; samesite=lax`
+    : `${themeCookie}=; path=/; max-age=0; samesite=lax`;
+  syncThemeColor(chosen);
+  listeners.forEach((listener) => listener());
 }
 
 /** Switches between light and dark. */

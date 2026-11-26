@@ -125,6 +125,7 @@ export default function AccountMenu({
               icon: <ShieldCheck size={20} />,
               checked: !memberView,
               onSelect: () => onMemberView(!memberView),
+              keepsOpen: true,
               divided: true,
             },
           ]
@@ -146,6 +147,7 @@ export default function AccountMenu({
         icon: <Moon size={20} />,
         checked: dark,
         onSelect: toggleTheme,
+        keepsOpen: true,
         divided: true,
       },
       {
@@ -248,7 +250,6 @@ export default function AccountMenu({
               className={item}
               checked={!memberView}
               onCheckedChange={(on) => onMemberView(!on)}
-              closeOnClick
             >
               <ShieldCheck size={16} aria-hidden="true" />
               <span className="mr-3 flex-1">Moderatormodus</span>
@@ -272,7 +273,6 @@ export default function AccountMenu({
           className={item}
           checked={dark}
           onCheckedChange={toggleTheme}
-          closeOnClick
         >
           <Moon size={16} aria-hidden="true" />
           <span className="mr-3 flex-1">Mørk modus</span>
