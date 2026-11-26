@@ -163,7 +163,8 @@ test("a project shows its phase and its facts, and opens on its updates", async 
           (await tabs.first().boundingBox())!.height / 2),
     ),
   ).toBeLessThan(3);
-  await expect(discussion).not.toContainText(/\d+ kommentar/);
+  // No count of its own; the notice of the newest update's comments aside.
+  await expect(discussion.getByText(/^\d+ kommentar(er)?$/)).toHaveCount(0);
 });
 
 test.describe("login prompt", () => {

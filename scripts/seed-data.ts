@@ -599,7 +599,6 @@ export const seedComments: Comment[] = [
   {
     id: "c1",
     projectId: "bispevika-sor",
-    updateId: "u-byrom",
     author: "byvandrer",
     text: "Veldig fint at promenaden blir sammenhengende. Håper det også blir noen gode steder å sitte helt nede ved vannet!",
     date: "2026-09-06T14:30:00",
@@ -608,7 +607,6 @@ export const seedComments: Comment[] = [
   {
     id: "c2",
     projectId: "bispevika-sor",
-    updateId: "u-byrom",
     author: "arkitekturinteressert",
     text: "Enig! Førsteetasjene blir avgjørende for hvor levende dette området blir gjennom hele året.",
     date: "2026-09-06T16:00:00",

@@ -2,7 +2,11 @@ import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import type { Comment } from "../app/lib/data";
 import { seedProjects } from "../scripts/seed-data";
-import { discussionThreads } from "../app/lib/discussion";
+import {
+  commentCounts,
+  commentHome,
+  discussionThreads,
+} from "../app/lib/discussion";
 import {
   member,
   mutation,
@@ -65,6 +69,39 @@ test("relevant sort puts threads active since the latest update first, each grou
   ).toEqual(["new-top", "old-low", "new-low", "old-top"]);
 });
 
+test("a thread lives where its first comment was written, its replies with it", () => {
+  const base = {
+    projectId: project.id,
+    author: "neighbor",
+    text: "Comment",
+    votes: 0,
+    date: "2026-09-01T00:00:00Z",
+  };
+  const comments: Comment[] = [
+    { ...base, id: "general" },
+    { ...base, id: "under", updateId: "u1" },
+    // A reply's own reference never moves it out of its thread.
+    { ...base, id: "reply", parentId: "under", updateId: "u2" },
+    { ...base, id: "nested", parentId: "reply" },
+    { ...base, id: "gone", parentId: "under", deleted: true },
+    { ...base, id: "elsewhere", updateId: "u2" },
+  ];
+  expect(discussionThreads(comments, "newest").map((c) => c.id)).toEqual([
+    "general",
+  ]);
+  expect(
+    discussionThreads(comments, "newest", { updateId: "u1" }).map((c) => c.id),
+  ).toEqual(["under"]);
+  expect(commentHome(comments, "nested")).toBe("u1");
+  expect(commentHome(comments, "general")).toBe("");
+  expect(commentHome(comments, "missing")).toBeUndefined();
+  expect(Object.fromEntries(commentCounts(comments))).toEqual({
+    "": 1,
+    u1: 3,
+    u2: 1,
+  });
+});
+
 test("comments load per project or per author; an unchanged read comes back empty", async ({
   request,
 }) => {
@@ -118,6 +155,12 @@ test("project discussion accepts no update, validates references, and preserves 
     person,
   );
   expect(reply.ok()).toBe(true);
+  // A reply stays in its thread, whatever update it names.
+  expect(
+    (await reply.json()).comments.find(
+      (c: Comment) => c.parentId === root.id,
+    ).updateId,
+  ).toBeUndefined();
   expect(
     (
       await mutation(
@@ -150,7 +193,7 @@ test("project discussion accepts no update, validates references, and preserves 
   ).toBe(400);
 });
 
-test("commenting under an update references it in the main discussion and preserves drafts", async ({
+test("comments under an update stay there, the discussion pointing to the newest update's, and drafts are kept", async ({
   page,
   context,
 }) => {
@@ -161,8 +204,21 @@ test("commenting under an update references it in the main discussion and preser
     name: "Kommentarer",
     exact: true,
   });
-  await expect(discussion.locator('[data-comment-id="c4"]')).toBeVisible();
+  await expect(discussion.locator('[data-comment-id="c1"]')).toBeVisible();
   await expect(discussion.locator('[data-comment-id="c7"]')).toBeVisible();
+  // c3 lives under the newest update, c4 under an older one.
+  await expect(discussion.locator('[data-comment-id="c3"]')).toHaveCount(0);
+  await expect(discussion.locator('[data-comment-id="c4"]')).toHaveCount(0);
+  const notice = discussion.locator("[data-latest-comments]");
+  // Other specs comment there too, so the count is read, not assumed.
+  await expect(notice).toHaveText(
+    /^\d+ kommentar(er)? under nyeste oppdatering$/,
+  );
+  const before = parseInt((await notice.textContent())!);
+  await notice.evaluate((element) =>
+    element.scrollIntoView({ block: "center" }),
+  );
+  await shot(page, "latest-comments-notice");
   const composer = page.getByRole("textbox", { name: "Kommenter prosjektet" });
   const draft = `Whole project ${randomUUID()}`;
   await composer.fill(draft);
@@ -171,11 +227,8 @@ test("commenting under an update references it in the main discussion and preser
     name: "Prosjektoppdateringer",
     exact: true,
   });
-  await expect(
-    timeline.getByRole("button", { name: "Referer til oppdateringen" }),
-  ).toHaveCount(0);
   const entry = timeline.locator("#update-u-byrom");
-  const toggle = entry.getByRole("button", { name: /^(Se|Skjul) kommentarer/ });
+  const toggle = entry.locator("[data-comments-toggle]");
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   const section = entry.getByRole("region", {
@@ -183,7 +236,8 @@ test("commenting under an update references it in the main discussion and preser
     exact: true,
   });
   await expect(section).toBeVisible();
-  // Only threads referencing this update; c4 references another one.
+  await expect(section.locator('[data-comment-id="c3"]')).toBeVisible();
+  await expect(section.locator('[data-comment-id="c1"]')).toHaveCount(0);
   await expect(section.locator('[data-comment-id="c4"]')).toHaveCount(0);
   const text = `About byrom ${randomUUID()}`;
   await section
@@ -195,18 +249,18 @@ test("commenting under an update references it in the main discussion and preser
   await expect(section.getByText(text, { exact: true })).toBeVisible();
   await page.getByRole("button", { name: /^Kommentarer/ }).click();
   await expect(composer).toHaveValue(draft);
+  await expect(discussion.getByText(text, { exact: true })).toHaveCount(0);
+  await expect
+    .poll(async () => parseInt((await notice.textContent())!))
+    .toBeGreaterThan(before);
   await page.reload();
   await openDiscussion(page);
-  const added = discussion
-    .locator("[data-comment-id]")
-    .filter({ hasText: text });
-  await added
-    .getByRole("button", { name: "Nye byrom tar form", exact: true })
-    .click();
-  await expect(timeline.locator("#update-u-byrom")).toHaveAttribute(
-    "data-highlighted",
-    "true",
-  );
+  await expect(discussion.getByText(text, { exact: true })).toHaveCount(0);
+  // The notice opens the update with its comments unfolded.
+  await notice.click();
+  await expect(entry).toHaveAttribute("data-highlighted", "true");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(section.getByText(text, { exact: true })).toBeVisible();
 });
 
 test("moderators set a project's phase, dates and milestones on its timeline, with or without Foreslått", async ({
@@ -806,7 +860,7 @@ test("moderators edit the reference page and publish sourced updates without new
   expect(invalid.ok()).toBe(false);
 });
 
-test("replies under an update stay in their thread in both sections", async ({
+test("replies under an update stay in their thread there", async ({
   page,
   context,
 }) => {
@@ -814,7 +868,7 @@ test("replies under an update stay in their thread in both sections", async ({
   await page.goto(path);
   await page.getByRole("button", { name: /^Oppdateringer/ }).click();
   const entry = page.locator("#update-u-byrom");
-  await entry.getByRole("button", { name: /^Se kommentarer/ }).click();
+  await entry.locator("[data-comments-toggle]").click();
   const section = entry.getByRole("region", {
     name: "Kommentarer til oppdateringen",
     exact: true,
@@ -842,9 +896,8 @@ test("replies under an update stay in their thread in both sections", async ({
   await expect(
     page
       .getByRole("region", { name: "Kommentarer", exact: true })
-      .locator(`[data-comment-id="${rootId}"]`)
-      .getByText(text, { exact: true }),
-  ).toBeVisible();
+      .locator(`[data-comment-id="${rootId}"]`),
+  ).toHaveCount(0);
 });
 
 test("on a phone, tapping a comment's name line folds its thread", async ({
@@ -863,15 +916,9 @@ test("on a phone, tapping a comment's name line folds its thread", async ({
   const row = thread.locator("[data-identity-row]").first();
   await expect(reply).toBeVisible();
   await shot(page, "comment-thread-open");
-  // The body and the update's tag keep their own taps.
+  // The body keeps its own tap.
   await text.click();
   await expect(reply).toBeVisible();
-  await thread
-    .getByRole("button", { name: "Nye byrom tar form", exact: true })
-    .first()
-    .click();
-  await expect(page.locator("#update-u-byrom")).toBeVisible();
-  await page.getByRole("button", { name: /^Kommentarer/ }).click();
   await row.locator("time").click();
   await expect(text).toBeHidden();
   await expect(reply).toBeHidden();

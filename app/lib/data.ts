@@ -79,7 +79,10 @@ export type Project = {
 export type Comment = {
   id: string;
   projectId: string;
-  /** Optional reference; every comment belongs to the project discussion. */
+  /**
+   * The update a thread was started under, on its first comment: the thread
+   * lives in that update's comments. Without it, in the project's own.
+   */
   updateId?: string;
   author: string;
   text: string;

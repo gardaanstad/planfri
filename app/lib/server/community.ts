@@ -391,7 +391,8 @@ export async function addComment(
     db.insert(comment).values({
       id: crypto.randomUUID(),
       projectId: input.projectId,
-      updateId: input.updateId || "",
+      // A reply lives in its thread, wherever that is.
+      updateId: (!input.parentId && input.updateId) || "",
       parentId: input.parentId,
       text: input.text,
       date: serverNow().toISOString(),

@@ -1351,7 +1351,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       timeline.getByRole("heading", { name: "Nye byrom tar form" }),
     ).toBeVisible();
     await timeline
-      .getByRole("button", { name: /^Se kommentarer/ })
+      .locator("[data-comments-toggle]")
       .first()
       .click();
     await expect(

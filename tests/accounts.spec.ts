@@ -928,7 +928,10 @@ test("a profile's comment opens at its place in the project", async ({
     .getByRole("link", { name: /Ikke bare restauranter/ })
     .click();
   await expect(page).toHaveURL(/\/prosjekt\/bispevika-sor(\?|$)/);
+  // Written under an update, it opens there, among that update's comments.
   await expect(
-    page.locator('[data-comment-id="c4"] [data-highlighted]'),
+    page.locator(
+      '#update-u-fasader [data-update-comments] [data-comment-id="c4"] [data-highlighted]',
+    ),
   ).toBeInViewport();
 });

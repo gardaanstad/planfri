@@ -6,12 +6,15 @@ import {
   ArrowUp,
   ChevronDown,
   X,
-  Megaphone,
   MessageCircle,
 } from "lucide-react";
 import { type Comment, isPost, type ProjectUpdate } from "../lib/data";
 import RelativeTime from "./relative-time";
-import { discussionThreads, type DiscussionSort } from "../lib/discussion";
+import {
+  commentCounts,
+  discussionThreads,
+  type DiscussionSort,
+} from "../lib/discussion";
 import { useAuth } from "./auth-provider";
 import { takeLoginIntent } from "../lib/login-intent";
 import { useCommunity } from "./community-provider";
@@ -70,26 +73,27 @@ export default function ProjectDiscussion({
   updates,
   updateId,
   initialCommentId,
+  notice,
   sort: sortProp,
   onSortChange,
-  onReadUpdate,
   onNotify,
 }: {
   projectId: string;
   comments: Comment[];
-  /** The project's events, newest first; comments can reference each. */
+  /** The project's events, newest first; each has comments of its own. */
   updates: ProjectUpdate[];
   /** A comment opened as the first unread: scrolled to and marked. */
   initialCommentId?: string;
   /**
-   * Scopes the section to one update: it lists threads that reference the
-   * update, and new comments written here reference it.
+   * The update whose comments these are: it lists the threads started under
+   * it, and starts new ones there. Without it, the project's own discussion.
    */
   updateId?: string;
+  /** A line above the project's own discussion, pointing to comments elsewhere. */
+  notice?: React.ReactNode;
   /** Set when the order is chosen elsewhere, beside the section's tabs. */
   sort?: DiscussionSort;
   onSortChange?: (sort: DiscussionSort) => void;
-  onReadUpdate: (id: string) => void;
   onNotify: (message: string) => void;
 }) {
   const { user, requireLogin } = useAuth();
@@ -132,12 +136,22 @@ export default function ProjectDiscussion({
   }
   useEffect(() => {
     if (!initialCommentId) return;
-    const frame = requestAnimationFrame(() =>
-      document
-        .querySelector(`[data-comment-id="${CSS.escape(initialCommentId)}"]`)
-        ?.scrollIntoView({ block: "center" }),
-    );
-    return () => cancelAnimationFrame(frame);
+    const target = () =>
+      document.querySelector(
+        `[data-comment-id="${CSS.escape(initialCommentId)}"]`,
+      );
+    const scroll = () => target()?.scrollIntoView({ block: "center" });
+    const frame = requestAnimationFrame(scroll);
+    // Under an update, its comments may still be unfolding: again once open.
+    const section = target()?.closest("[data-update-comments]");
+    const settled = (event: Event) => {
+      if (event.target === section) scroll();
+    };
+    section?.addEventListener("transitionend", settled);
+    return () => {
+      cancelAnimationFrame(frame);
+      section?.removeEventListener("transitionend", settled);
+    };
   }, [initialCommentId]);
   const repliesOf = new Map<string, Comment[]>();
   for (const comment of comments) {
@@ -241,7 +255,7 @@ export default function ProjectDiscussion({
       await mutate({
         action: "comment",
         projectId,
-        // Replies sit in their thread; only new threads carry the reference.
+        // Replies sit in their thread; a new one starts under the update.
         updateId: parentId ? undefined : updateId,
         text,
         parentId,
@@ -289,10 +303,6 @@ export default function ProjectDiscussion({
   }
   function renderComment(comment: Comment, depth = 0): React.ReactNode {
     const vote = votes[comment.id] || 0;
-    const reference =
-      comment.updateId && comment.updateId !== updateId
-        ? updates.find((update) => update.id === comment.updateId)
-        : undefined;
     const replyFormId = `${idPrefix}reply-${comment.id}`;
     const replies = repliesOf.get(comment.id) ?? [];
     const folded = collapsed.has(comment.id);
@@ -334,34 +344,6 @@ export default function ProjectDiscussion({
                       date={comment.date}
                       className="shrink-0 text-xs whitespace-nowrap text-muted select-none"
                     />
-                    {reference && (
-                      <>
-                        <span
-                          aria-hidden="true"
-                          className="text-xs text-muted/70"
-                        >
-                          ·
-                        </span>
-                        <button
-                          type="button"
-                          className={cn(
-                            "relative flex min-w-0 items-center gap-1 self-center text-xs text-muted",
-                            "transition-colors duration-150 hover:text-ink motion-reduce:transition-none",
-                            "pointer-coarse:after:absolute pointer-coarse:after:-inset-y-2.5",
-                          )}
-                          data-tooltip="Viser til denne oppdateringen"
-                          data-tooltip-delay="long"
-                          onClick={() => onReadUpdate(reference.id)}
-                        >
-                          <Megaphone
-                            size={12}
-                            aria-hidden="true"
-                            className="shrink-0"
-                          />
-                          <span className="truncate">{reference.title}</span>
-                        </button>
-                      </>
-                    )}
                     <ChevronDown
                       size={16}
                       aria-hidden="true"
@@ -617,11 +599,12 @@ export default function ProjectDiscussion({
   const loginLine = !user?.username && (
     <p
       className={cn(
-        "text-ui leading-normal text-muted max-md:text-xs",
-        scoped ? "pt-3" : "text-center",
+        "text-center text-ui leading-normal text-muted max-md:text-xs",
         // As far above the first comment as below the tabs (pt-4.5, md:pt-5),
-        // less the thread's own 8px.
-        !scoped && thread.length > 0 && "pb-2.5 md:pb-3",
+        // less the thread's own 8px; under an update, as far as below its
+        // actions.
+        thread.length > 0 &&
+          (scoped ? "pb-1.5 max-sm:pb-1" : "pb-2.5 md:pb-3"),
       )}
       data-login-to-comment=""
     >
@@ -644,9 +627,10 @@ export default function ProjectDiscussion({
   return (
     <section
       aria-label={scoped ? "Kommentarer til oppdateringen" : "Kommentarer"}
-      className={cn(scoped && "pt-3.5 -mb-2.5 max-sm:pt-3")}
+      className={cn(scoped && "pt-3.5 max-sm:pt-3")}
       data-scoped={scoped || undefined}
     >
+      {!scoped && notice}
       {user?.username && (
         <form
           className={composer}
@@ -698,19 +682,32 @@ export default function ProjectDiscussion({
           </button>
         </form>
       )}
-      {/* An update's own comments sort here; the project's beside its tabs. */}
-      {scoped && thread.length > 1 && !onSortChange && (
-        <div className="mt-3 mb-1 flex items-center justify-end border-b border-border pb-2">
+      {/* An update's comments are headed by their count and order, as the
+          project's are by the tabs' line. */}
+      {scoped && thread.length > 1 && (
+        <div className="mt-3 -mb-1 flex items-center justify-between gap-3">
+          <p className="text-ui text-muted tabular-nums">
+            {commentCounts(comments).get(updateId) ?? 0} kommentarer
+          </p>
           <DiscussionSortSelect value={sort} onChange={setSort} />
         </div>
       )}
       {/* Reading comes first; joining in is a quiet line among them. */}
-      {!scoped && thread.length > 0 && loginLine}
-      <div className={cn(!scoped && user?.username && "mt-3")}>
+      {thread.length > 0 && loginLine}
+      <div className={cn(user?.username && "mt-3")}>
         {thread.map((comment) => renderComment(comment))}
         {thread.length === 0 &&
           (scoped ? (
-            <p className="pt-3 text-ui text-muted">Ingen kommentarer ennå</p>
+            // The empty state, small enough to sit under an update.
+            <div className="flex flex-col gap-1 pt-1 pb-2.5 text-center">
+              <p className="text-ui font-medium text-ink">
+                Ingen kommentarer ennå
+              </p>
+              {loginLine}
+            </div>
+          ) : notice ? (
+            // Nothing here yet, but the notice says where the talk is.
+            loginLine
           ) : (
             <EmptyState
               icon={<MessageCircle size={24} />}
@@ -719,7 +716,6 @@ export default function ProjectDiscussion({
             />
           ))}
       </div>
-      {scoped && loginLine}
     </section>
   );
 }

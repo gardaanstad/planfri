@@ -17,6 +17,7 @@ import {
   ImagePlus,
   Megaphone,
   ChevronDown,
+  ChevronRight,
   MessageCircle,
   LoaderCircle,
   MessagesSquare,
@@ -74,7 +75,11 @@ import ProjectPostHeader, { ProjectTitle } from "./project-post-header";
 import Dialog from "./dialog";
 import ActionSheet from "./action-sheet";
 import ProjectDiscussion, { DiscussionSortSelect } from "./project-discussion";
-import type { DiscussionSort } from "../lib/discussion";
+import {
+  commentCounts,
+  commentHome,
+  type DiscussionSort,
+} from "../lib/discussion";
 import CategoryPicker from "./category-picker";
 import PlacePicker from "./place-picker";
 import RelativeTime, { useNow } from "./relative-time";
@@ -119,10 +124,18 @@ const stickyToggle = cn(
   "data-[stuck=true]:border-border data-[stuck=true]:bg-surface data-[stuck=true]:shadow-float",
   "[&>svg]:text-muted [&>svg]:transition-transform [&>svg]:duration-240 motion-reduce:[&>svg]:transition-none",
 );
-/** Plain text actions under each update; the comments toggle leads. */
-const updateAction = cn(
-  "inline-flex min-h-8.5 items-center gap-1.5 text-ui font-medium text-ink underline-offset-4",
-  "hover:[&>span]:underline [&>svg]:shrink-0 [&>svg]:text-muted max-sm:min-h-10",
+/**
+ * A way into an update's comments, a full-width row on a quiet tint: the
+ * notice in Kommentarer and the toggle under each update look alike.
+ */
+const commentsRow = cn(
+  "flex min-h-11 w-full items-center gap-2 rounded-xl px-3.5 text-left text-ui font-medium text-ink",
+  "hover:bg-surface-muted pointer-coarse:active:bg-surface-muted [&>svg]:shrink-0 [&>svg]:text-muted",
+);
+/** An update's source, a plain link after its text and photos. */
+const sourceLink = cn(
+  "inline-flex min-h-8.5 items-center gap-1 text-ui font-medium text-ink underline-offset-4",
+  "hover:underline [&>svg]:shrink-0 [&>svg]:text-muted max-sm:min-h-10",
 );
 const composerTool = cn(
   "inline-flex min-h-8 items-center gap-1.5 rounded-full px-2.5 text-xs leading-normal font-medium text-muted",
@@ -1184,7 +1197,12 @@ export default function ProjectPost({
     mutate({ action: "project", project: next, create: false });
   const [discussionSort, setDiscussionSort] =
     useState<DiscussionSort>("relevant");
-  // A project with updates opens on them; a linked comment opens its tab.
+  // Each update's comments keep an order of their own.
+  const [updateSorts, setUpdateSorts] = useState<
+    Record<string, DiscussionSort>
+  >({});
+  // A project with updates opens on them; a linked comment opens its tab,
+  // the discussion's until the comments say it's under an update.
   const [tab, setTab] = useState<string>(
     () =>
       initialSection ??
@@ -1194,14 +1212,21 @@ export default function ProjectPost({
           ? "updates"
           : "discussion"),
   );
-  // A comment opened while the project is already open shows its tab.
-  const [shownCommentId, setShownCommentId] = useState(initialCommentId);
-  if (initialCommentId !== shownCommentId) {
-    setShownCommentId(initialCommentId);
-    if (initialCommentId) setTab("discussion");
-  }
   // Updates whose comment section is open; mounted ones stay for the collapse.
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
+  // Where the linked comment lives: an update's id, or "" for the discussion.
+  const linkedHome =
+    initialCommentId && comments
+      ? commentHome(comments, initialCommentId)
+      : undefined;
+  // A comment opened, now or while the project is open, shows where it lives.
+  const [shownCommentId, setShownCommentId] = useState<string>();
+  if (initialCommentId && comments && initialCommentId !== shownCommentId) {
+    setShownCommentId(initialCommentId);
+    setTab(linkedHome ? "updates" : "discussion");
+    if (linkedHome)
+      setOpenComments((open) => ({ ...open, [linkedHome]: true }));
+  }
   const [highlightId, setHighlightId] = useState(initialUpdateId || "");
   const [copied, setCopied] = useState(false);
   // Edit mode works on a draft; only the changed fields are saved.
@@ -1345,15 +1370,11 @@ export default function ProjectPost({
     ids: new Set(entries.map((entry) => entry.id)),
     onOpen: readUpdate,
   };
-  // Newest first; comments can reference any.
+  // Newest first; each has comments of its own.
   const updates = projectEvents(project).reverse();
-  const referenceCounts = new Map<string, number>();
-  for (const comment of comments ?? [])
-    if (comment.updateId)
-      referenceCounts.set(
-        comment.updateId,
-        (referenceCounts.get(comment.updateId) ?? 0) + 1,
-      );
+  const counts = commentCounts(comments ?? []);
+  const newest = updates.find(isPost);
+  const newestCount = (newest && counts.get(newest.id)) || 0;
   // Updates are the project's own record; the discussion follows them.
   const tabs = [
     {
@@ -1431,98 +1452,134 @@ export default function ProjectPost({
         ?.scrollIntoView({ block: "start" }),
     );
   }
+  // The discussion says how many are talking under the newest update.
+  const notice = newest && newestCount > 0 && (
+    <button
+      type="button"
+      className={cn(commentsRow, "mb-3 bg-surface-subtle")}
+      data-latest-comments=""
+      data-press=""
+      onClick={() => {
+        setOpenComments((open) => ({ ...open, [newest.id]: true }));
+        readUpdate(newest.id);
+      }}
+    >
+      <MessagesSquare size={16} aria-hidden="true" />
+      <span className="min-w-0 flex-1">
+        {newestCount} {newestCount === 1 ? "kommentar" : "kommentarer"} under
+        nyeste oppdatering
+      </span>
+      <ChevronRight size={16} aria-hidden="true" />
+    </button>
+  );
   /** An event's text, photos, source and comments, under its heading. */
-  const updateDetails = (update: ProjectUpdate) => (
-    <>
-      {update.body?.split("\n\n").map((paragraph, index) => (
-        <p
-          key={index}
-          className="mb-4 text-body leading-[1.65] whitespace-pre-wrap wrap-anywhere text-ink-soft max-sm:mb-3"
-        >
-          {paragraph}
-        </p>
-      ))}
-      {!!update.images?.length && (
-        <div className="mt-3.5 mb-0.5">
-          <ImageGallery
-            images={update.images}
-            label={`Bilder til ${update.title}`}
-            sizes="(max-width: 640px) 100vw, 720px"
-            className="aspect-2/1 max-sm:aspect-3/2"
-          />
-        </div>
-      )}
-      <div className="mt-2.5 flex flex-wrap items-center gap-x-5">
-        <button
-          type="button"
-          className={updateAction}
-          data-comments-toggle=""
-          aria-expanded={!!openComments[update.id]}
-          aria-controls={`update-comments-${update.id}`}
-          onClick={() => toggleComments(update.id)}
-        >
-          <MessagesSquare size={16} aria-hidden="true" />
-          <span>
-            {openComments[update.id]
-              ? "Skjul kommentarer"
-              : "Se kommentarer"}
-          </span>
-          {!openComments[update.id] && (
-            <small className="text-ui font-medium text-muted tabular-nums">
-              {referenceCounts.get(update.id) ?? 0}
-            </small>
-          )}
-        </button>
+  const updateDetails = (update: ProjectUpdate) => {
+    const open = !!openComments[update.id];
+    const count = counts.get(update.id) ?? 0;
+    const sort = updateSorts[update.id] ?? "relevant";
+    const setSort = (next: DiscussionSort) =>
+      setUpdateSorts((sorts) => ({ ...sorts, [update.id]: next }));
+    return (
+      <>
+        {update.body?.split("\n\n").map((paragraph, index) => (
+          <p
+            key={index}
+            className="mb-4 text-body leading-[1.65] whitespace-pre-wrap wrap-anywhere text-ink-soft max-sm:mb-3"
+          >
+            {paragraph}
+          </p>
+        ))}
+        {!!update.images?.length && (
+          <div className="mt-3.5 mb-0.5">
+            <ImageGallery
+              images={update.images}
+              label={`Bilder til ${update.title}`}
+              sizes="(max-width: 640px) 100vw, 720px"
+              className="aspect-2/1 max-sm:aspect-3/2"
+            />
+          </div>
+        )}
         {update.sourceUrl && (
           <a
-            className={updateAction}
+            className={cn(sourceLink, "mt-1.5")}
             href={update.sourceUrl}
             target="_blank"
             rel="noreferrer"
           >
-            <span>Les kilden</span>
+            Les kilden
             <ArrowUpRight size={14} aria-hidden="true" />
           </a>
         )}
-      </div>
-      {/* An update's own comment section, unfolding below its actions. */}
-      <div
-        id={`update-comments-${update.id}`}
-        className={cn(
-          "grid grid-rows-[0fr] opacity-0 transition-[grid-template-rows,opacity] duration-280 ease-out-soft motion-reduce:transition-none",
-          "data-[open=true]:grid-rows-[1fr] data-[open=true]:opacity-100",
-        )}
-        data-update-comments=""
-        data-open={!!openComments[update.id]}
-        inert={!openComments[update.id]}
-      >
-        {/* Clip, not hidden: the mobile dock inside must stay sticky.
-            The margin leaves room for focus outlines. */}
-        <div className="-mx-1.5 min-h-0 overflow-clip px-1.5">
-          {update.id in openComments &&
-            (comments ? (
-              <ProjectDiscussion
-                projectId={project.id}
-                comments={comments}
-                updates={updates}
-                updateId={update.id}
-                onReadUpdate={readUpdate}
-                onNotify={onNotify}
-              />
-            ) : (
-              <CommentsLoading />
-            ))}
-          {update.id in openComments && (
-            <CommentsDock
-              id={update.id}
-              open={!!openComments[update.id]}
-              onClose={() => toggleComments(update.id)}
-            />
-          )}
+        <div className="mt-3.5 max-sm:mt-3">
+          <button
+            type="button"
+            className={cn(
+              commentsRow,
+              "bg-surface-subtle",
+              "[&>svg:last-child]:transition-transform [&>svg:last-child]:duration-240 motion-reduce:[&>svg:last-child]:transition-none",
+              "aria-expanded:[&>svg:last-child]:rotate-180",
+            )}
+            data-comments-toggle=""
+            aria-expanded={open}
+            aria-controls={`update-comments-${update.id}`}
+            onClick={() => toggleComments(update.id)}
+          >
+            <MessagesSquare size={16} aria-hidden="true" />
+            {/* Said as the notice in Kommentarer says it. */}
+            <span className="min-w-0 flex-1 tabular-nums">
+              {open
+                ? "Skjul kommentarer"
+                : count
+                  ? `${count} ${count === 1 ? "kommentar" : "kommentarer"}`
+                  : "Kommenter"}
+            </span>
+            <ChevronDown size={16} aria-hidden="true" />
+          </button>
         </div>
-      </div>
-    </>
-  );
+        {/* An update's own comment section, unfolding below its actions. */}
+        <div
+          id={`update-comments-${update.id}`}
+          className={cn(
+            "grid grid-rows-[0fr] opacity-0 transition-[grid-template-rows,opacity] duration-280 ease-out-soft motion-reduce:transition-none",
+            "data-[open=true]:grid-rows-[1fr] data-[open=true]:opacity-100",
+          )}
+          data-update-comments=""
+          data-open={open}
+          inert={!open}
+        >
+          {/* Clip, not hidden: the mobile dock inside must stay sticky. Its
+              margin spares focus rings, hover washes and a linked comment's
+              glow, as in the comments' own folds. */}
+          <div className="-mx-2 min-h-0 overflow-clip px-2 [overflow-clip-margin:8px]">
+            {update.id in openComments &&
+              (comments ? (
+                <ProjectDiscussion
+                  projectId={project.id}
+                  comments={comments}
+                  updates={updates}
+                  updateId={update.id}
+                  initialCommentId={
+                    linkedHome === update.id ? initialCommentId : undefined
+                  }
+                  sort={sort}
+                  onSortChange={setSort}
+                  onNotify={onNotify}
+                />
+              ) : (
+                <CommentsLoading />
+              ))}
+            {update.id in openComments && (
+              <CommentsDock
+                id={update.id}
+                open={open}
+                onClose={() => toggleComments(update.id)}
+              />
+            )}
+          </div>
+        </div>
+      </>
+    );
+  };
   function toggleComments(id: string) {
     setOpenComments((open) => ({ ...open, [id]: !open[id] }));
   }
@@ -1661,17 +1718,15 @@ export default function ProjectPost({
                   </button>
                 ))}
                 {/* The comments' order, on their tab's own line. */}
-                {tab === "discussion" &&
-                  (comments?.filter((comment) => !comment.deleted).length ??
-                    0) > 1 && (
-                    // Narrow, its icon alone; the menu names the order.
-                    <div className="ml-auto max-sm:[&_[data-slot=choice-trigger]>span]:sr-only">
-                      <DiscussionSortSelect
-                        value={discussionSort}
-                        onChange={setDiscussionSort}
-                      />
-                    </div>
-                  )}
+                {tab === "discussion" && (counts.get("") ?? 0) > 1 && (
+                  // Narrow, its icon alone; the menu names the order.
+                  <div className="ml-auto max-sm:[&_[data-slot=choice-trigger]>span]:sr-only">
+                    <DiscussionSortSelect
+                      value={discussionSort}
+                      onChange={setDiscussionSort}
+                    />
+                  </div>
+                )}
               </div>
             </nav>
             <div
@@ -1693,10 +1748,12 @@ export default function ProjectPost({
                       projectId={project.id}
                       comments={comments}
                       updates={updates}
-                      initialCommentId={initialCommentId}
+                      initialCommentId={
+                        linkedHome === "" ? initialCommentId : undefined
+                      }
+                      notice={notice}
                       sort={discussionSort}
                       onSortChange={setDiscussionSort}
-                      onReadUpdate={readUpdate}
                       onNotify={onNotify}
                     />
                   ) : (

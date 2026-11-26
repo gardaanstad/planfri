@@ -30,9 +30,9 @@
     scroll-margin-top: 64px;
     transition: padding-bottom 280ms var(--ease-out-soft);
 
-    /* Open comments already end the entry; less air before the next one. */
+    /* Open comments end the entry with their last thread's own air. */
     &:has([data-update-comments][data-open="true"]) {
-      padding-bottom: 8px;
+      padding-bottom: 0;
     }
 
     @media (prefers-reduced-motion: reduce) {
