@@ -1236,8 +1236,8 @@ function GroupOutline({ runs }: { runs: Run[] }) {
 }
 
 /**
- * A pushpin, tilted as if pressed in: a head, a collar flaring to its
- * base and a needle. Filled, it marks what's pinned.
+ * A pushpin, upright and symmetrical: a straight body flaring to its
+ * foot and a needle. Filled, it marks what's pinned.
  */
 function PinIcon({ size, filled }: { size: number; filled: boolean }) {
   return (
@@ -1253,13 +1253,11 @@ function PinIcon({ size, filled }: { size: number; filled: boolean }) {
       aria-hidden="true"
       className="shrink-0"
     >
-      <g transform="rotate(45 12 12)">
-        <path
-          d="M9.5 3.5h5M10.25 3.5v5.25L7.5 12.5v1.5h9v-1.5l-2.75-3.75V3.5"
-          fill={filled ? "currentColor" : "none"}
-        />
-        <path d="M12 14v6.5" />
-      </g>
+      <path
+        d="M9 3.5h6V10l2.5 3.5h-11L9 10z"
+        fill={filled ? "currentColor" : "none"}
+      />
+      <path d="M12 13.5V21" />
     </svg>
   );
 }
