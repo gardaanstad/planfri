@@ -479,7 +479,7 @@ const noProjects: Project[] = [];
 // the list's edge; its hover tints at once, as the sort's does.
 const placeChoiceClasses = [
   "-ml-2.5 min-w-0 shrink",
-  "[&_[data-slot=choice-trigger]]:min-h-9 [&_[data-slot=choice-trigger]]:gap-1.5 [&_[data-slot=choice-trigger]]:rounded-lg [&_[data-slot=choice-trigger]]:border-transparent! [&_[data-slot=choice-trigger]]:bg-transparent [&_[data-slot=choice-trigger]]:px-2.5 [&_[data-slot=choice-trigger]]:text-ui [&_[data-slot=choice-trigger]]:font-semibold [&_[data-slot=choice-trigger]]:transition-none",
+  "[&_[data-slot=choice-trigger]]:min-h-9 [&_[data-slot=choice-trigger]]:gap-1.5 [&_[data-slot=choice-trigger]]:rounded-lg [&_[data-slot=choice-trigger]]:border-transparent! [&_[data-slot=choice-trigger]]:bg-transparent [&_[data-slot=choice-trigger]]:px-2.5 [&_[data-slot=choice-trigger]]:text-item [&_[data-slot=choice-trigger]]:transition-none",
   "[&_[data-slot=choice-trigger]]:hover:bg-ink/[0.05]! [&_[data-slot=choice-trigger]>svg]:text-muted",
   "[&_[data-slot=choice-menu][data-open=false]]:hidden",
 ].join(" ");
