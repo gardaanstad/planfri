@@ -19,6 +19,7 @@ import {
   sheetTitleGap,
 } from "./action-sheet";
 import { useSwipeDismiss } from "./use-swipe-dismiss";
+import { unselectable } from "../lib/ui";
 
 export type FilterSection = {
   id: string;
@@ -380,6 +381,7 @@ export default function FilterSheet({
       className={cn(
         "m-auto mb-0 w-full max-w-none overflow-visible border-0 bg-transparent p-0 text-ink outline-none",
         "backdrop:bg-scrim/25 motion-safe:backdrop:animate-backdrop-in",
+        unselectable,
       )}
       onCancel={(event) => {
         event.preventDefault();

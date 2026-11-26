@@ -31,6 +31,13 @@ export const sortChoice = [
 ].join(" ");
 
 /**
+ * A phone's sheets and drawers of controls: a long press there means the
+ * row, not its words, so they don't select. Fields still do.
+ */
+export const unselectable =
+  "select-none [&_:is(input,textarea,[contenteditable=true])]:select-text";
+
+/**
  * A desktop dropdown (Base UI `Menu.Popup`): actions or settings. Menus
  * with long rows or switches widen it with `min-w-60`.
  */

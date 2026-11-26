@@ -12,7 +12,7 @@ import { Radio } from "./choice-mark";
 import { cn } from "../lib/cn";
 import { reducedMotion, sheetLeave } from "../lib/media";
 import { useBackgroundPush } from "../lib/background-push";
-import { keyboardFocused } from "../lib/ui";
+import { keyboardFocused, unselectable } from "../lib/ui";
 import { useSwipeDismiss } from "./use-swipe-dismiss";
 
 /** Whether a sheet's trigger was reached by keyboard rather than a tap. */
@@ -183,6 +183,7 @@ export function BottomSheet({
       className={cn(
         "m-auto mb-0 w-full max-w-none overflow-visible border-0 bg-transparent p-0 text-ink outline-none",
         "backdrop:bg-scrim/25 motion-safe:backdrop:animate-backdrop-in",
+        unselectable,
       )}
       onCancel={(event) => {
         event.preventDefault();

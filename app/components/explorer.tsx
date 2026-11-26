@@ -160,6 +160,7 @@ import {
   sortChoice,
   statusTone,
   textButton,
+  unselectable,
 } from "../lib/ui";
 
 const densityOptions = [
@@ -3175,7 +3176,7 @@ export default memo(function Explorer({
                   snapPoint !== 1 &&
                     "[&_[data-drawer-scroll]:not([data-scrolled])]:overflow-y-hidden",
                 )}
-                contentClassName={mobileDrawerInnerClasses}
+                contentClassName={cn(mobileDrawerInnerClasses, unselectable)}
                 initialFocus={false}
                 finalFocus={false}
                 onWheel={(event) => {
