@@ -2654,7 +2654,10 @@ export default memo(function Explorer({
       <span
         className={cn(
           // The logo's own background, light and dark (see `BrandMark`).
-          "inline-flex items-center bg-[#245b46] px-3 text-ui font-semibold text-white dark:bg-[#25423a]",
+          "inline-flex items-center bg-[#245b46] px-3 font-semibold text-white dark:bg-[#25423a]",
+          // Desktop's label is a step larger, nearer the brand beside it;
+          // its 12px sides match the room above and below its capitals.
+          isMobile ? "text-ui" : "text-body",
           "md:group-hover/login:bg-[#1c4a39] md:dark:group-hover/login:bg-[#2d5045]",
           "narrow:px-2",
           // The logo's corner: 23% of its size, 32px on desktop and 24px on
@@ -2675,7 +2678,17 @@ export default memo(function Explorer({
           </span>
         </span>
         <span className="fold unfolded narrow:folded" data-tooltip-label="">
-          <span className="whitespace-nowrap">Logg inn</span>
+          {/* Centred, a 15px label's baseline sits 2.25px above the 20px
+              brand's; a pixel down meets it halfway, the capitals still
+              close to centred in the pill. */}
+          <span
+            className={cn(
+              "whitespace-nowrap",
+              !isMobile && "inline-block translate-y-px",
+            )}
+          >
+            Logg inn
+          </span>
         </span>
       </span>
     </button>
