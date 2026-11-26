@@ -60,7 +60,7 @@ import {
   statusTone,
 } from "../lib/ui";
 import DrawingMap from "./drawing-map";
-import ProjectPostHeader from "./project-post-header";
+import ProjectPostHeader, { ProjectTitle } from "./project-post-header";
 import Dialog from "./dialog";
 import ActionSheet from "./action-sheet";
 import ProjectDiscussion, { DiscussionSortSelect } from "./project-discussion";
@@ -394,9 +394,15 @@ function morph(
 
 /**
  * Where it is, who builds it and its site, then how far along it is, at a
- * glance under the title.
+ * glance under the title. On desktop the photos come between the two.
  */
-function ProjectMeta({ project }: { project: Project }) {
+function ProjectMeta({
+  project,
+  children,
+}: {
+  project: Project;
+  children?: ReactNode;
+}) {
   const developer =
     project.developer !== unknownDeveloper ? project.developer : "";
   return (
@@ -427,6 +433,7 @@ function ProjectMeta({ project }: { project: Project }) {
           )}
         </p>
       </div>
+      {children}
       <PhaseTimeline project={project} className="mt-5 max-md:mt-4" />
     </div>
   );
@@ -506,8 +513,8 @@ function BelowTabs({
 const paragraphs = (text: string) => text.split("\n\n").filter(Boolean);
 
 /**
- * A few lines of the description, then "Les mer" and the image (more lines on desktop). "Les mer"
- * grows the text, pushing the image down; a description that fits has none.
+ * A few lines of the description, then "Les mer" (more lines on desktop, and
+ * without photos above it). A description that fits has none.
  */
 function ProjectIntro({ project }: { project: Project }) {
   const [open, setOpen] = useState(false);
@@ -724,17 +731,6 @@ function ProjectIntro({ project }: { project: Project }) {
         </button>
       )}
       <div ref={end} aria-hidden="true" />
-      {photo && (
-        <ImageGallery
-          images={photos}
-          label={`Bilder av ${project.title}`}
-          sizes="(max-width: 768px) 100vw, 560px"
-          // Without "Les mer" between them, more room under the text.
-          className={cn(cover, overflows || open ? "mt-2" : "mt-4")}
-          // Led by the cover the list shows a thumbnail of.
-          cover={hasPhoto(project)}
-        />
-      )}
     </div>
   );
 }
@@ -1399,6 +1395,17 @@ export default function ProjectPost({
       onNotify(errorMessage(error, "Kunne ikke slette prosjektet."));
     }
   }
+  const photos = projectPhotos(project);
+  const gallery = photos.length > 0 && (
+    <ImageGallery
+      images={photos}
+      label={`Bilder av ${project.title}`}
+      sizes="(max-width: 768px) 100vw, 560px"
+      className={cover}
+      // Led by the cover the list shows a thumbnail of.
+      cover={hasPhoto(project)}
+    />
+  );
   const actions = {
     onEdit: startEditing,
     onDelete: canModerate ? () => setDeleting("confirm") : undefined,
@@ -1421,6 +1428,7 @@ export default function ProjectPost({
           onClose={close}
           mobile={mobile}
           actions={actions}
+          photos={photos.length > 0}
         />
         <div
           ref={contentRef}
@@ -1442,7 +1450,22 @@ export default function ProjectPost({
                 </div>
               ) : (
                 <>
-                  <ProjectMeta project={project} />
+                  {/* Phones: the photo leads, the actions over it and the
+                      title under it. */}
+                  {mobile && gallery && (
+                    <>
+                      <div className="mt-2.5 mb-4" data-lead-gallery="">
+                        {gallery}
+                      </div>
+                      <ProjectTitle title={project.title} />
+                    </>
+                  )}
+                  {/* Desktop: under the title and its row, over the phases. */}
+                  <ProjectMeta project={project}>
+                    {!mobile && gallery && (
+                      <div className="mt-3.5">{gallery}</div>
+                    )}
+                  </ProjectMeta>
                   <ProjectIntro project={project} />
                   {/* Members correct the page from here; moderators edit
                       from the menu. */}

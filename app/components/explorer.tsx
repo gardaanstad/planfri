@@ -149,7 +149,7 @@ import { useUrlSync } from "./use-url-sync";
 import { replaceUrl, whenNextSettled } from "../lib/explore-history";
 import { routeParam } from "../lib/explore-route";
 import { cn } from "../lib/cn";
-import { mobileQuery, useMediaQuery } from "../lib/media";
+import { mobileQuery, reducedMotion, useMediaQuery } from "../lib/media";
 import { openProfileEvent } from "../lib/profile-overlay";
 import type { SidebarMode } from "./sidebar-panel";
 import { DrawSurfaceContext } from "./draw-surface";
@@ -356,20 +356,36 @@ function LivePlaceSelect({
   );
 }
 
-/**
- * How much of the open project's drawer shows folded: down to the end of
- * its phase timeline, scrolled to its top. Never lower than the folded list,
- * which it covers, nor near the middle height.
- */
-function foldHeight(): DrawerSnapPoint {
-  const drawer = [
+/** The open project's drawer, the last one in while another leaves. */
+const projectDrawer = () =>
+  [
     ...document.querySelectorAll<HTMLElement>(
       "[data-project-drawer]:not([data-ending-style])",
     ),
   ].at(-1);
-  drawer
-    ?.querySelector("[data-project-scroll]")
-    ?.scrollTo({ top: 0, behavior: "instant" });
+
+/**
+ * How much of the open project's drawer shows folded: down to the end of
+ * its phase timeline, scrolled to its title, past any photos above it. Never
+ * lower than the folded list, which it covers, nor near the middle height.
+ */
+function foldHeight(): DrawerSnapPoint {
+  const drawer = projectDrawer();
+  const scroller = drawer?.querySelector("[data-project-scroll]");
+  const title = scroller?.querySelector("#project-card-title");
+  const bar = drawer?.querySelector("[data-project-post] > header");
+  scroller?.scrollTo({
+    // A photo leads the post: folded past it, the title stands just under
+    // the bar floating over the scroll.
+    top:
+      title && bar
+        ? title.getBoundingClientRect().top -
+          bar.getBoundingClientRect().bottom +
+          scroller.scrollTop -
+          6
+        : 0,
+    behavior: "instant",
+  });
   const strip = drawer?.querySelector("[data-phase-strip]");
   if (!drawer || !strip) return compactSnapPoint;
   const popup = drawer.closest("[data-slot=drawer-popup]") ?? drawer;
@@ -1255,6 +1271,14 @@ export default memo(function Explorer({
   function movePost(point: DrawerSnapPoint) {
     const from = postSnap?.point;
     setPostSnap((current) => current && { ...current, point });
+    // Unfolded, back to the photos it folded past.
+    if (from !== undefined && isFolded(from) && !isFolded(point))
+      projectDrawer()
+        ?.querySelector("[data-project-scroll]")
+        ?.scrollTo({
+          top: 0,
+          behavior: reducedMotion() ? "instant" : "smooth",
+        });
     if (listStaysFolded.current) return;
     if (isFolded(point)) {
       // Folded before the list was up behind it: it stays down, under the

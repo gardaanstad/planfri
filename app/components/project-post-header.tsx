@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import {
   Bookmark,
   Check,
@@ -31,6 +31,41 @@ const headerIconButton = cn(
 
 const titleType = panelTitle;
 
+/**
+ * Phones, over the photo: the gallery's own arrows' look, a soft disc that
+ * reads on any image; plain again once the bar turns solid.
+ */
+const floatingButton = (solid: boolean) =>
+  cn(
+    "max-md:size-8.5 rounded-full transition-[background-color,box-shadow,color]",
+    solid
+      ? "text-muted shadow-none"
+      : "bg-surface/88 text-ink shadow-control backdrop-blur-sm hover:bg-surface",
+  );
+
+/**
+ * A project's title under its photos, at the top of its scroll: the meta
+ * row follows it as it does the bar's.
+ */
+export function ProjectTitle({ title }: { title: string }) {
+  return (
+    <h1
+      id="project-card-title"
+      tabIndex={-1}
+      className={cn(
+        "m-0 text-balance text-ink outline-none",
+        wrapTitle,
+        titleType,
+        // As far above the meta row as the bar's title, which has the bar's
+        // bottom padding and the scroll's top padding below it too.
+        "mb-3",
+      )}
+    >
+      {title}
+    </h1>
+  );
+}
+
 export type ProjectActionsProps = {
   /** Enters edit mode; members suggest their changes. */
   onEdit?: () => void;
@@ -52,6 +87,12 @@ type HeaderProps = {
   onClose: () => void;
   /** Phones: the actions gather in a sheet behind one button. */
   mobile?: boolean;
+  /**
+   * Phones: the photos lead the post, its title under them. The actions
+   * float over the photo, and the bar turns solid, with the title, once
+   * that has scrolled under it.
+   */
+  photos?: boolean;
 };
 
 /**
@@ -116,7 +157,8 @@ function MobileActions({
   onShare,
   guest = false,
   onDelete,
-}: ProjectActionsProps) {
+  buttonClassName = "text-muted",
+}: ProjectActionsProps & { buttonClassName?: string }) {
   const [open, setOpen] = useState(false);
   const actions: SheetAction[] = [
     {
@@ -160,7 +202,7 @@ function MobileActions({
     <>
       <button
         type="button"
-        className={cn(headerIconButton, "text-muted")}
+        className={cn(headerIconButton, buttonClassName)}
         aria-label="Handlinger"
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -186,33 +228,64 @@ export default function ProjectPostHeader({
   scrollRootRef,
   onClose,
   mobile = false,
+  photos = false,
 }: HeaderProps) {
   const [compact, setCompact] = useState(false);
+  // Floating over the photo: whether it has scrolled from under the bar.
+  const [solid, setSolid] = useState(false);
   const edit = useProjectEdit();
   const editing = Boolean(edit);
+  // Edit mode has the title in the bar, its photos among the fields.
+  const below = mobile && photos && !editing;
+  const bar = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const root = scrollRootRef.current;
-    const details = root?.querySelector("[data-project-header-hero]");
+    const details = root?.querySelector(
+      below ? "#project-card-title" : "[data-project-header-hero]",
+    );
+    const gallery = below && root?.querySelector("[data-lead-gallery]");
     if (!root || !details) return;
+    // Over the scroll, the bar hides what passes under it.
+    const covered = below ? (bar.current?.offsetHeight ?? 0) : 0;
 
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        const rootTop =
-          entry.rootBounds?.top ?? root.getBoundingClientRect().top;
-        setCompact(
-          !entry.isIntersecting && entry.boundingClientRect.bottom <= rootTop,
-        );
+      (entries) => {
+        for (const entry of entries) {
+          const rootTop =
+            entry.rootBounds?.top ?? root.getBoundingClientRect().top + covered;
+          const past =
+            !entry.isIntersecting && entry.boundingClientRect.bottom <= rootTop;
+          (entry.target === details ? setCompact : setSolid)(past);
+        }
       },
-      { root, threshold: 0 },
+      { root, threshold: 0, rootMargin: `-${covered}px 0px 0px 0px` },
     );
 
     observer.observe(details);
-    return () => observer.disconnect();
+    if (gallery) observer.observe(gallery);
+    return () => {
+      observer.disconnect();
+      setSolid(false);
+    };
     // Edit mode swaps the intro, so watch the new one.
-  }, [project.id, scrollRootRef, editing]);
+  }, [project.id, scrollRootRef, editing, below]);
 
-  const title = edit ? (
+  const title = below ? (
+    // The title proper is under the photo; this one keeps it in view once
+    // that has scrolled away.
+    <p
+      aria-hidden="true"
+      className={cn(
+        "m-0 min-w-0 flex-1 self-center truncate text-title font-semibold text-ink",
+        "transition-[opacity,visibility] duration-200 motion-reduce:transition-none",
+        !compact && "invisible opacity-0",
+      )}
+      data-bar-title=""
+    >
+      {project.title}
+    </p>
+  ) : edit ? (
     <EditField
       id="title"
       inline
@@ -266,7 +339,7 @@ export default function ProjectPostHeader({
     <button
       type="button"
       data-project-close=""
-      className={headerIconButton}
+      className={cn(headerIconButton, below && floatingButton(solid))}
       onClick={onClose}
       aria-label="Lukk prosjekt"
     >
@@ -277,6 +350,34 @@ export default function ProjectPostHeader({
     "transition-[border-color] duration-200 motion-reduce:transition-none",
     compact ? "border-border" : "border-transparent",
   );
+
+  if (below)
+    return (
+      <header
+        ref={bar}
+        className={cn(
+          // Over the top of the scroll, its buttons on the photo's corner,
+          // as far in from it as the gallery's arrows.
+          "absolute inset-x-0 top-0 z-20 flex items-center gap-2 border-b pt-5.5 pr-7 pb-2 pl-4.5",
+          "transition-[background-color,border-color] duration-200 motion-reduce:transition-none",
+          solid ? "bg-surface" : "pointer-events-none",
+          border,
+        )}
+        data-compact={compact}
+        data-solid={solid}
+      >
+        {title}
+        <div className="pointer-events-auto flex shrink-0 items-center gap-2">
+          {!edit && (
+            <MobileActions
+              {...actions}
+              buttonClassName={floatingButton(solid)}
+            />
+          )}
+          {close}
+        </div>
+      </header>
+    );
 
   if (mobile)
     return (

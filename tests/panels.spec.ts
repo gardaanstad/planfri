@@ -7,6 +7,7 @@ import {
 } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { seedProjects } from "../scripts/seed-data";
+import { projectPhotos } from "../app/lib/data";
 import {
   accountMenuItem,
   member,
@@ -24,6 +25,11 @@ import {
 
 const project = seedProjects[0];
 const projectPath = `/prosjekt/${project.id}`;
+/** A project without photos, its title in the bar. */
+const photoless = seedProjects.find(
+  (item) => projectPhotos(item).length === 0,
+)!;
+const photolessPath = `/prosjekt/${photoless.id}`;
 /** Where a heading's capitals and first letter are on the page. */
 const capitals = (heading: Locator) =>
   heading.evaluate((element) => {
@@ -306,7 +312,7 @@ test.describe("mobile panels", () => {
   test("a sheet's header stands as far below its top as it is in from its sides", async ({
     page,
   }) => {
-    await page.goto(projectPath);
+    await page.goto(photolessPath);
     const drawer = page.locator('[data-panel-drawer="project"]');
     await expect(drawer.locator("[data-project-post]")).toBeVisible();
     const edges = await drawer.evaluate((element) => {
@@ -504,12 +510,46 @@ test.describe("mobile panels", () => {
     await expect(page).toHaveURL(/:\d+\/(\?|$)/);
   });
 
+  test("a project's photo leads it, its actions over it and its title under it", async ({
+    page,
+  }) => {
+    await page.goto(projectPath);
+    const post = page.locator('[data-panel-drawer="project"] [data-project-post]');
+    const gallery = post.getByRole("group", { name: `Bilder av ${project.title}` });
+    const title = post.locator("#project-card-title");
+    await expect(title).toHaveText(project.title);
+    const box = (locator: Locator) =>
+      locator.evaluate((element) => {
+        const { top, right, bottom } = element.getBoundingClientRect();
+        return { top, right, bottom };
+      });
+    const photo = await box(gallery);
+    const close = await box(post.locator("[data-project-close]"));
+    // The buttons sit on the photo's corner.
+    expect(close.top).toBeGreaterThan(photo.top);
+    expect(close.right).toBeLessThan(photo.right);
+    expect((await box(title)).top).toBeGreaterThan(photo.bottom);
+    // The bar turns solid under the photo, and takes the title once it has
+    // scrolled under it.
+    const bar = post.locator("[data-bar-title]");
+    await expect(bar).toBeHidden();
+    await post
+      .locator("[data-project-scroll]")
+      .evaluate((element) => (element.scrollTop = 600));
+    await expect(bar).toBeVisible();
+    await expect(bar).toHaveText(project.title);
+    await expect(post.locator("header")).toHaveAttribute("data-solid", "true");
+  });
+
   test("Vis mindre floats over the post from the start", async ({ page }) => {
     // Short enough that the whole description runs past the fold.
-    await page.setViewportSize({ width: 390, height: 420 });
+    await page.setViewportSize({ width: 390, height: 340 });
     await page.goto(projectPath);
     const drawer = page.locator('[data-panel-drawer="project"]');
-    await drawer.getByRole("button", { name: "Les mer", exact: true }).click();
+    const more = drawer.getByRole("button", { name: "Les mer", exact: true });
+    // Read down to it, under the photo: at the bottom of the view.
+    await more.evaluate((element) => element.scrollIntoView({ block: "end" }));
+    await more.click();
     const less = drawer.getByRole("button", { name: "Vis mindre", exact: true });
     await expect(less).toHaveAttribute("data-stuck", "true");
   });
@@ -518,10 +558,11 @@ test.describe("mobile panels", () => {
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
-    await page.setViewportSize({ width: 390, height: 420 });
+    await page.setViewportSize({ width: 390, height: 340 });
     await page.goto(projectPath);
     const drawer = page.locator('[data-panel-drawer="project"]');
     const toggle = drawer.locator('[aria-controls^="intro-"]');
+    await toggle.evaluate((element) => element.scrollIntoView({ block: "end" }));
     await toggle.click();
     // Stuck while it still slides, not once it lands.
     await expect(toggle).toHaveAttribute("data-moving", "true");
@@ -541,7 +582,7 @@ test.describe("desktop headers", () => {
   test("a project's actions wait in its menu, beside the close button", async ({
     page,
   }) => {
-    await page.goto(projectPath);
+    await page.goto(photolessPath);
     const post = page.locator("[data-project-post]");
     await expect(post).toBeVisible();
     const actions = post.locator("[data-project-actions]");
@@ -574,6 +615,25 @@ test.describe("desktop headers", () => {
     await page.getByRole("menuitemcheckbox", { name: "Lagre" }).click();
     await expect(page.getByRole("dialog", { name: "Logg inn" })).toContainText(
       "lagre prosjekter",
+    );
+  });
+
+  test("a project's photo leads it on desktop under its title and place", async ({
+    page,
+  }) => {
+    await page.goto(projectPath);
+    const post = page.locator("[data-project-post]");
+    const top = (locator: Locator) =>
+      locator.evaluate((element) => element.getBoundingClientRect().top);
+    const gallery = post.getByRole("group", { name: `Bilder av ${project.title}` });
+    await expect(gallery).toBeVisible();
+    // The title in the bar, beside its buttons.
+    expect(await post.locator("header #project-card-title").count()).toBe(1);
+    expect(await top(gallery)).toBeGreaterThan(
+      await top(post.locator("[data-project-meta] p").first()),
+    );
+    expect(await top(post.locator("[data-phase-strip]"))).toBeGreaterThan(
+      await top(gallery),
     );
   });
 
@@ -688,7 +748,7 @@ test.describe("desktop headers", () => {
       context,
       await member({ username: uniqueName("titled") }),
     );
-    await page.goto(projectPath);
+    await page.goto(photolessPath);
     const reference = await capitals(page.locator("#project-card-title"));
     const level = async (name: string) => {
       const panel = page.locator(`[data-sidebar-panel="${name}"]`);
