@@ -36,7 +36,7 @@ export type PhaseTrack = {
 /** A milestone's place: on which stretch, and how far along it. */
 export type TrackPlace = { index: number; fraction: number };
 
-// Geist at the timeline's size averages about half an em per character;
+// IBM Plex Sans at the timeline's size averages about half an em per character;
 // medium-weight "Byggestart" and "mars" run widest.
 const emPerCharacter = 0.58;
 const gap = 1;

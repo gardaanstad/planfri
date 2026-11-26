@@ -199,7 +199,7 @@ Base UI `Menu` with the shared classes in `ui.ts`; never a hand-built
 
 ## Typography
 
-Geist Sans throughout (`font-sans`), Geist Mono for code and coordinates.
+IBM Plex Sans throughout (`font-sans`), Geist Mono for code and coordinates.
 `antialiased`. Numbers that line up or change in place are `tabular-nums`.
 
 ### Roles
@@ -209,10 +209,10 @@ once. Never build a heading from `text-* font-semibold`.
 
 | Role            | Size / leading | Tracking | Weight | For                                    |
 | --------------- | -------------- | -------- | ------ | -------------------------------------- |
-| `text-display`  | 26px / 1.16    | −0.03em  | 600    | A page's or panel's title: a project, Lagret, Forslag, Kontoinnstillinger (`panelTitle`; 24px on phones) |
-| `text-title`    | 20px / 1.3     | −0.02em  | 600    | A dialog's title, a profile's name     |
-| `text-heading`  | 18px / 1.35    | −0.015em | 600    | A section or entry inside a page; a drawer's title |
-| `text-item`     | 16px / 1.35    | −0.01em  | 600    | A row's or card's title; a compact bar's question; an entry's title on phones |
+| `text-display`  | 26px / 1.16    | −0.02em  | 600    | A page's or panel's title: a project, Lagret, Forslag, Kontoinnstillinger (`panelTitle`; 24px on phones) |
+| `text-title`    | 20px / 1.3     | −0.015em | 600    | A dialog's title, a profile's name     |
+| `text-heading`  | 18px / 1.35    | −0.01em  | 600    | A section or entry inside a page; a drawer's title |
+| `text-item`     | 16px / 1.35    | −0.005em | 600    | A row's or card's title; a compact bar's question; an entry's title on phones |
 
 A desktop menu or popover may name itself in a first line set
 `text-body font-semibold`: a label, not a heading.

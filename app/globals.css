@@ -73,19 +73,19 @@
    */
   --text-display: 1.625rem;
   --text-display--line-height: 1.16;
-  --text-display--letter-spacing: -0.03em;
+  --text-display--letter-spacing: -0.02em;
   --text-display--font-weight: 600;
   --text-title: 1.25rem;
   --text-title--line-height: 1.3;
-  --text-title--letter-spacing: -0.02em;
+  --text-title--letter-spacing: -0.015em;
   --text-title--font-weight: 600;
   --text-heading: 1.125rem;
   --text-heading--line-height: 1.35;
-  --text-heading--letter-spacing: -0.015em;
+  --text-heading--letter-spacing: -0.01em;
   --text-heading--font-weight: 600;
   --text-item: 1rem;
   --text-item--line-height: 1.35;
-  --text-item--letter-spacing: -0.01em;
+  --text-item--letter-spacing: -0.005em;
   --text-item--font-weight: 600;
 
   /* All shadows share the ink-green shadow colour. */
@@ -426,7 +426,7 @@
 
 /* next/font sets these variables on <html>. */
 @theme inline {
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-plex-sans);
   --font-mono: var(--font-geist-mono);
 }
 

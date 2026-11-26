@@ -1608,7 +1608,7 @@ export default memo(function Explorer({
     <Link
       className={cn(
         "group flex min-h-11 items-center whitespace-nowrap font-bold text-ink",
-        "text-xl tracking-[-0.04em]",
+        "text-xl tracking-[-0.025em]",
         isMobile ? "gap-1.5" : "gap-2",
       )}
       href="/"

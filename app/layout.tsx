@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, IBM_Plex_Sans } from "next/font/google";
 import { cookies } from "next/headers";
 import { memberViewCookie } from "./lib/member-view";
 import "./globals.css";
@@ -12,8 +12,8 @@ import { Toaster } from "./components/toast";
 import PressLayer from "./components/press-layer";
 import { ThemeColorSync } from "./components/theme-toggle";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const plexSans = IBM_Plex_Sans({
+  variable: "--font-plex-sans",
   subsets: ["latin"],
 });
 
@@ -56,7 +56,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="nb"
       data-theme={theme}
-      className={`${geistSans.variable} ${geistMono.variable} h-full bg-canvas font-sans text-ink antialiased`}
+      className={`${plexSans.variable} ${geistMono.variable} h-full bg-canvas font-sans text-ink antialiased`}
       // The scripts below set a variable and an attribute on it before hydration.
       suppressHydrationWarning
     >

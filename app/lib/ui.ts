@@ -208,13 +208,13 @@ export const wrapTitle =
  * letter is in from the side, within the 44px buttons' height; on phones,
  * under the grip, the line is centred on the 40px buttons.
  */
-export const panelTitleTop = { desktop: "pt-2.5", mobile: "pt-1.5" };
+export const panelTitleTop = { desktop: "pt-2.25", mobile: "pt-1.5" };
 
 /**
  * The room below a panel title's line that the buttons beside it leave on
  * one line, kept when the title wraps past them.
  */
-export const panelTitleBottom = { desktop: "mb-1", mobile: "mb-1.5" };
+export const panelTitleBottom = { desktop: "mb-1.25", mobile: "mb-1.5" };
 
 /**
  * Whether an element's focus came from the keyboard: visible to the browser,
