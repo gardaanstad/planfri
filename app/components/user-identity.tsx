@@ -27,9 +27,10 @@ import { useAuth } from "./auth-provider";
 
 /**
  * Avatar beside the name, with `meta` (such as a date) after it on the same
- * line, and `children` below the name, still beside the avatar. `onRowClick`
- * hears clicks on the name's line, which reaches up and out to the edge to be
- * easier to hit.
+ * line, centred on the avatar, and `children` below: beside the avatar on
+ * wider screens, the full width under it on phones. `onRowClick` hears clicks
+ * on the name's line, which reaches up and out to the edge to be easier to
+ * hit.
  */
 export default function UserIdentity({
   username,
@@ -151,10 +152,7 @@ export default function UserIdentity({
 
   return (
     <div
-      className={cn(
-        "flex min-w-0 max-w-full gap-2.5",
-        children ? "items-start" : "items-center",
-      )}
+      className="grid max-w-full min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 max-sm:gap-x-1.5"
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) close();
       }}
@@ -182,11 +180,10 @@ export default function UserIdentity({
         <ProfileAvatar
           name={profile.username}
           tone={profile.tone}
-          className="size-8 text-xs"
+          className="size-7 text-xs max-sm:size-6 max-sm:text-2xs"
         />
       </a>
-      <div className="min-w-0 flex-1">
-        <div
+      <div
           className={cn(
             "flex min-h-4.5 min-w-0 items-baseline gap-1.5",
             // Taller only where nothing else is: never over the line below.
@@ -199,7 +196,7 @@ export default function UserIdentity({
             ref={triggerRef}
             href={profileHref(username)}
             className={cn(
-              "min-w-0 rounded-sm text-left text-ui leading-[18px] font-semibold text-ink [overflow-wrap:anywhere]",
+              "min-w-0 shrink-0 rounded-sm text-left text-ui leading-[18px] font-medium text-ink [overflow-wrap:anywhere]",
               "underline-offset-[3px] hover:underline focus-visible:underline aria-expanded:underline",
             )}
             aria-describedby={open ? id : undefined}
@@ -223,9 +220,10 @@ export default function UserIdentity({
           )}
         </div>
         {children && (
-          <div className="min-w-0">{children}</div>
+          <div className="col-start-2 min-w-0 max-sm:col-span-2 max-sm:col-start-1">
+            {children}
+          </div>
         )}
-      </div>
       <div
         id={id}
         ref={previewRef}

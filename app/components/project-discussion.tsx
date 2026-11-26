@@ -300,7 +300,7 @@ export default function ProjectDiscussion({
     const replyLabel = `${replyCount} svar`;
     return (
       <div
-        className={cn(styles.thread, depth === 0 ? "py-2.5" : "pt-2")}
+        className={cn(styles.thread, depth === 0 ? "py-2" : "pt-2.5")}
         key={comment.id}
         data-comment-id={comment.id}
       >
@@ -315,10 +315,10 @@ export default function ProjectDiscussion({
           data-minimized={shut || undefined}
         >
           {comment.deleted ? (
-            <div className="flex min-h-8 items-center gap-2.5">
+            <div className="flex min-h-7 items-center gap-2 max-sm:min-h-6 max-sm:gap-1.5">
               <span
                 aria-hidden="true"
-                className="size-8 shrink-0 rounded-full border border-dashed border-border-strong"
+                className="size-7 shrink-0 rounded-full border border-dashed border-border-strong max-sm:size-6"
               />
               <p className="text-ui text-muted italic">Slettet kommentar</p>
             </div>
@@ -333,6 +333,34 @@ export default function ProjectDiscussion({
                       date={comment.date}
                       className="shrink-0 text-xs whitespace-nowrap text-muted select-none"
                     />
+                    {reference && (
+                      <>
+                        <span
+                          aria-hidden="true"
+                          className="text-xs text-muted/70"
+                        >
+                          ·
+                        </span>
+                        <button
+                          type="button"
+                          className={cn(
+                            "relative flex min-w-0 items-center gap-1 self-center text-xs text-muted",
+                            "transition-colors duration-150 hover:text-ink motion-reduce:transition-none",
+                            "pointer-coarse:after:absolute pointer-coarse:after:-inset-y-2.5",
+                          )}
+                          data-tooltip="Viser til denne oppdateringen"
+                          data-tooltip-delay="long"
+                          onClick={() => onReadUpdate(reference.id)}
+                        >
+                          <Megaphone
+                            size={12}
+                            aria-hidden="true"
+                            className="shrink-0"
+                          />
+                          <span className="truncate">{reference.title}</span>
+                        </button>
+                      </>
+                    )}
                     <ChevronDown
                       size={16}
                       aria-hidden="true"
@@ -344,28 +372,9 @@ export default function ProjectDiscussion({
                   </>
                 }
               >
-                {reference && (
-                  <div className="mt-0.5 mb-1 flex min-w-0">
-                    <button
-                      type="button"
-                      // Baseline-aligned so the chip's text, not its border, lines up with the date.
-                      className={cn(
-                        "inline-flex max-w-full min-w-0 items-baseline gap-1 rounded-full border border-border-strong pr-1.75 pl-1.5",
-                        "text-left text-xs leading-4 text-muted transition-colors duration-120 hover:border-muted hover:text-ink",
-                        "[&>svg]:shrink-0 [&>svg]:self-center",
-                      )}
-                      data-tooltip="Viser til denne oppdateringen"
-                      data-tooltip-delay="long"
-                      onClick={() => onReadUpdate(reference.id)}
-                    >
-                      <Megaphone size={11} aria-hidden="true" />
-                      <span className="truncate">{reference.title}</span>
-                    </button>
-                  </div>
-                )}
                 <div className={styles.fold} inert={shut}>
                   <div className={styles.clip}>
-                    <p className="wrap-anywhere whitespace-pre-wrap text-body leading-[1.6] text-ink-soft">
+                    <p className="wrap-anywhere whitespace-pre-wrap text-body leading-normal text-ink-soft max-sm:mt-1">
                       {comment.text
                         .split(/(https?:\/\/[^\s<>]+)/g)
                         .map((part, index) =>
@@ -375,7 +384,7 @@ export default function ProjectDiscussion({
                               href={part}
                               target="_blank"
                               rel="noreferrer"
-                              className="underline decoration-accent/40 underline-offset-3 hover:text-accent"
+                              className={textLink}
                             >
                               {part}
                             </a>
@@ -389,7 +398,7 @@ export default function ProjectDiscussion({
               </UserIdentity>
               <div className={styles.fold} inert={shut}>
                 <div className={styles.clip}>
-                  <div className="ml-[34px] flex items-center gap-2 text-xs text-muted max-sm:-mr-1.5 max-sm:ml-0 max-sm:justify-end max-sm:gap-1">
+                  <div className="mt-0.5 ml-7 flex items-center gap-1 text-xs text-muted max-sm:-mr-1.5 max-sm:ml-0 max-sm:justify-end">
                     <div
                       className="flex items-center gap-0 text-muted"
                       role="group"
@@ -409,7 +418,7 @@ export default function ProjectDiscussion({
                       </button>
                       <span
                         className={cn(
-                          "min-w-4.5 text-center text-xs font-semibold tabular-nums",
+                          "min-w-4.5 text-center text-xs font-medium tabular-nums",
                           vote === 1 && "text-accent",
                           vote === -1 && "text-danger",
                         )}
@@ -472,7 +481,7 @@ export default function ProjectDiscussion({
                       id={replyFormId}
                       className={cn(
                         composer,
-                        "mt-1.5 mb-0.5 ml-10.5 motion-safe:animate-menu-enter",
+                        "mt-1 mb-0.5 ml-9 motion-safe:animate-menu-enter max-sm:ml-0",
                       )}
                       onSubmit={(e) => {
                         e.preventDefault();
@@ -609,7 +618,9 @@ export default function ProjectDiscussion({
       className={cn(
         "text-ui leading-normal text-muted max-md:text-xs",
         scoped ? "pt-3" : "text-center",
-        !scoped && thread.length > 0 && "pb-1",
+        // As far above the first comment as below the tabs (pt-4.5, md:pt-5),
+        // less the thread's own 8px.
+        !scoped && thread.length > 0 && "pb-2.5 md:pb-3",
       )}
       data-login-to-comment=""
     >
@@ -694,7 +705,7 @@ export default function ProjectDiscussion({
       )}
       {/* Reading comes first; joining in is a quiet line among them. */}
       {!scoped && thread.length > 0 && loginLine}
-      <div className={cn(!scoped && user?.username && "mt-5")}>
+      <div className={cn(!scoped && user?.username && "mt-3")}>
         {thread.map((comment) => renderComment(comment))}
         {thread.length === 0 &&
           (scoped ? (

@@ -9,7 +9,7 @@
 @layer components {
   .branch {
     position: relative;
-    padding-left: 30px;
+    padding-left: 26px;
 
     &[data-folded] {
       padding-top: 8px;
@@ -28,7 +28,7 @@
   .through,
   .elbow {
     position: absolute;
-    left: 8px;
+    left: 6px;
     color: var(--color-border-strong);
     cursor: pointer;
     transition: color 120ms;
@@ -56,7 +56,7 @@
   }
 
   .rail {
-    top: 36px;
+    top: 32px;
     border-radius: 4px;
   }
 
@@ -66,7 +66,7 @@
 
   .elbow {
     top: 0;
-    width: 22px;
+    width: 20px;
     height: 25px;
 
     &::before {
