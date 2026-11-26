@@ -2015,6 +2015,14 @@ export default function ProjectMap({
     const previous = selectedRef.current;
     selectedRef.current = selectedId;
     if (previous === selectedId) return;
+    // The panel names the open project, so its tooltip goes. Leaflet reopens
+    // it on the click, and Firefox sends no mouseout as the map moves the
+    // dot or line from under the pointer, so it would stay where it was
+    // pressed. Hovering the shape again brings it back.
+    const opened = selectedId ? drawnRef.current.get(selectedId) : undefined;
+    if (opened)
+      for (const layer of [opened.shape, opened.hit, opened.dot])
+        layer?.closeTooltip();
     // The open project leaves its group, and a closed one may rejoin it.
     clusterRef.current();
     styleRef.current(previous, selectedId);
