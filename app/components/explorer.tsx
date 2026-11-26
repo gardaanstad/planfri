@@ -2137,7 +2137,7 @@ export default memo(function Explorer({
             onClick={() => {
               const show = () =>
                 listRef.current
-                  ?.querySelector("[data-off-map-toggle]")
+                  ?.querySelector("[data-off-map-heading]")
                   ?.dispatchEvent(new Event(showOffMapEvent));
               if (!isMobile || snapPoint === 1) return show();
               // The drawer rises to full height first, and its list takes

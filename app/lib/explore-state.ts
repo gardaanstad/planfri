@@ -299,39 +299,6 @@ export function subscribeDensity(callback: () => void) {
   };
 }
 
-const offMapKey = "planfri-off-map-collapsed";
-const offMapEvent = "planfri-off-map-collapsed";
-let offMapFallback = false;
-
-/** Whether the list's projects out of the map's view are folded away. */
-export function storedOffMapCollapsed() {
-  try {
-    return localStorage.getItem(offMapKey) === "1";
-  } catch {
-    return offMapFallback;
-  }
-}
-
-export function storeOffMapCollapsed(collapsed: boolean) {
-  offMapFallback = collapsed;
-  try {
-    if (collapsed) localStorage.setItem(offMapKey, "1");
-    else localStorage.removeItem(offMapKey);
-  } catch {
-    /* The fallback above holds it. */
-  }
-  window.dispatchEvent(new Event(offMapEvent));
-}
-
-export function subscribeOffMapCollapsed(callback: () => void) {
-  window.addEventListener(offMapEvent, callback);
-  window.addEventListener("storage", callback);
-  return () => {
-    window.removeEventListener(offMapEvent, callback);
-    window.removeEventListener("storage", callback);
-  };
-}
-
 /** The most places "Sted" keeps pinned at its top. */
 export const maxPinnedPlaces = 3;
 const pinnedKey = "planfri-pinned-places";

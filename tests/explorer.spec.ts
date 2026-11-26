@@ -1620,26 +1620,23 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
       .getByRole("navigation", { name: "Liste" })
       .getByRole("button", { name: "Prosjekter" })
       .click();
-    // A press on the place unfolds those out of view and scrolls to them,
-    // the toggle kept clear of the list's top; the map stays put.
+    // A press on the place scrolls to those out of view, their heading
+    // kept clear of the list's top; the map stays put.
     const list = page.getByRole("region", { name: "Prosjektliste" });
-    const toggle = list.getByRole("button", { name: "Ikke synlige på kartet" });
-    await toggle.click();
-    await expect(toggle).toHaveAttribute("aria-expanded", "false");
-    const url = page.url();
-    await inOslo.click();
-    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const heading = list.getByText("Ikke synlige på kartet", { exact: true });
     await expect(
       list.getByRole("list", { name: "Utenfor kartet i Oslo" }),
     ).toBeVisible();
+    const url = page.url();
+    await inOslo.click();
     await expect(async () => {
-      const [region, button] = await Promise.all([
+      const [region, box] = await Promise.all([
         list.boundingBox(),
-        toggle.boundingBox(),
+        heading.boundingBox(),
       ]);
-      expect(button!.y - region!.y).toBeGreaterThan(80);
+      expect(box!.y - region!.y).toBeGreaterThan(80);
       // Unless the list runs out first: then it ends at the bottom.
-      const atEnd = await toggle.evaluate((el) => {
+      const atEnd = await heading.evaluate((el) => {
         let scroller = el.parentElement!;
         while (!/auto|scroll/.test(getComputedStyle(scroller).overflowY))
           scroller = scroller.parentElement!;
@@ -1648,7 +1645,7 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
           2
         );
       });
-      if (!atEnd) expect(button!.y - region!.y).toBeLessThan(110);
+      if (!atEnd) expect(box!.y - region!.y).toBeLessThan(110);
     }).toPass();
     expect(page.url()).toBe(url);
   });
@@ -1682,7 +1679,7 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     await expect(cards.nth(visible)).toHaveAttribute("data-off-map", "true");
     await expect(cards.nth(visible - 1)).not.toHaveAttribute("data-off-map");
     await expect(
-      list.getByRole("button", { name: "Ikke synlige på kartet" }),
+      list.getByText("Ikke synlige på kartet", { exact: true }),
     ).toBeVisible();
     const first = muted.first();
     await expect(first).toHaveCSS("opacity", "0.6");
@@ -1706,132 +1703,6 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
       0,
     );
   });
-
-  test("the projects out of view fold away, and stay so in this browser", async ({
-    page,
-  }) => {
-    await page.goto("/?kart=59.9100,10.7500,14");
-    const list = page.getByRole("region", { name: "Prosjektliste" });
-    const toggle = list.getByRole("button", { name: "Ikke synlige på kartet" });
-    const offMap = list.getByRole("list", { name: "Utenfor kartet i Oslo" });
-    // Open by default.
-    await expect(toggle).toHaveAttribute("aria-expanded", "true");
-    await expect(offMap).toBeVisible();
-    await expect(toggle).toHaveCSS("border-bottom-width", "1px");
-    await toggle.click();
-    await expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await expect(offMap).toBeHidden();
-    await expect(list.locator("[data-off-map]").first()).toBeHidden();
-    // Its divider below stays, folded.
-    await expect(toggle).toHaveCSS("border-bottom-width", "1px");
-    await page.reload();
-    await expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await expect(offMap).toBeHidden();
-    await toggle.click();
-    await expect(offMap).toBeVisible();
-  });
-
-  test("projects coming into view from the folded rows fade in at their places", async ({
-    page,
-  }) => {
-    await page.emulateMedia({ reducedMotion: "no-preference" });
-    await page.goto("/?kart=59.9100,10.7500,16");
-    const list = page.getByRole("region", { name: "Prosjektliste" });
-    const toggle = list.getByRole("button", { name: "Ikke synlige på kartet" });
-    await toggle.click();
-    await expect(toggle).toHaveAttribute("aria-expanded", "false");
-    const inView = list.locator("[data-card-id]:not([data-off-map])");
-    const before = await inView.count();
-    // Every frame, the highest any row in view reaches, against the line
-    // under the count, which none should cross on its way.
-    await list.evaluate((region) => {
-      const record = { line: 0, highest: Infinity };
-      Object.assign(window, { record });
-      const count = region.querySelector("[data-list-count]")!;
-      const frame = () => {
-        record.line = count.getBoundingClientRect().bottom;
-        for (const row of region.querySelectorAll(
-          "[data-list-motion] > [data-card-id]",
-        ))
-          record.highest = Math.min(record.highest, row.getBoundingClientRect().top);
-        requestAnimationFrame(frame);
-      };
-      frame();
-    });
-    const zoomOut = page.getByRole("button", { name: "Zoom ut", exact: true });
-    await zoomOut.click();
-    await expect.poll(() => mapParam(page)).toMatch(/,15$/);
-    await zoomOut.click();
-    await expect.poll(() => mapParam(page)).toMatch(/,14$/);
-    await expect.poll(() => inView.count()).toBeGreaterThan(before);
-    await page.waitForTimeout(500);
-    const record = await page.evaluate(
-      () => (window as unknown as { record: { line: number; highest: number } }).record,
-    );
-    expect(record.highest).toBeGreaterThanOrEqual(record.line - 1);
-  });
-
-  for (const motion of ["reduce", "no-preference"] as const) {
-    test(`unfolding the projects out of view scrolls them in, as far as the toggle near the top (${motion})`, async ({
-      page,
-    }) => {
-      await page.emulateMedia({ reducedMotion: motion });
-      const list = page.getByRole("region", { name: "Prosjektliste" });
-      const toggle = list.getByRole("button", {
-        name: "Ikke synlige på kartet",
-      });
-      const offMap = list.getByRole("list", { name: "Utenfor kartet i Oslo" });
-      const unfold = async () => {
-        if ((await toggle.getAttribute("aria-expanded")) === "true")
-          await toggle.click();
-        await expect(toggle).toHaveAttribute("aria-expanded", "false");
-        // The toggle at the list's bottom.
-        await toggle.evaluate((el) => el.scrollIntoView({ block: "end" }));
-        await toggle.click();
-        await expect(toggle).toHaveAttribute("aria-expanded", "true");
-      };
-      // Finished projects left out, so the rows fit as measured below.
-      await page.goto(
-        "/?kart=59.9100,10.7500,14&status=proposed,planned,construction",
-      );
-      // Room for them all: the last comes into view.
-      await unfold();
-      await expect(async () => {
-        const [region, last] = await Promise.all([
-          list.boundingBox(),
-          offMap.locator("[data-card-id]").last().boundingBox(),
-        ]);
-        expect(last!.y + last!.height).toBeLessThanOrEqual(
-          region!.y + region!.height + 1,
-        );
-      }).toPass();
-      // With a row and a half of them in sight once open, it stays put,
-      // even at the list's end.
-      // Tall enough for that however many projects other specs add.
-      await page.setViewportSize({ width: 1280, height: 1400 });
-      await toggle.click();
-      await expect(toggle).toHaveAttribute("aria-expanded", "false");
-      // Once folded away.
-      await expect(offMap).toBeHidden();
-      await list.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
-      const before = await list.evaluate((el) => el.scrollTop);
-      await toggle.click();
-      await expect(toggle).toHaveAttribute("aria-expanded", "true");
-      await page.waitForTimeout(300);
-      expect(await list.evaluate((el) => el.scrollTop)).toBe(before);
-      // Too little: it stops with the toggle near the top, clear of the
-      // fade there.
-      await page.setViewportSize({ width: 1280, height: 420 });
-      await unfold();
-      await expect(async () => {
-        const [region, button] = await Promise.all([
-          list.boundingBox(),
-          toggle.boundingBox(),
-        ]);
-        expect(Math.abs(button!.y - region!.y - 96)).toBeLessThan(2);
-      }).toPass();
-    });
-  }
 
   test("the end of the list offers a missing project", async ({ page }) => {
     await page.goto("/");
@@ -3647,7 +3518,7 @@ test.describe("the place follows the map", () => {
       userAgent: devices["Pixel 7"].userAgent,
     });
 
-    test("the count says what's in view in words; the place's unfolds the rest", async ({
+    test("the count says what's in view in words; the place's scrolls to the rest", async ({
       page,
     }) => {
       await page.goto("/?kart=59.9100,10.7500,14");
@@ -3656,19 +3527,13 @@ test.describe("the place follows the map", () => {
         name: /^\d+ på kartet$/,
       });
       await expect(visible).toHaveText(/^\d+ på kartet$/);
-      // The place's count unfolds those out of view, as on desktop, and
+      // The place's count scrolls to those out of view, as on desktop, and
       // takes the drawer from the middle height to the full one for them.
-      const toggle = drawer.getByRole("button", {
-        name: "Ikke synlige på kartet",
-      });
-      await toggle.tap();
-      await expect(toggle).toHaveAttribute("aria-expanded", "false");
       await expectDrawerHeight(page, 0.58);
       const inPlace = drawer.getByRole("button", {
         name: /^\d+ prosjekte?r? i Oslo$/,
       });
       await inPlace.tap();
-      await expect(toggle).toHaveAttribute("aria-expanded", "true");
       await expectDrawerHeight(page, 1);
       await expect(
         drawer
