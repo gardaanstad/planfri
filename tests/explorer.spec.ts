@@ -1962,6 +1962,24 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     await shot(page, "list-compact");
     await cards.nth(1).hover();
     await shot(page, "list-compact-hover");
+    // The thumbnail is part of the card link: it shows a pointer and opens
+    // the project.
+    const thumb = first.locator("img").last();
+    const thumbBox = (await thumb.boundingBox())!;
+    const [tx, ty] = [
+      thumbBox.x + thumbBox.width / 2,
+      thumbBox.y + thumbBox.height / 2,
+    ];
+    expect(
+      await page.evaluate(([x, y]) => {
+        const hit = document.elementFromPoint(x, y)!;
+        return hit.hasAttribute("data-card-link") && getComputedStyle(hit).cursor;
+      }, [tx, ty]),
+    ).toBe("pointer");
+    await page.mouse.click(tx, ty);
+    await expect(page).toHaveURL(new RegExp(`/prosjekt/${id}`));
+    await page.goBack();
+    await expect(cards.first()).toHaveAttribute("data-density", "compact");
 
     // Back to expanded, the photos are the ones already shown, not loaded
     // anew with a blank frame.

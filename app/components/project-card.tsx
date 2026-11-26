@@ -360,12 +360,13 @@ export default memo(function ProjectCard({
           </button>
         </div>
       )}
-      {/* As tall as the text beside it, at 4:3. */}
+      {/* As tall as the text beside it, at 4:3. Presses pass through to the
+          card link beneath, so the photo opens the project like the text. */}
       {hasPhoto(project) && (
         <div
           key="thumb"
           className={cn(
-            "relative h-16.5 w-22 shrink-0 overflow-hidden rounded-lg bg-surface-muted",
+            "pointer-events-none relative h-16.5 w-22 shrink-0 overflow-hidden rounded-lg bg-surface-muted",
             expanded && "hidden",
           )}
         >
