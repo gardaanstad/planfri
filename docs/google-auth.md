@@ -45,7 +45,7 @@ bun run setup
 bun dev
 ```
 
-`setup` creates `.env.local` with a cryptographically random session secret if the file does not already exist. It also runs migrations and inserts the illustrative project/comment seed data without overwriting existing records. The seed only runs against local SQLite files. The local database is `local.db`, which is gitignored. Restart the development server after changing environment variables.
+`setup` creates `.env.local` with a cryptographically random session secret if the file does not already exist. It also runs migrations and copies production's projects from `~/planfri-prod.db` if you have downloaded it (see `db:sample` in the README). Sample data is only written to local SQLite files. The local database is `local.db`, which is gitignored. Restart the development server after changing environment variables.
 
 The UI remains browsable without Google credentials and explains that sign-in is unavailable. The secret and database still need to be initialized with `setup`.
 
@@ -67,7 +67,7 @@ MODERATOR_EMAILS=your-verified-google-email@example.com
 
 Generate the secret with `openssl rand -base64 32`. Keep it stable across deployments; rotating it signs everyone out and invalidates encrypted OAuth tokens.
 
-Production builds apply pending migrations before `next build`. Production starts without content; the illustrative seed is development-only. The site origin defaults to Vercel's production domain (your custom domain once added), so `BETTER_AUTH_URL` is only needed to override it. Preview deployments use that same origin for sign-in and so are browse-only: sign-in and saving work only on the production domain. Previews read whichever database their environment variables point to, and never run migrations.
+Production builds apply pending migrations before `next build`. Production starts without content; the illustrative seed is test-only. The site origin defaults to Vercel's production domain (your custom domain once added), so `BETTER_AUTH_URL` is only needed to override it. Preview deployments use that same origin for sign-in and so are browse-only: sign-in and saving work only on the production domain. Previews read whichever database their environment variables point to, and never run migrations.
 
 Outside Vercel, set `BETTER_AUTH_URL` and `DATABASE_URL` explicitly, run `bun run db:migrate` as a release step, then `bun run build` and `bun start`. A local SQLite file is only suitable on a single server with persistent disk.
 

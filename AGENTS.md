@@ -33,6 +33,10 @@ Writing specs:
 - No traces by default; rerun with `--trace on` to get one. `TEST_SCREENSHOTS=<dir>` saves the screenshots taken with `shot()`.
 - Pages are server-rendered, so a click can land before hydration. Never fix that with retries or timeouts: register listeners in a layout effect, or wait for a visible ready sign. Check a flake fix with `--repeat-each 60 --workers 12`.
 
+# Development data
+
+`local.db` holds a copy of production's projects plus fictional updates and comments (`bun run db:sample`). When a change needs projects of a particular kind to try out (a long title, no photo, a line, many updates, a deep thread), write a `local-samples/<name>.ts` in your worktree using `localProject()` from `scripts/local-samples.ts`, with ids starting `local-`, and run `bun run db:sample`. The folder is gitignored and only reaches your worktree's database; delete the file and rerun to remove its rows. Specs use `scripts/seed-data.ts`, not this.
+
 # Landing
 
 Land only when asked. Otherwise stop after the checks and leave the work uncommitted.

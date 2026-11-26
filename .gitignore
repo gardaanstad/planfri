@@ -47,3 +47,6 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /.next-test/
+
+# Worktree-only development data (scripts/local-samples.ts)
+/local-samples/

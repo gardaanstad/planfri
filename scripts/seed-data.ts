@@ -6,8 +6,8 @@ import {
 } from "../app/lib/data";
 
 /**
- * Illustrative projects and comments, written by `bun run db:seed` and read
- * by the tests. Kept out of `app/` so none of it reaches a bundle.
+ * Illustrative projects and comments, written to the test database by
+ * scripts/test-db.ts and read by the tests. Kept out of `app/` so none of it reaches a bundle.
  */
 const area = (lat: number, lng: number, scale = 1): Point[] => [
   [lat - 0.001 * scale, lng - 0.0017 * scale],
