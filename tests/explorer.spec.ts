@@ -414,7 +414,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       exact: true,
     });
     const filterButton = filters.getByRole("button", {
-      name: "Filtre",
+      name: "Søk og filtre",
       exact: true,
     });
     const placeButton = filters.getByRole("button", { name: /^Sted/ });
@@ -1009,7 +1009,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     expect(await pageScale()).toBe("none");
     await page
       .getByRole("region", { name: "Filtrer prosjekter", exact: true })
-      .getByRole("button", { name: "Filtre", exact: true })
+      .getByRole("button", { name: "Søk og filtre", exact: true })
       .click();
     const sheet = page.getByRole("dialog", { name: "Filtre", exact: true });
     await expect(sheet).toBeVisible();
@@ -1034,7 +1034,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
       exact: true,
     });
     // A tap still chooses.
-    await filters.getByRole("button", { name: "Filtre", exact: true }).click();
+    await filters.getByRole("button", { name: "Søk og filtre", exact: true }).click();
     const sheet = page.getByRole("dialog", { name: "Filtre", exact: true });
     await sheet.getByRole("button", { name: /^Status/ }).click();
     const status = sheet.getByRole("listbox", {
@@ -1072,7 +1072,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await drag(page, status.getByRole("option").first(), 220);
     await expect(sheet).toBeHidden();
     await expect(
-      filters.getByRole("button", { name: "Filtre", exact: true }),
+      filters.getByRole("button", { name: "Søk og filtre", exact: true }),
     ).toHaveAttribute("data-active");
     // A list that scrolls closes from its top.
     await filters.getByRole("button", { name: /^Sted/ }).click();
@@ -1206,7 +1206,7 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     });
     // Category and status share one sheet, behind one button.
     const filterButton = filters.getByRole("button", {
-      name: "Filtre",
+      name: "Søk og filtre",
       exact: true,
     });
     await expect(filterButton).not.toHaveAttribute("data-active");
@@ -1270,9 +1270,22 @@ test.describe(`mobile explorer at ${viewport.width}px`, () => {
     await expect(sheet).toBeHidden();
     await expect(filterButton).toBeFocused();
     await expect(filterButton).toHaveAttribute("data-active");
-    await page
-      .getByRole("button", { name: "Nullstill filtre", exact: true })
-      .click();
+    // The list has no reset of its own: it is in the sheet, by its title.
+    await expect(
+      page.getByRole("button", { name: "Nullstill filtre", exact: true }),
+    ).toHaveCount(0);
+    await filterButton.click();
+    const reset = sheet.getByRole("button", {
+      name: "Nullstill filtre",
+      exact: true,
+    });
+    await reset.click();
+    await expect(reset).toHaveCount(0);
+    await expect(categoryRow).toHaveText("Kategori");
+    await expect(sheet).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
+    await expect(filterButton).not.toHaveAttribute("data-active");
     await swipeDown(
       page,
       page.getByRole("button", { name: "Utvid prosjektlisten", exact: true }),
@@ -1786,6 +1799,7 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
       name: "Foreslå prosjekt",
     });
     // With too few rows to fill the list, it stays at the bottom.
+    await page.getByRole("button", { name: "Åpne søk" }).click();
     await page
       .getByRole("textbox", { name: "Søk etter prosjekt eller sted" })
       .fill("zzzzqqq");
@@ -1851,9 +1865,11 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     await expect.poll(() => fade("bottom")).toBe(0);
   });
 
-  test("the search is a field between the place and the filters", async ({
+  test("the search opens out of its button over the right 60% of the tabs' line", async ({
     page,
   }) => {
+    // It moves as it opens, and still takes focus at once.
+    await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.goto("/");
     const filters = page.getByRole("region", {
       name: "Filtrer prosjekter",
@@ -1862,22 +1878,35 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     const search = filters.getByRole("textbox", {
       name: "Søk etter prosjekt eller sted",
     });
+    const button = filters.getByRole("button", { name: "Åpne søk" });
     const place = filters.getByRole("button", { name: /^Sted/ });
-    await expect(search).toBeVisible();
-    await expect(filters.getByRole("button", { name: "Åpne søk" })).toHaveCount(0);
-    // On the same line as the place.
-    const [searchBox, placeBox] = await Promise.all([
-      search.boundingBox(),
+    const tabs = page.getByRole("navigation", { name: "Liste" });
+    // A button between the tabs and the filters, the place after them.
+    await expect(search).toBeHidden();
+    await expect(button).toBeVisible();
+    const [buttonBox, placeBox, tabsBox] = await Promise.all([
+      button.boundingBox(),
       place.boundingBox(),
+      tabs.boundingBox(),
     ]);
-    expect(
-      Math.abs(
-        searchBox!.y + searchBox!.height / 2 - (placeBox!.y + placeBox!.height / 2),
-      ),
-    ).toBeLessThanOrEqual(2);
-    // "/" focuses it.
-    await page.keyboard.press("/");
+    expect(buttonBox!.x).toBeGreaterThan(tabsBox!.x + tabsBox!.width);
+    expect(buttonBox!.x).toBeLessThan(placeBox!.x);
+    // Opened, it takes focus and covers the line's right 60%, the filters
+    // and place with it, the tabs still in sight.
+    await button.click();
     await expect(search).toBeFocused();
+    const field = page.locator("[data-search-field]");
+    const [fieldBox, lineBox] = await Promise.all([
+      field.boundingBox(),
+      tabs.locator("..").boundingBox(),
+    ]);
+    const start = lineBox!.x + lineBox!.width * 0.4;
+    expect(Math.abs(fieldBox!.x - start)).toBeLessThanOrEqual(1);
+    expect(fieldBox!.x + fieldBox!.width).toBeGreaterThanOrEqual(
+      placeBox!.x + placeBox!.width,
+    );
+    await expect(tabs.getByRole("button", { name: /^Nytt/ })).toBeVisible();
+    await expect(button).toHaveAttribute("aria-expanded", "true");
     await search.fill("Bergen");
     const reset = page.getByRole("button", {
       name: "Nullstill filtre",
@@ -1886,15 +1915,35 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     await expect(reset).toBeVisible();
     await expect(page.getByRole("status", { name: /^\d+ treff$/ })).toBeVisible();
     await shot(page, "desktop-search-active");
-    // Its ✕ empties it; Escape empties it and lets go.
+    // A press outside closes it, focused or not, and keeps the search,
+    // which the button marks.
+    await page.locator("[data-list-count]").click({ position: { x: 4, y: 4 } });
+    await expect(search).toBeHidden();
+    await expect(button).toHaveAttribute("data-active", "true");
+    await button.click();
+    await expect(search).toHaveValue("Bergen");
+    await field.click({ position: { x: 200, y: 4 } });
+    await expect(search).toBeFocused();
+    await page.locator("[data-list-count]").click({ position: { x: 4, y: 4 } });
+    await expect(search).toBeHidden();
+    // "/" opens it too; its ✕ empties it, then closes it.
+    await page.keyboard.press("/");
+    await expect(search).toBeFocused();
     await filters.getByRole("button", { name: "Tøm søk", exact: true }).click();
     await expect(search).toHaveValue("");
     await expect(search).toBeFocused();
     await expect(reset).toBeHidden();
+    await filters.getByRole("button", { name: "Lukk søk", exact: true }).click();
+    await expect(search).toBeHidden();
+    await expect(button).toBeFocused();
+    // Escape empties it and closes it, back on its button.
+    await button.click();
     await search.fill("Oslo");
     await search.press("Escape");
-    await expect(search).toHaveValue("");
-    await expect(search).not.toBeFocused();
+    await expect(search).toBeHidden();
+    await expect(page.locator("#project-search")).toHaveValue("");
+    await expect(button).toBeFocused();
+    await expect(button).not.toHaveAttribute("data-active");
   });
 
   test("the list switches between expanded cards and compact rows", async ({
@@ -2042,7 +2091,7 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     await expect(page).toHaveURL(new RegExp(`/prosjekt/${project.id}`));
   });
 
-  test("the sort sits beside the tabs, the count under them, and status shows what it hides", async ({
+  test("the sort sits beside the count, under the tabs, and status shows what it hides", async ({
     page,
   }) => {
     await page.goto("/");
@@ -2058,11 +2107,11 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     ]);
     expect(
       Math.abs(
-        tabBox!.y + tabBox!.height / 2 - (sortBox!.y + sortBox!.height / 2),
+        countBox!.y + countBox!.height / 2 - (sortBox!.y + sortBox!.height / 2),
       ),
     ).toBeLessThanOrEqual(2);
-    expect(sortBox!.x).toBeGreaterThan(tabBox!.x + tabBox!.width);
-    expect(countBox!.y).toBeGreaterThan(sortBox!.y + sortBox!.height);
+    expect(sortBox!.x).toBeGreaterThan(countBox!.x + countBox!.width);
+    expect(countBox!.y).toBeGreaterThan(tabBox!.y + tabBox!.height);
     // Every status shows by default.
     const menu = await openFilter(page, "Status");
     // Rows as in the other menus, sized for a pointer, tinting at once.
@@ -2235,6 +2284,7 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     const search = page.getByRole("textbox", {
       name: "Søk etter prosjekt eller sted",
     });
+    await page.getByRole("button", { name: "Åpne søk" }).click();
     await search.fill("Bergen");
     await expect(card(page, "Bybanen til Åsane")).toBeVisible();
     await expect.poll(() => mapParam(page)).toMatch(/^60\./);
@@ -2244,7 +2294,7 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     await expect(
       page.getByRole("button", { name: "Nullstill filtre", exact: true }),
     ).toBeVisible();
-    await expect(search).toHaveValue("Bergen");
+    await expect(page.locator("#project-search")).toHaveValue("Bergen");
     await expect(card(page, "Bybanen til Åsane")).toBeVisible();
     // Without a view in the URL, the explorer reopens on the last one.
     await page.goto(oslo);
@@ -2819,6 +2869,7 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
       name: "Søk etter prosjekt eller sted",
     });
     const place = filters.getByRole("button", { name: /^Sted: / });
+    const searchButton = filters.getByRole("button", { name: "Åpne søk" });
     const viewLabel = page
       .getByRole("group", { name: "Visning" })
       .getByRole("button", { name: "Kompakt" })
@@ -2827,9 +2878,9 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     // No menu of extras: dark mode is in the account menu.
     await expect(header.getByRole("button", { name: "Flere valg" })).toHaveCount(0);
     await expect(header.getByRole("switch", { name: "Mørk modus" })).toHaveCount(0);
-    // The filter button and the search show at every width.
+    // The filter and search buttons show at every width.
     await expect(filterButton).toBeVisible();
-    await expect(search).toBeVisible();
+    await expect(searchButton).toBeVisible();
     // At its default width, everything shows.
     for (const control of full) await expect(control).toBeVisible();
     await shot(page, "sidebar-full");
@@ -2840,7 +2891,7 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     for (const control of full) await expect(control).toBeHidden();
     await expect(login).toBeVisible();
     await expect(place).toBeVisible();
-    await expect(search).toBeVisible();
+    await expect(searchButton).toBeVisible();
     // One step back, everything is back.
     await page.keyboard.press("ArrowRight");
     for (const control of full) await expect(control).toBeVisible();
@@ -2862,12 +2913,25 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
         ),
       )
       .toBeLessThanOrEqual(1);
-    expect((await search.boundingBox())!.width).toBeGreaterThan(80);
     expect(await right("[data-explorer-layer] [data-list-tab=feed]")).toBeLessThan(
-      (await page.getByRole("button", { name: /^Sorter prosjekter:/ }).boundingBox())!.x,
+      (await searchButton.boundingBox())!.x,
     );
     await expect(place).not.toHaveText("");
     await shot(page, "sidebar-narrow");
+    // The search opens with room to type, over the end of the tabs if it
+    // must; Escape closes it, back on its button.
+    await searchButton.click();
+    await expect(search).toBeVisible();
+    await expect(search).toBeFocused();
+    expect((await search.boundingBox())!.width).toBeGreaterThan(100);
+    await shot(page, "sidebar-narrow-search");
+    await search.press("Escape");
+    await expect(search).toBeHidden();
+    await expect(searchButton).toBeFocused();
+    // "/" opens it too.
+    await page.keyboard.press("/");
+    await expect(search).toBeFocused();
+    await page.keyboard.press("Escape");
     // The filter button holds category and status.
     await filterButton.click();
     const popover = page.getByRole("dialog", { name: "Filtre", exact: true });
@@ -4059,14 +4123,15 @@ test("search, filters, saving and menus act as the mouse goes down", async ({
     await page.mouse.down();
   };
 
-  // The search field takes focus, and keeps it past the release.
+  // The search button opens the field, which takes focus and keeps it past
+  // the release.
   const field = page.getByLabel("Søk etter prosjekt eller sted");
-  await press(field);
+  await press(filters.getByRole("button", { name: "Åpne søk" }));
   await expect(field).toBeFocused();
   await page.mouse.up();
   await expect(field).toBeFocused();
   await page.keyboard.press("Escape");
-  await expect(field).not.toBeFocused();
+  await expect(field).toBeHidden();
 
   // The filter button opens its popover, and its rows open.
   const filterButton = filters.getByRole("button", {

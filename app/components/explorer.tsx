@@ -480,10 +480,10 @@ const reviewedDot =
 
 const noProjects: Project[] = [];
 
-// Desktop: the place, borderless at the start of the filter row, its text on
-// the list's edge; its hover tints at once, as the sort's does.
+// Desktop: the place, borderless at the end of the tabs' line, its chevron
+// on the list's edge; its hover tints at once, as the sort's does.
 const placeChoiceClasses = [
-  "-ml-2.5 min-w-0 shrink",
+  "-mr-2.5 min-w-0 shrink",
   "[&_[data-slot=choice-trigger]]:min-h-9 [&_[data-slot=choice-trigger]]:gap-1.5 [&_[data-slot=choice-trigger]]:rounded-lg [&_[data-slot=choice-trigger]]:border-transparent! [&_[data-slot=choice-trigger]]:bg-transparent [&_[data-slot=choice-trigger]]:px-2.5 [&_[data-slot=choice-trigger]]:text-item [&_[data-slot=choice-trigger]]:transition-none",
   "[&_[data-slot=choice-trigger]]:hover:bg-ink/[0.05]! [&_[data-slot=choice-trigger]>svg]:text-muted",
   "[&_[data-slot=choice-menu][data-open=false]]:hidden",
@@ -701,6 +701,9 @@ export default memo(function Explorer({
   const [filterSheetOpen, setFilterSheetOpen] = useState<boolean | "search">(
     false,
   );
+  // Desktop, in a narrow sidebar: the search opened out of its button over
+  // the tabs. Wider, the field always shows and this changes nothing.
+  const [searchOpen, setSearchOpen] = useState(false);
   const [status, setStatus] = useState<string[]>(initial.status);
   const [category, setCategory] = useState<string[]>(initial.category);
   const [sort, setSort] = useState(initial.sort);
@@ -805,6 +808,8 @@ export default memo(function Explorer({
   const editorClose = useRef<(() => void) | null>(null);
   const editorDirty = useRef<(() => boolean) | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const searchButtonRef = useRef<HTMLButtonElement>(null);
+  const searchFieldRef = useRef<HTMLDivElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLElement>(null);
   const listContentRef = useRef<HTMLDivElement>(null);
@@ -882,15 +887,42 @@ export default memo(function Explorer({
     if (postId || profileName || modal || savedOnly || suggestionsOpen) return;
     // Phones search in the filter sheet.
     if (isMobile) return setFilterSheetOpen("search");
-    // A collapsed list comes back to be listedProjects.
-    if (storedCollapsed()) flushSync(() => storeCollapsed(false));
+    // It opens out of its button: from where that sits in the line.
+    const field = searchFieldRef.current;
+    const button = searchButtonRef.current?.getBoundingClientRect();
+    const line = field?.getBoundingClientRect();
+    if (field && button && line?.width) {
+      field.style.setProperty("--from-left", `${button.left - line.left}px`);
+      field.style.setProperty("--from-right", `${line.right - button.right}px`);
+    }
+    flushSync(() => {
+      setSearchOpen(true);
+      // A collapsed list comes back to be listedProjects.
+      if (storedCollapsed()) storeCollapsed(false);
+    });
     searchRef.current?.focus({ preventScroll: true });
   }, [isMobile, modal, postId, profileName, savedOnly, suggestionsOpen]);
 
   function closeSearch() {
-    setQuery("");
-    searchRef.current?.blur();
+    flushSync(() => {
+      setQuery("");
+      setSearchOpen(false);
+    });
+    // Back to the button it opened from.
+    searchButtonRef.current?.focus({ preventScroll: true });
   }
+
+  // A press anywhere outside the open search closes it, focused or not; what
+  // it found stays.
+  useEffect(() => {
+    if (!searchOpen) return;
+    const press = (event: PointerEvent) => {
+      if (!searchFieldRef.current?.contains(event.target as Node))
+        setSearchOpen(false);
+    };
+    document.addEventListener("pointerdown", press, true);
+    return () => document.removeEventListener("pointerdown", press, true);
+  }, [searchOpen]);
 
   const { syncUrl, syncSoon, withSearch } = useUrlSync({
     state: { query, status, category, sort },
@@ -1651,55 +1683,116 @@ export default memo(function Explorer({
     </Link>
   );
 
-  // Desktop: always there, between the place and the filters.
+  // Desktop: a field over the right 60% of the tabs' line, opened out of
+  // its button and covering the controls there; the tabs stay in sight,
+  // but for the end of "Nytt" in a narrow sidebar. It
+  // closes on Escape, on its ✕ once empty, on a press anywhere outside it,
+  // and as focus leaves it.
   const desktopSearch = (
     <div
+      ref={searchFieldRef}
+      id="project-search-field"
       className={cn(
-        "flex h-9 min-w-30 flex-1 items-center gap-2 rounded-full border border-border bg-surface pr-0.5 pl-3 text-muted",
-        "transition-[border-color,box-shadow] duration-150 focus-within:border-accent/50 focus-within:ring-3 focus-within:ring-accent/10 motion-reduce:transition-none",
+        // Past the line's end as far as the place's hover wash reaches, so
+        // nothing under it shows or hovers there; the field itself ends on
+        // the list's edge.
+        "absolute inset-y-0 -right-2.5 left-[40%] z-20 flex items-center bg-surface pr-2.5 pl-2",
+        // Out of its button and back. Shown at once, so it takes focus;
+        // hidden only once it has gone.
+        "duration-200 ease-out-soft motion-reduce:transition-none",
+        searchOpen
+          ? "visible opacity-100 transition-[clip-path,opacity] [clip-path:inset(0_round_0)]"
+          : "invisible opacity-0 transition-[clip-path,opacity,visibility] [clip-path:inset(calc(50%-18px)_var(--from-right,0px)_calc(50%-18px)_var(--from-left,0px)_round_8px)]",
       )}
       data-search-field=""
+      inert={!searchOpen}
+      // A press around the words keeps them focused.
+      onMouseDown={(event) => {
+        if ((event.target as Element).closest("input, button")) return;
+        event.preventDefault();
+        searchRef.current?.focus({ preventScroll: true });
+      }}
+      onBlur={(event) => {
+        const next = event.relatedTarget;
+        if (next && !event.currentTarget.contains(next)) setSearchOpen(false);
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape") return;
+        event.preventDefault();
+        event.stopPropagation();
+        closeSearch();
+      }}
     >
-      <Search className="shrink-0" size={15} aria-hidden="true" />
-      <input
-        ref={searchRef}
-        className="h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-ui text-ink outline-none shadow-none placeholder:truncate placeholder:text-muted"
-        id="project-search"
-        enterKeyHint="search"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        placeholder="Søk prosjekt eller sted"
-        aria-label="Søk etter prosjekt eller sted"
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.preventDefault();
-            event.stopPropagation();
-            closeSearch();
-          }
-          if (event.key === "Enter" && listedProjects.length === 1)
-            openPost(listedProjects[0].id, {}, true);
-        }}
-      />
-      {query && (
+      <div
+        className={cn(
+          "flex h-9 min-w-0 flex-1 cursor-text items-center gap-2 rounded-lg border border-border bg-surface pr-1 pl-2.5 text-muted",
+          "transition-[border-color,color] duration-150 focus-within:border-ink/35 focus-within:text-ink motion-reduce:transition-none",
+        )}
+      >
+        <Search className="shrink-0" size={15} aria-hidden="true" />
+        <input
+          ref={searchRef}
+          className="h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-ui text-ink outline-none shadow-none placeholder:truncate placeholder:text-muted"
+          id="project-search"
+          enterKeyHint="search"
+          autoComplete="off"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Søk prosjekt eller sted"
+          aria-label="Søk etter prosjekt eller sted"
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && listedProjects.length === 1)
+              openPost(listedProjects[0].id, {}, true);
+          }}
+        />
+        {/* Empties it, then, empty, closes it. */}
         <button
           type="button"
-          className={cn(
-            compactIconAction,
-            "size-8 shrink-0 rounded-full text-muted hover:text-ink",
-          )}
-          aria-label="Tøm søk"
+          className="flex size-6.5 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-ink/[0.05] hover:text-ink"
+          aria-label={query ? "Tøm søk" : "Lukk søk"}
+          data-tooltip={query ? "Tøm" : "Lukk"}
           onClick={() => {
+            if (!query) return closeSearch();
             setQuery("");
             searchRef.current?.focus({ preventScroll: true });
           }}
         >
-          <X size={15} />
+          <X size={15} aria-hidden="true" />
         </button>
-      )}
+      </div>
     </div>
   );
+  // Desktop: what opens the search, its dot marking one that is set, as the
+  // filters' button does.
+  const searchSet = !!needle;
+  const searchButton = (
+    <button
+      ref={searchButtonRef}
+      type="button"
+      className={cn(
+        "relative flex size-9 shrink-0 items-center justify-center rounded-lg text-muted",
+        "hover:bg-ink/[0.05] hover:text-ink",
+        searchSet && "text-ink",
+      )}
+      aria-label="Åpne søk"
+      aria-expanded={searchOpen}
+      aria-controls="project-search-field"
+      data-active={searchSet || undefined}
+      data-tooltip="Søk"
+      data-press=""
+      onClick={openSearch}
+    >
+      <Search size={16} aria-hidden="true" />
+      {searchSet && (
+        <span
+          aria-hidden="true"
+          className="absolute top-1.5 right-1 size-2 rounded-full border-[1.5px] border-surface bg-accent box-content"
+        />
+      )}
+    </button>
+  );
   // Category and status gather in one sheet (phones) or popover, behind
-  // this button; on phones, the search too.
+  // this button; on phones, the search too, which its magnifier names.
   const filtersSet = isMobile
     ? filtersChanged
     : statusChanged || category.length > 0;
@@ -1715,7 +1808,7 @@ export default memo(function Explorer({
           : "size-9 rounded-lg hover:bg-ink/[0.05] hover:text-ink",
         filtersSet && "text-ink",
       )}
-      aria-label="Filtre"
+      aria-label={isMobile ? "Søk og filtre" : "Filtre"}
       aria-haspopup="dialog"
       aria-expanded={!!filterSheetOpen}
       data-active={filtersSet || undefined}
@@ -1725,7 +1818,17 @@ export default memo(function Explorer({
         ? { onClick: () => setFilterSheetOpen(true) }
         : { popoverTarget: "project-filters" })}
     >
-      <SlidersHorizontal size={isMobile ? 19 : 16} aria-hidden="true" />
+      {isMobile ? (
+        <span className="relative" aria-hidden="true">
+          <SlidersHorizontal size={19} />
+          {/* The magnifier sits in the corner, cut out of the sliders. */}
+          <span className="absolute -right-0.75 -bottom-0.75 flex rounded-full bg-surface p-px">
+            <Search size={11} strokeWidth={2.75} />
+          </span>
+        </span>
+      ) : (
+        <SlidersHorizontal size={16} aria-hidden="true" />
+      )}
       {filtersSet && (
         <span
           aria-hidden="true"
@@ -1843,6 +1946,7 @@ export default memo(function Explorer({
       label="Filtre"
       title="Filtrer prosjekter"
       onClose={() => setFilterSheetOpen(false)}
+      onReset={filtersChanged ? resetFilters : undefined}
       sections={filterSections}
       search={{
         value: query,
@@ -1954,6 +2058,7 @@ export default memo(function Explorer({
       label="Sted"
       smoothWidth
       goTo
+      menuAlign="end"
       value={place}
       onChange={choosePlace}
       triggerLabel={place || placeFallback}
@@ -1965,14 +2070,17 @@ export default memo(function Explorer({
       options={placeOptions}
     />
   );
+  // Desktop: after the tabs, the search, the filters, then the place; the
+  // search opens over all of them.
   const desktopFilters = (
     <section
-      className="mb-1 flex h-9 items-center gap-2"
+      className="ml-auto flex min-w-0 items-center gap-0.5"
       aria-label="Filtrer prosjekter"
     >
-      {placeFilter}
       {desktopSearch}
+      {searchButton}
       {filterButton}
+      {placeFilter}
     </section>
   );
 
@@ -2259,49 +2367,45 @@ export default memo(function Explorer({
           "@container/list flex min-h-full flex-col pb-5 max-md:px-4.5 max-md:pt-0 max-md:pb-6 md:px-gutter-scroll",
         )}
       >
-        {isMobile ? filterSheet : desktopFilters}
-        {!isMobile && filterPopover}
-        {/* The list's tabs, with the projects' order and layout beside them
-            on desktop, and the filters and place on phones. */}
-        <div className="flex min-h-12 items-stretch justify-between gap-x-3 border-b border-border max-md:min-h-11 max-md:gap-x-2">
+        {isMobile ? filterSheet : filterPopover}
+        {/* The list's tabs, with what decides the projects in both: the
+            search (desktop), the filters and the place. */}
+        <div className="relative flex min-h-12 items-stretch justify-between gap-x-3 border-b border-border max-md:min-h-11 max-md:gap-x-2 narrow:gap-x-2">
           <h1 className="sr-only">Prosjekter</h1>
-          <nav className="flex shrink-0 items-stretch gap-5" aria-label="Liste">
+          <nav
+            className="flex shrink-0 items-stretch gap-5 narrow:gap-4"
+            aria-label="Liste"
+          >
             {listTabs}
           </nav>
-          {isMobile ? (
-            mobileFilters
-          ) : (
-            <div className="ml-auto flex shrink-0 items-center gap-1.5">
-              {/* "Nytt" has its own order, and rows of its own. */}
-              {!feedOn && sortFilter}
-              {!feedOn && densitySwitch}
-            </div>
-          )}
+          {isMobile ? mobileFilters : desktopFilters}
         </div>
         {!feedOn && !searching && <WelcomeRow />}
-        {/* What the list holds, and a way back from the filters; on phones,
-            the order and layout at its end. Ruled below, its text centred
-            between the rules, so the first row has a line above it too.
-            Gone when "Ingen prosjekter her" says it all. */}
+        {/* What the list holds, with the projects' order and layout at its
+            end; on desktop, a way back from the filters before them (on
+            phones, that is in the filter sheet). Ruled below, its text
+            centred between the rules, so the first row has a line above it
+            too. Gone when "Ingen prosjekter her" says it all. */}
         {!nothingHere && (
           <div
-            className="flex min-h-9 items-center justify-between gap-x-3 border-b border-border py-2 text-ui text-muted tabular-nums max-md:min-h-11 max-md:gap-x-2 max-md:py-0"
+            className="flex min-h-11 items-center justify-between gap-x-2 border-b border-border py-1 text-ui text-muted tabular-nums max-md:py-0"
             data-list-count=""
           >
             {listCount}
-            {(filtersChanged || (isMobile && !feedOn)) && (
-              <div className="flex shrink-0 items-center">
-                {filtersChanged && (
+            {((!isMobile && filtersChanged) || !feedOn) && (
+              <div className="flex shrink-0 items-center gap-1.5 max-md:gap-0">
+                {!isMobile && filtersChanged && (
                   <button
                     type="button"
-                    className="relative shrink-0 text-xs whitespace-nowrap text-muted underline-offset-3 hover:text-ink hover:underline pointer-coarse:after:absolute pointer-coarse:after:-inset-2 max-md:mr-1"
+                    className="relative mr-1 shrink-0 text-xs whitespace-nowrap text-muted underline-offset-3 hover:text-ink hover:underline"
                     onClick={resetFilters}
                   >
                     Nullstill filtre
                   </button>
                 )}
-                {isMobile && !feedOn && sortFilter}
-                {isMobile && !feedOn && densityMenu}
+                {/* "Nytt" has its own order, and rows of its own. */}
+                {!feedOn && sortFilter}
+                {!feedOn && (isMobile ? densityMenu : densitySwitch)}
               </div>
             )}
           </div>

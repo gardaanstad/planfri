@@ -297,6 +297,7 @@ export default function FilterSheet({
   title,
   sections,
   search,
+  onReset,
   onClose,
 }: {
   label: string;
@@ -305,6 +306,8 @@ export default function FilterSheet({
   sections: FilterSection[];
   /** A search field between the title and the sections. */
   search?: FilterSearch;
+  /** Undoes the search and filters: given while any is set. */
+  onReset?: () => void;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -408,17 +411,35 @@ export default function FilterSheet({
         >
           {/* The handle and title, as the choice sheets have them. */}
           <div
-            aria-hidden="true"
             data-swipe-handle
             className="flex shrink-0 touch-none flex-col items-center px-4 pt-2 pb-2.5"
           >
             <SheetGrip />
-            <span
-              data-slot="filter-title"
-              className={cn(sheetTitle, sheetTitleGap, "self-stretch px-1")}
-            >
-              {title}
-            </span>
+            <div className={cn(sheetTitleGap, "flex items-center self-stretch")}>
+              <span
+                aria-hidden="true"
+                data-slot="filter-title"
+                className={cn(sheetTitle, "px-1")}
+              >
+                {title}
+              </span>
+              {/* At the title's end, while there is something to undo. */}
+              {onReset && (
+                <button
+                  type="button"
+                  className="-my-2.5 -mr-2 ml-auto inline-flex min-h-11 shrink-0 items-center rounded-xl px-3 text-ui font-medium text-muted active:bg-ink/[0.05]"
+                  aria-label="Nullstill filtre"
+                  data-press=""
+                  onClick={() => {
+                    // It goes as it acts; focus stays in the sheet.
+                    ref.current?.focus({ preventScroll: true });
+                    onReset();
+                  }}
+                >
+                  Nullstill
+                </button>
+              )}
+            </div>
           </div>
           {search && (
             <div className="shrink-0 px-4 pb-2">

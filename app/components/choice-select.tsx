@@ -59,6 +59,11 @@ type ChoiceSelectBase = {
   /** Names the anchored menu above its options, as the phone sheet does. */
   menuTitle?: boolean;
   /**
+   * Which of the trigger's edges the anchored menu lines up with: its
+   * start, or its end, for a trigger at the end of a row.
+   */
+  menuAlign?: "start" | "end";
+  /**
    * Grows and shrinks to a new label smoothly, so what sits beside it in a
    * row follows along rather than jumping.
    */
@@ -137,6 +142,7 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
     triggerTooltip,
     triggerDot = false,
     menuTitle = false,
+    menuAlign = "start",
     smoothWidth = false,
     inline = false,
     compact = false,
@@ -260,7 +266,8 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
         below < Math.min(listbox.scrollHeight, 320) && above > below;
       popup.dataset.side = upward ? "top" : "bottom";
       popup.style.maxHeight = `${Math.min(grouped ? 480 : 380, Math.max(80, upward ? above : below))}px`;
-      popup.style.left = `${Math.max(gutter, Math.min(rect.left, window.innerWidth - width - gutter))}px`;
+      const start = menuAlign === "end" ? rect.right - width : rect.left;
+      popup.style.left = `${Math.max(gutter, Math.min(start, window.innerWidth - width - gutter))}px`;
       // Anchored by the edge nearest the trigger, so the menu grows away
       // from it as choices open up underneath an option.
       if (upward) {
@@ -287,7 +294,7 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
       window.removeEventListener("resize", positionMenu);
       window.removeEventListener("scroll", positionMenu, true);
     };
-  }, [open, grouped, showShield, hideShield]);
+  }, [open, grouped, menuAlign, showShield, hideShield]);
 
   /**
    * The sheet's fades show there is more past either end: whole while a
