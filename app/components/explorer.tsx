@@ -891,7 +891,7 @@ export default memo(function Explorer({
   function enterPostView(id: string, frame = true) {
     // Phones keep the view to return to; the list follows the map there.
     if (!isMobile && !postView.current && mapViewRef.current)
-      setFrozenBounds(mapViewRef.current.bounds);
+      setFrozenBounds(listBoundsOf(mapViewRef.current));
     // Phones: what of the map is in sight above the list right now, which its
     // last view may predate if the list has changed height since.
     const view = mapViewRef.current;
@@ -1086,13 +1086,21 @@ export default memo(function Explorer({
     // waits for it to settle; following it mid-pan stalled Safari. Only the
     // place it names keeps up, through the pill alone (see `LivePlace`).
     if (view.moving && isMobile) return followPlace(view);
+    // Collapsed, the list is out of sight while the map pans, so it waits
+    // for the map to settle, ready for the sidebar to come back.
+    const collapsedList = !isMobile && sidebarMode === "collapsed";
+    if (view.moving && collapsedList) return;
     if (!view.moving) mapGesture.current = false;
     // The URL and the view to return to take only views the map rests on.
     if (!view.moving) mapViewRef.current = view;
-    const shown = projectsInView(view);
     const bounds = listBoundsOf(view);
+    // On desktop the place is named from what the list takes too, so it
+    // stays as it is when a collapsed sidebar comes back.
+    const shown = isMobile
+      ? projectsInView(view)
+      : projects.filter((project) => projectInBounds(project, bounds));
     const listed =
-      bounds === view.bounds
+      bounds === view.bounds || !isMobile
         ? shown
         : projects.filter((project) => projectInBounds(project, bounds));
     const key = listed.map((project) => project.id).join();
@@ -1121,10 +1129,14 @@ export default memo(function Explorer({
    * What the list takes of a view. On phones it holds what the folded list
    * leaves in sight, at every height, so raising the list over the map
    * keeps the rows it had rather than swapping out those it comes up over.
+   * On desktop it holds what the sidebar leaves in sight, collapsed too, so
+   * expanding it shuffles nothing. Taken from where the map lies rather than
+   * the mode: the map takes its new width before this sees the new mode.
    */
   function listBoundsOf(view: MapViewChange) {
-    if (!isMobile || !mapApi.current) return view.bounds;
-    return mapApi.current.boundsAbove(compactMapInset);
+    if (!mapApi.current) return view.bounds;
+    if (isMobile) return mapApi.current.boundsAbove(compactMapInset);
+    return mapApi.current.boundsAbove(0, sidebarWidth());
   }
   /** Beside the map, "Velg sted" names the place the view shows. */
   function followPlace(view: MapViewChange, shown?: Project[]) {

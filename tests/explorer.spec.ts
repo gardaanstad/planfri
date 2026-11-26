@@ -3024,6 +3024,69 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     await expect.poll(mapWidth).toBe(narrow);
   });
 
+  for (const motion of ["reduce", "no-preference"] as const)
+    test(`collapsed, the list waits for the map to settle and takes what the sidebar will leave in sight (${motion})`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion: motion });
+      await page.goto(oslo);
+      const map = page.locator(".leaflet-container");
+      // Beside the list, the map starts where the sidebar ends.
+      const sidebar = (await map.boundingBox())!.x;
+      expect(sidebar).toBeGreaterThan(300);
+      await page.getByRole("button", { name: "Skjul prosjektlisten", exact: true }).click();
+      const panel = page.locator("#project-panel");
+      await expect(panel).toHaveAttribute("data-sidebar-mode", "collapsed");
+      await expect.poll(async () => (await map.boundingBox())!.x).toBe(0);
+      const listed = page.locator(`[data-card-id="${project.id}"]`);
+      await expect(listed).not.toHaveAttribute("data-off-map");
+      // Dragged until the shape lies where the sidebar will be when it's
+      // back: still on the map, but not in the list once the map settles.
+      const path = page.locator(`path[data-project-id="${project.id}"]`);
+      const shape = (await path.boundingBox())!;
+      const view = (await map.boundingBox())!;
+      const from = { x: view.x + view.width - 60, y: view.y + view.height / 2 };
+      await page.mouse.move(from.x, from.y);
+      await page.mouse.down();
+      await page.mouse.move(from.x - (shape.x + shape.width - (sidebar - 40)), from.y, {
+        steps: 12,
+      });
+      await expect(path).toBeInViewport();
+      // Held, the list hasn't moved.
+      await page.waitForTimeout(300);
+      await expect(listed).not.toHaveAttribute("data-off-map");
+      await page.mouse.up();
+      await expect(listed).toHaveAttribute("data-off-map", "true");
+      // Expanding changes nothing in it, from the first frame on.
+      await page.locator("[data-explorer-layer]").evaluate((layer) => {
+        const changes: string[] = [];
+        Object.assign(window, { changes });
+        new MutationObserver((records) => {
+          for (const record of records)
+            if (record.attributeName === "data-off-map")
+              changes.push((record.target as Element).getAttribute("data-card-id")!);
+        }).observe(layer, { attributes: true, subtree: true });
+      });
+      const rows = () =>
+        page
+          .locator("[data-card-id]")
+          .evaluateAll((items) =>
+            items.map(
+              (item) =>
+                `${item.getAttribute("data-card-id")}:${item.hasAttribute("data-off-map")}`,
+            ),
+          );
+      const before = await rows();
+      await page.getByRole("button", { name: "Vis prosjektlisten", exact: true }).click();
+      await expect(panel).toHaveAttribute("data-sidebar-mode", "normal");
+      await expect.poll(async () => (await map.boundingBox())!.x).toBe(sidebar);
+      await page.waitForTimeout(300);
+      expect(
+        await page.evaluate(() => (window as unknown as { changes: string[] }).changes),
+      ).toEqual([]);
+      expect(await rows()).toEqual(before);
+    });
+
   test("the street and OpenStreetMap maps load", async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem("planfri:basemap", "on"));
     await page.goto(oslo);

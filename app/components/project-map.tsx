@@ -461,8 +461,11 @@ export type MapApi = {
    */
   show: (view: MapView, area?: ViewBounds, bottom?: number) => void;
   showNorway: () => void;
-  /** The view down to `inset` pixels above the map's bottom edge. */
-  boundsAbove: (inset: number) => ViewBounds;
+  /**
+   * The view down to `inset` pixels above the map's bottom edge, and right
+   * of `left` pixels from the window's left edge, where the map lies under it.
+   */
+  boundsAbove: (inset: number, left?: number) => ViewBounds;
   /**
    * The map follows its container on its own, keeping the geography on
    * screen in place; `syncSize` does so at once. While the container is
@@ -1268,10 +1271,13 @@ export default function ProjectMap({
     const start = startView.current ?? storedMapView();
     if (start) map.setView(start.center, start.zoom, { animate: false });
     else showNorway(false);
-    const boundsAbove = (bottom: number): ViewBounds => {
+    const boundsAbove = (bottom: number, left = 0): ViewBounds => {
       const size = map.getSize();
+      const from = left
+        ? Math.max(0, left - map.getContainer().getBoundingClientRect().left)
+        : 0;
       const bounds = L.latLngBounds(
-        map.containerPointToLatLng([0, 0]),
+        map.containerPointToLatLng([Math.min(from, size.x - 1), 0]),
         map.containerPointToLatLng([size.x, Math.max(1, size.y - bottom)]),
       );
       return {
