@@ -3948,4 +3948,30 @@ test.describe("the first visit", () => {
     await expect(page.getByRole("region", { name: "Prosjektliste", exact: true }).locator("[data-card-id]").first()).toBeVisible();
     await expect(page.locator("[data-welcome]")).toHaveCount(0);
   });
+  for (const width of [390, 1280])
+    test(`its wash keeps its rounded ends at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto("/");
+      const section = page.locator("[data-welcome] section");
+      await expect(section).toBeVisible();
+      // The wash reaches 8px (phones) or 12px past the row; whatever clips
+      // the row must leave room for it, without a clip-margin to lean on.
+      // Read once the page has hydrated and laid out its own copy.
+      const measure = () =>
+        section.evaluate((element) => {
+          const reach = -parseFloat(getComputedStyle(element, "::before").left);
+          const row = element.getBoundingClientRect();
+          let room = Infinity;
+          // The row itself counts: its own clip would cut its wash.
+          for (let node: Element | null = element; node; node = node.parentElement) {
+            if (getComputedStyle(node).overflowX === "visible") continue;
+            const box = node.getBoundingClientRect();
+            room = Math.min(room, row.left - box.left, box.right - row.right);
+            break;
+          }
+          return room >= reach && reach > 0;
+        });
+      await expect.poll(measure).toBe(true);
+      await shot(page, `welcome-${width}`);
+    });
 });
