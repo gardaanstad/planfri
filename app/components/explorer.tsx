@@ -99,6 +99,7 @@ import { profileHref } from "../lib/profiles";
 import { useAuth } from "./auth-provider";
 import { useCommunity } from "./community-provider";
 import AccountMenu from "./account-menu";
+import { BrandMark } from "./brand-mark";
 import ProfileAvatar from "./profile-avatar";
 import ChoiceSelect from "./choice-select";
 import FilterSheet, {
@@ -1640,8 +1641,7 @@ export default memo(function Explorer({
   const brand = (
     <Link
       className={cn(
-        "flex min-h-11 items-center whitespace-nowrap font-bold text-ink",
-        "transition-colors hover:text-accent motion-reduce:transition-none",
+        "group flex min-h-11 items-center whitespace-nowrap font-bold text-ink",
         "text-xl tracking-[-0.04em]",
         isMobile ? "gap-1.5" : "gap-2",
       )}
@@ -1656,19 +1656,7 @@ export default memo(function Explorer({
         showList();
       }}
     >
-      <span
-        className={cn(
-          "flex h-[27px] origin-left items-end gap-[3px]",
-          isMobile
-            ? "w-[21px] -mr-1 [transform:skewY(-8deg)_scale(.65)]"
-            : "w-6 [transform:skewY(-8deg)_scale(.85)]",
-        )}
-        aria-hidden="true"
-      >
-        <i className="block h-[18px] w-[7px] rounded-[1px] bg-accent" />
-        <i className="block h-7 w-[7px] rounded-[1px] bg-accent" />
-        <i className="block h-[23px] w-[7px] rounded-[1px] bg-accent" />
-      </span>
+      <BrandMark className={isMobile ? "size-6" : "size-7"} />
       <span>Planfri</span>
     </Link>
   );

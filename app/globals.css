@@ -125,6 +125,11 @@
   /* A project sidebar sliding out from the left edge, and back. */
   --animate-panel-in: panel-slide 320ms var(--ease-out-soft);
 
+  /* The header logo while hovered (brand-mark.tsx): the rail runs under the
+     bridge by one sleeper, the road's centre line by one dash, and loop. */
+  --animate-mark-rail: mark-rail 600ms linear infinite;
+  --animate-mark-road: mark-road 450ms linear infinite;
+
   /* Content fading in where it is, such as the list's empty state. */
   --animate-panel-fade-in: panel-fade 180ms ease-out;
 
@@ -185,6 +190,16 @@
     40% {
       background-color: var(--color-accent-soft);
       box-shadow: 0 0 0 8px var(--color-accent-soft);
+    }
+  }
+  @keyframes mark-rail {
+    to {
+      translate: 10.43px -6.02px;
+    }
+  }
+  @keyframes mark-road {
+    to {
+      stroke-dashoffset: -7.8;
     }
   }
   @keyframes tooltip-in-below {
