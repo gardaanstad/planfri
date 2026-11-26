@@ -819,7 +819,7 @@ test.describe("account menu", () => {
     await trigger.click();
     const menu = page.getByRole("menu", { name: "Konto" });
     await expect(menu.getByRole("menuitem")).toHaveText([
-      new RegExp(`@${person.username}\\s*Din profil`),
+      /Din profil$/,
       // Settings are an icon beside the profile.
       "",
       "Lagret",

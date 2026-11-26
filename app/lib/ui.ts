@@ -39,7 +39,7 @@ export const menuPopup =
 
 /** A row in `menuPopup`: the same wash for hover and the keyboard. */
 export const menuItem = cn(
-  "flex min-h-9 cursor-default items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-ink outline-none select-none",
+  "flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-ink outline-none select-none",
   "pointer-fine:data-highlighted:bg-surface-muted focus-visible:bg-surface-muted pointer-coarse:min-h-11",
   "[&>svg:first-child]:shrink-0 [&>svg:first-child]:text-muted",
 );
@@ -47,8 +47,16 @@ export const menuItem = cn(
 /** Destructive, in a menu or on its own: the row and its icon in danger. */
 export const menuItemDanger = "text-danger [&>svg:first-child]:text-danger";
 
-/** A hairline between groups in `menuPopup`, out to its edges. */
-export const menuSeparator = "-mx-1.5 my-1.5 h-px bg-border";
+/** Destructive only on second look: a danger wash under the pointer. */
+export const menuItemDangerHover =
+  "pointer-fine:data-highlighted:bg-danger-soft pointer-fine:data-highlighted:text-danger pointer-fine:data-highlighted:[&>svg:first-child]:text-danger";
+
+/**
+ * A hairline between groups in `menuPopup`, out to its edges. A border
+ * rather than a 1px fill, since browsers snap a border to whole device
+ * pixels: a fill on a fractional scale (125%) smears over two.
+ */
+export const menuSeparator = "-mx-1.5 my-1.5 h-0 border-t border-border";
 
 /** A count on an accent pill, such as unseen suggestions. */
 export const countBadge =

@@ -457,9 +457,12 @@
     outline: none;
   }
 
-  /* Tailwind 4 resets buttons to the default cursor. */
+  /* Tailwind 4 resets buttons to the default cursor; menu rows and
+     options act like them. */
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
+  [role^="menuitem"]:not([aria-disabled="true"]),
+  [role="option"]:not([aria-disabled="true"]),
   summary,
   label:has(> select) {
     cursor: pointer;

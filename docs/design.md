@@ -152,6 +152,10 @@ Base UI `Menu` with the shared classes in `ui.ts`; never a hand-built
 - **Rows** (`menuItem`, `menuItemDanger`): 36px (44px on a coarse
   pointer), `rounded-lg px-2.5 py-1.5`, 10px gap, a 16px muted icon.
   Highlight is `bg-surface-muted`, the same for hover and keyboard.
+  Rows take the pointer cursor, like buttons. A row that leaves rather than
+  destroys (Logg ut) stays ink and washes `danger-soft` under the pointer
+  (`menuItemDangerHover`); a row that opens a page may end its label in a
+  chevron (Din profil).
 - **Separators** (`menuSeparator`): a hairline out to the popup's edges.
 - **Counts** (`countBadge`) at a row's end.
 - A menu may name itself in a first row (`text-body font-semibold`), smaller

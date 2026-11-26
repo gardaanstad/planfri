@@ -7,7 +7,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { LogIn } from "lucide-react";
+import { ChevronRight, LogIn } from "lucide-react";
 import { Radio } from "./choice-mark";
 import { cn } from "../lib/cn";
 import { reducedMotion, sheetLeave } from "../lib/media";
@@ -31,6 +31,10 @@ export type SheetAction = {
   selected?: boolean;
   /** Destructive, such as deleting: in the danger colour. */
   danger?: boolean;
+  /** Leaving, such as logging out: a danger wash only when pressed. */
+  dangerPress?: boolean;
+  /** Opens a page: a chevron after the label. */
+  opens?: boolean;
   /** A switch: on or off, shown on the right. */
   checked?: boolean;
   /** A second line under the label. */
@@ -257,13 +261,22 @@ function SheetActions({
               "[&>svg]:shrink-0 [&>svg]:text-muted",
               action.locked && "text-muted [&>svg]:text-muted/60",
               action.danger && "text-danger [&>svg]:text-danger",
+              action.dangerPress &&
+                "active:bg-danger-soft active:text-danger active:[&>svg]:text-danger",
               action.selected && "font-medium",
             )}
             onClick={() => close(action.onSelect)}
           >
             {action.icon}
             <span className="flex min-w-0 flex-1 flex-col">
-              {action.label}
+              {action.opens ? (
+                <span className="flex items-center gap-1">
+                  {action.label}
+                  <ChevronRight size={16} className="text-muted" aria-hidden="true" />
+                </span>
+              ) : (
+                action.label
+              )}
               {action.detail && (
                 <span className="text-xs text-muted">{action.detail}</span>
               )}

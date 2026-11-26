@@ -1246,7 +1246,7 @@ function PinIcon({ size, filled }: { size: number; filled: boolean }) {
 }
 
 const sheetMenuItem = cn(
-  "flex min-h-11 cursor-default items-center gap-3 rounded-lg px-2.5 py-1.5 text-ui text-ink outline-none select-none",
+  "flex min-h-11 items-center gap-3 rounded-lg px-2.5 py-1.5 text-ui text-ink outline-none select-none",
   "focus-visible:bg-surface-muted active:bg-surface-muted",
 );
 

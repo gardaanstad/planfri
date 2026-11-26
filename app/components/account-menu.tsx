@@ -1,12 +1,25 @@
 "use client";
 import { useRef, useState, type ReactNode } from "react";
 import { Menu } from "@base-ui/react/menu";
-import { Bookmark, Inbox, LogOut, Settings, ShieldCheck } from "lucide-react";
+import {
+  Bookmark,
+  ChevronRight,
+  Inbox,
+  LogOut,
+  Settings,
+  ShieldCheck,
+} from "lucide-react";
 import { useAuth } from "./auth-provider";
 import ActionSheet, { SwitchTrack, type SheetAction } from "./action-sheet";
 import ProfileAvatar from "./profile-avatar";
 import { cn } from "../lib/cn";
-import { countBadge, menuItem as item, menuPopup, menuSeparator as separator } from "../lib/ui";
+import {
+  countBadge,
+  menuItem as item,
+  menuItemDangerHover,
+  menuPopup,
+  menuSeparator as separator,
+} from "../lib/ui";
 
 
 function Count({ count }: { count: number }) {
@@ -65,9 +78,9 @@ export default function AccountMenu({
     const actions: SheetAction[] = [
       {
         id: "profile",
-        label: `@${username}`,
-        detail: "Din profil",
-        icon: <ProfileAvatar name={username} className="size-8 text-xs" />,
+        label: "Din profil",
+        icon: <ProfileAvatar name={username} className="size-6 text-2xs" />,
+        opens: true,
         onSelect: onProfile,
         aside: {
           id: "settings",
@@ -110,6 +123,7 @@ export default function AccountMenu({
         id: "sign-out",
         label: "Logg ut",
         icon: <LogOut size={20} />,
+        dangerPress: true,
         onSelect: onSignOut,
         divided: true,
       },
@@ -168,23 +182,28 @@ export default function AccountMenu({
                 // Reaches across the gap to settings, so none is dead.
                 className={cn(
                   item,
-                  "relative h-13 min-w-0 flex-1 gap-3 py-0 before:absolute before:inset-y-0 before:left-0 before:-right-1",
+                  "relative min-w-0 flex-1 before:absolute before:inset-y-0 before:left-0 before:-right-1",
                 )}
                 onClick={() => run(onProfile)}
               >
-                <ProfileAvatar name={username} className="size-8 text-xs" />
-                <span className="flex min-w-0 flex-col">
-                  <span className="truncate font-medium">@{username}</span>
-                  <span className="text-xs text-muted">Din profil</span>
-                </span>
+                <ProfileAvatar
+                  name={username}
+                  className="-mx-0.5 size-5 text-2xs"
+                />
+                Din profil
+                <ChevronRight
+                  size={14}
+                  className="-ml-1 shrink-0 text-muted"
+                  aria-hidden="true"
+                />
               </Menu.Item>
               <Menu.Item
-                className={cn(item, "size-13 justify-center px-0 py-0")}
+                className={cn(item, "w-9 justify-center px-0 py-0 pointer-coarse:w-11")}
                 aria-label="Kontoinnstillinger"
                 data-tooltip="Kontoinnstillinger"
                 onClick={() => run(onSettings)}
               >
-                <Settings size={18} aria-hidden="true" />
+                <Settings size={16} aria-hidden="true" />
               </Menu.Item>
             </div>
             <Menu.Separator className={separator} />
@@ -219,7 +238,10 @@ export default function AccountMenu({
               </Menu.Item>
             )}
             <Menu.Separator className={separator} />
-            <Menu.Item className={item} onClick={() => run(onSignOut)}>
+            <Menu.Item
+              className={cn(item, menuItemDangerHover)}
+              onClick={() => run(onSignOut)}
+            >
               <LogOut size={16} aria-hidden="true" />
               Logg ut
             </Menu.Item>
