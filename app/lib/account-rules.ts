@@ -2,6 +2,7 @@ const reservedUsernames = new Set([
   "admin",
   "administrator",
   "moderator",
+  "bruker",
   "support",
   "google",
   "planfri",

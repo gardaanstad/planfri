@@ -19,7 +19,11 @@ export async function POST(request: Request) {
     await getDb()
       .insert(user)
       .values({ ...account, emailVerified: true, createdAt: now, updatedAt: now })
-      .onConflictDoNothing();
+      // An account from before keeps its id and takes the current username.
+      .onConflictDoUpdate({
+        target: user.id,
+        set: { username: account.username, name: account.name },
+      });
     const context = await getAuth().$context;
     const session = await context.internalAdapter.createSession(account.id);
     const signature = createHmac("sha256", context.secret)

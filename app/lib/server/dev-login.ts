@@ -17,14 +17,14 @@ export const devAccounts = {
   moderator: {
     id: "dev-moderator",
     email: "moderator@dev.planfri.invalid",
-    username: "dev_moderator",
+    username: "moderator",
     name: "Dev Moderator",
   },
   member: {
     id: "dev-member",
     email: "medlem@dev.planfri.invalid",
-    username: "dev_medlem",
-    name: "Dev Medlem",
+    username: "bruker",
+    name: "Dev Bruker",
   },
 } as const;
 export type DevRole = keyof typeof devAccounts;

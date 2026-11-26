@@ -5,7 +5,7 @@ import { cn } from "../lib/cn";
 
 const roles = [
   { role: "moderator", label: "Moderator" },
-  { role: "member", label: "Medlem" },
+  { role: "member", label: "Bruker" },
 ] as const;
 
 /** Development only: sign in as a fixed moderator or member, without Google. */
