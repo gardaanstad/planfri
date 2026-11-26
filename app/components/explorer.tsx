@@ -1965,6 +1965,15 @@ export default memo(function Explorer({
       label="Filtre"
       anchor={filterButtonRef}
       onOpenChange={setFilterSheetOpen}
+      // The search has its own field here, and stays.
+      onReset={
+        filtersSet
+          ? () => {
+              setStatus(defaultStatus);
+              setCategory([]);
+            }
+          : undefined
+      }
       sections={filterSections}
     />
   );
@@ -2373,17 +2382,8 @@ export default memo(function Explorer({
             data-list-count=""
           >
             {listCount}
-            {((!isMobile && filtersChanged) || !feedOn) && (
+            {!feedOn && (
               <div className="flex shrink-0 items-center gap-1.5 max-md:gap-0">
-                {!isMobile && filtersChanged && (
-                  <button
-                    type="button"
-                    className="relative mr-1 shrink-0 text-xs whitespace-nowrap text-muted underline-offset-3 hover:text-ink hover:underline"
-                    onClick={resetFilters}
-                  >
-                    Nullstill filtre
-                  </button>
-                )}
                 {/* "Nytt" has its own order, and rows of its own. */}
                 {!feedOn && sortFilter}
                 {!feedOn && (isMobile ? densityMenu : densitySwitch)}

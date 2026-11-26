@@ -1819,11 +1819,6 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     await expect(tabs.getByRole("button", { name: /^Nytt/ })).toBeVisible();
     await expect(button).toHaveAttribute("aria-expanded", "true");
     await search.fill("Bergen");
-    const reset = page.getByRole("button", {
-      name: "Nullstill filtre",
-      exact: true,
-    });
-    await expect(reset).toBeVisible();
     await expect(page.getByRole("status", { name: /^\d+ treff$/ })).toBeVisible();
     await shot(page, "desktop-search-active");
     // A press outside closes it, focused or not, and keeps the search,
@@ -1843,7 +1838,7 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     await filters.getByRole("button", { name: "Tøm søk", exact: true }).click();
     await expect(search).toHaveValue("");
     await expect(search).toBeFocused();
-    await expect(reset).toBeHidden();
+    await expect(page.getByRole("status", { name: /^\d+ treff$/ })).toBeHidden();
     await filters.getByRole("button", { name: "Lukk søk", exact: true }).click();
     await expect(search).toBeHidden();
     await expect(button).toBeFocused();
@@ -2046,15 +2041,35 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     await menu.getByRole("option", { name: /^Under bygging/ }).click();
     await expect(menu.getByRole("option", { selected: true })).toHaveCount(1);
     await expect(page).toHaveURL(/status=construction/);
+    // The reset is in the popover's first line; the list has none of its own.
+    const popover = page.locator("[data-filter-popover]");
+    const popoverReset = popover.getByRole("button", {
+      name: "Nullstill filtre",
+      exact: true,
+    });
+    await expect(popoverReset).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Nullstill filtre", exact: true }),
-    ).toBeVisible();
+      page
+        .locator("[data-list-count]")
+        .getByRole("button", { name: "Nullstill filtre", exact: true }),
+    ).toHaveCount(0);
+    await shot(page, "desktop-filter-reset");
     // All of them is no filter, and the default.
     await menu.getByRole("option", { name: /^Foreslått/ }).click();
     await menu.getByRole("option", { name: /^Planlagt/ }).click();
     await menu.getByRole("option", { name: /^Ferdigstilt/ }).click();
     await expect(menu.getByRole("option", { selected: true })).toHaveCount(4);
     await expect(page).not.toHaveURL(/status=/);
+    await expect(popoverReset).toHaveCount(0);
+    // Pressed, it undoes the filters and leaves the popover open where it was.
+    await menu.getByRole("option", { name: /^Planlagt/ }).click();
+    await expect(page).toHaveURL(/status=/);
+    await popoverReset.click();
+    await expect(menu.getByRole("option", { selected: true })).toHaveCount(4);
+    await expect(page).not.toHaveURL(/status=/);
+    await expect(popover).toBeVisible();
+    await expect(popoverReset).toHaveCount(0);
+    await expect(popover.getByRole("button", { name: /^Kategori/ })).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(
       page.getByRole("button", { name: "Nullstill filtre", exact: true }),
@@ -2085,14 +2100,21 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     await status.getByRole("option", { name: /^Planlagt/ }).click();
     await status.getByRole("option", { name: /^Ferdigstilt/ }).click();
     await page.keyboard.press("Escape");
-    // One filter set is enough to offer the reset, and the filter button
-    // reads as set.
-    await expect(reset).toBeVisible();
+    // One filter set reads as set on the filter button, and the reset is in
+    // the popover alone.
     await expect(filterButton).toHaveAttribute("data-active", "true");
+    await expect(reset).toBeHidden();
     // Main categories first; a chosen one opens its subcategories.
     const [main, sub] = project.categories;
-    // Opened again, it opens on its categories, not where it was left.
+    // Opened again, it opens on its categories, not where it was left, and
+    // offers the reset.
     await filterButton.click();
+    await expect(
+      page.locator("[data-filter-popover]").getByRole("button", {
+        name: "Nullstill filtre",
+        exact: true,
+      }),
+    ).toBeVisible();
     await expect(
       page
         .locator("[data-filter-popover]")
@@ -2202,9 +2224,6 @@ const mapParam = (page: Page) => new URL(page.url()).searchParams.get("kart");
     await expect(page).toHaveURL(/[?&]q=Bergen&/);
     await page.reload();
     // Reopened, the words are still in the field.
-    await expect(
-      page.getByRole("button", { name: "Nullstill filtre", exact: true }),
-    ).toBeVisible();
     await expect(page.locator("#project-search")).toHaveValue("Bergen");
     await expect(card(page, "Bybanen til Åsane")).toBeVisible();
     // Without a view in the URL, the explorer reopens on the last one.

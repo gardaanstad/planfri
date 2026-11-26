@@ -475,12 +475,16 @@ export function FilterPopover({
   label,
   sections,
   anchor,
+  onReset,
   onOpenChange,
 }: {
   id: string;
+  /** Its name, also shown in its first line. */
   label: string;
   sections: FilterSection[];
   anchor: RefObject<HTMLElement | null>;
+  /** Undoes the filters: given while any is set. */
+  onReset?: () => void;
   onOpenChange?: (open: boolean) => void;
 }) {
   const first = sections[0]?.id ?? null;
@@ -570,6 +574,34 @@ export function FilterPopover({
           ref={body}
           className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-surface py-1.5 shadow-[0_12px_40px_rgb(20_28_24/0.14),0_2px_6px_rgb(20_28_24/0.04)]"
         >
+          {/* It names itself, as the menus do, and offers the reset at the
+              line's end while there is something to undo; the line stays,
+              so nothing moves as it comes and goes. */}
+          <div className="flex min-h-8 shrink-0 items-center px-1.5 pb-0.5">
+            <span
+              aria-hidden="true"
+              data-slot="filter-title"
+              className="px-2.75 text-body leading-5 font-semibold text-ink"
+            >
+              {label}
+            </span>
+            {onReset && (
+              <button
+                type="button"
+                className="ml-auto inline-flex h-7 shrink-0 items-center rounded-lg px-2.75 text-ui font-medium text-muted -outline-offset-2 hover:bg-ink/[0.05] hover:text-ink"
+                aria-label="Nullstill filtre"
+                onClick={() => {
+                  // It goes as it acts; focus stays in the popover.
+                  ref.current
+                    ?.querySelector<HTMLElement>("[data-filter-section]")
+                    ?.focus({ preventScroll: true });
+                  onReset();
+                }}
+              >
+                Nullstill
+              </button>
+            )}
+          </div>
           <FilterRows
             sections={sections}
             active={active}
