@@ -1469,7 +1469,7 @@ export default function ProjectPost({
                     className={cn(
                       "-mb-px flex min-h-11 items-center justify-center gap-1.75 border-b-2 border-transparent",
                       "text-sm leading-normal font-medium whitespace-nowrap text-muted",
-                      "transition-colors duration-150 hover:text-ink motion-reduce:transition-none",
+                      "hover:text-ink",
                       "aria-pressed:border-ink aria-pressed:text-ink max-xs:[&>svg]:hidden",
                     )}
                     aria-pressed={tab === id}

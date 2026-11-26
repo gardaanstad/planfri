@@ -2271,7 +2271,7 @@ export default memo(function Explorer({
       className={cn(
         "relative -mb-px flex items-center gap-1.5 border-b-2 border-transparent",
         "text-sm leading-normal font-medium whitespace-nowrap text-muted",
-        "transition-colors duration-150 hover:text-ink motion-reduce:transition-none",
+        "hover:text-ink",
         "aria-pressed:border-ink aria-pressed:text-ink",
       )}
       aria-pressed={tab === id}
@@ -2388,8 +2388,9 @@ export default memo(function Explorer({
           offMapLabel={`Utenfor kartet i ${place}`}
           empty={
             feedOn && feedProjects.length > 0 ? null : (
-              // Fades in as the last rows fade out over it.
-              <div className="animate-panel-fade-in">
+              // Fades in as the last rows fade out over it; a tab shows
+              // it at once.
+              <div className={feedOn ? undefined : "animate-panel-fade-in"}>
                 <EmptyState
                   level={2}
                   icon={

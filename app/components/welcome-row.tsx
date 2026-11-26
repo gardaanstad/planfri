@@ -1,5 +1,5 @@
 "use client";
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { X } from "lucide-react";
 import {
   dismissWelcome,
@@ -12,20 +12,28 @@ import { cn } from "../lib/cn";
  * The first visit's welcome, at the top of the list, laid out like a
  * project's row: a title and a few words. Its wash is a row's
  * hover, in the accent's soft tint, and it stays until closed. Shown once
- * the browser says it hasn't been closed, unfolding into place.
+ * the browser says it hasn't been closed, unfolding into place the first
+ * time; coming back to it from "Nytt", it's simply there.
  */
+let unfolded = false;
+
 export default function WelcomeRow() {
   const dismissed = useSyncExternalStore(
     subscribeWelcome,
     storedWelcomeDismissed,
     () => true,
   );
+  const [unfold] = useState(() => !unfolded);
+  useEffect(() => {
+    if (!dismissed) unfolded = true;
+  }, [dismissed]);
   if (dismissed) return null;
   return (
     <div
       className={cn(
-        "grid grid-rows-[1fr] opacity-100 transition-[grid-template-rows,opacity] duration-320 ease-out-soft",
-        "starting:grid-rows-[0fr] starting:opacity-0 motion-reduce:transition-none",
+        "grid grid-rows-[1fr] opacity-100",
+        unfold &&
+          "transition-[grid-template-rows,opacity] duration-320 ease-out-soft starting:grid-rows-[0fr] starting:opacity-0 motion-reduce:transition-none",
       )}
       data-welcome=""
     >
