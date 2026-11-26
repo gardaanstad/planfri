@@ -2571,6 +2571,8 @@ export default memo(function Explorer({
   const profileButtonClass = cn(
     "inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-transparent text-xs font-semibold text-muted",
     "hover:bg-ink/[0.05] hover:text-ink active:scale-[0.97] data-popup-open:bg-ink/[0.05] motion-reduce:transition-none motion-reduce:active:scale-100",
+    // On phones the avatar, not its hit area, meets the content's edge.
+    isMobile && "-mr-1",
   );
   const profileButton = user?.username ? (
     <AccountMenu
