@@ -55,10 +55,6 @@ export const menuItem = cn(
 /** Destructive, in a menu or on its own: the row and its icon in danger. */
 export const menuItemDanger = "text-danger [&>svg:first-child]:text-danger";
 
-/** Destructive only on second look: a danger wash under the pointer. */
-export const menuItemDangerHover =
-  "pointer-fine:data-highlighted:bg-danger-hover";
-
 /**
  * A hairline between groups in `menuPopup`, out to its edges. A border
  * rather than a 1px fill, since browsers snap a border to whole device

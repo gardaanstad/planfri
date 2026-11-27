@@ -19,7 +19,7 @@ import { DropdownPopup } from "./dropdown";
 import {
   countBadge,
   menuItem as item,
-  menuItemDangerHover,
+  menuItemDanger,
   menuSeparator as separator,
 } from "../lib/ui";
 
@@ -154,7 +154,7 @@ export default function AccountMenu({
         id: "sign-out",
         label: "Logg ut",
         icon: <LogOut size={20} />,
-        dangerPress: true,
+        danger: true,
         onSelect: onSignOut,
         divided: true,
       },
@@ -280,7 +280,7 @@ export default function AccountMenu({
         </Menu.CheckboxItem>
         <Menu.Separator className={separator} />
         <Menu.Item
-          className={cn(item, menuItemDangerHover)}
+          className={cn(item, menuItemDanger)}
           onClick={() => run(onSignOut)}
         >
           <LogOut size={16} aria-hidden="true" />

@@ -29,10 +29,8 @@ export type SheetAction = {
   pressed?: boolean;
   /** One choice of several, such as a map layer: a radio on the right. */
   selected?: boolean;
-  /** Destructive, such as deleting: in the danger colour. */
+  /** Destructive or leaving, such as deleting or logging out: in the danger colour. */
   danger?: boolean;
-  /** Leaving, such as logging out: a danger wash only when pressed. */
-  dangerPress?: boolean;
   /** Opens a page: a chevron after the label. */
   opens?: boolean;
   /** A switch: on or off, shown on the right. */
@@ -278,8 +276,6 @@ function SheetActions({
               "[&>svg]:shrink-0 [&>svg]:text-muted",
               action.locked && "text-muted [&>svg]:text-muted/60",
               action.danger && "text-danger [&>svg]:text-danger",
-              action.dangerPress &&
-                "active:bg-danger-soft active:text-danger active:[&>svg]:text-danger",
               action.selected && "font-medium",
             )}
             onClick={() =>
