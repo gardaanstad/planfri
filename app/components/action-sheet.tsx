@@ -62,6 +62,14 @@ export function SheetGrip() {
   );
 }
 
+/**
+ * A phone sheet's scrim, as the `<dialog>` holding it draws it. A swipe sets
+ * `--sheet-progress` on the dialog (see `useSwipeDismiss`); registered, it
+ * doesn't inherit, so it reaches the backdrop as the fade worked out here.
+ */
+export const sheetBackdrop =
+  "[--scrim-fade:calc(1-var(--sheet-progress))] backdrop:bg-scrim/25 backdrop:opacity-(--scrim-fade) motion-safe:backdrop:animate-backdrop-in";
+
 /** A drawer's title, under its grip: what is being chosen or acted on. */
 export const sheetTitle = "text-heading text-ink";
 /**
@@ -145,6 +153,7 @@ export function BottomSheet({
     enabled: true,
     sheet,
     scroller,
+    backdrop: ref,
     onDismiss: () => close(undefined, false),
   });
 
@@ -184,7 +193,7 @@ export function BottomSheet({
       tabIndex={-1}
       className={cn(
         "m-auto mb-0 w-full max-w-none overflow-visible border-0 bg-transparent p-0 text-ink outline-none",
-        "backdrop:bg-scrim/25 motion-safe:backdrop:animate-backdrop-in",
+        sheetBackdrop,
         unselectable,
       )}
       onCancel={(event) => {

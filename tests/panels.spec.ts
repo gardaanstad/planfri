@@ -20,7 +20,8 @@ import {
   projectAction,
   shot,
   signIn,
-  swipeDown,
+  middleOf,
+  touchMove,
   uniqueName,
 } from "./support";
 
@@ -1045,8 +1046,22 @@ test.describe("mobile project actions, signed in", () => {
     const trigger = page.getByRole("button", { name: "Konto", exact: true });
     await trigger.click();
     const sheet = page.getByRole("dialog", { name: "Konto" });
-    // From the top row, so the swipe runs the sheet's full height.
-    await swipeDown(page, sheet.getByRole("button", { name: /Din profil/ }));
+    // From the top row, so the swipe runs the sheet's full height. Its scrim
+    // fades with it, rather than going all at once as it closes.
+    const from = await middleOf(sheet.getByRole("button", { name: /Din profil/ }));
+    await touchMove(
+      page,
+      from,
+      { x: from.x, y: page.viewportSize()!.height - 20 },
+      {
+        before: async () => {
+          const scrim = await sheet.evaluate(
+            (e) => +getComputedStyle(e, "::backdrop").opacity,
+          );
+          expect(scrim).toBeLessThan(0.5);
+        },
+      },
+    );
     await expect(sheet).toHaveCount(0);
     await expect(trigger).toBeFocused();
     expect(await top()).toBeCloseTo(before, 0);

@@ -14,6 +14,7 @@ import { reducedMotion, sheetLeave } from "../lib/media";
 import { useBackgroundPush } from "../lib/background-push";
 import {
   SheetGrip,
+  sheetBackdrop,
   openedByKeyboard,
   sheetTitle,
   sheetTitleGap,
@@ -345,6 +346,7 @@ export default function FilterSheet({
     enabled: true,
     sheet,
     scroller,
+    backdrop: ref,
     onDismiss: () => close(false),
   });
 
@@ -384,7 +386,7 @@ export default function FilterSheet({
       tabIndex={-1}
       className={cn(
         "m-auto mb-0 w-full max-w-none overflow-visible border-0 bg-transparent p-0 text-ink outline-none",
-        "backdrop:bg-scrim/25 motion-safe:backdrop:animate-backdrop-in",
+        sheetBackdrop,
         unselectable,
       )}
       onCancel={(event) => {

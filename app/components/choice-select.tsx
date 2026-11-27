@@ -420,7 +420,9 @@ export default memo(function ChoiceSelect(props: ChoiceSelectProps) {
     sheet: sheetPanel,
     scroller: list,
     backdrop: menu,
-    onDismiss: () => close(false),
+    // Hidden before the swipe lets go of it the next frame, or it could be
+    // drawn once more back at rest over the page.
+    onDismiss: () => flushSync(() => close(false)),
   });
 
   /** A parent narrowed to some of its children, rather than all of it. */
