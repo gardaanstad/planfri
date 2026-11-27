@@ -488,12 +488,13 @@
 
 /*
  * Phones: a modal bottom sheet pushes the page behind it back a little, its
- * corners rounding off against the scrim (lib/background-push.ts). A drag
+ * corners rounding off against the surface colour, white in light mode
+ * (lib/background-push.ts). A drag
  * on the sheet brings it forward with `--push-progress`. Top-layer sheets
  * are outside the body's transform, so only the page moves.
  *
  * Opening, only the transform eases, on the compositor: the corners round
- * at once, their colour fading in with the scrim behind them. Closing, they
+ * at once, the colour behind them fading in with the scrim. Closing, they
  * square off as the page comes forward, in step with it. A drag on the
  * sheet carries them with it.
  */
@@ -515,7 +516,7 @@
       clip-path var(--push-return);
   }
   :root[data-pushed] {
-    background-color: var(--color-scrim);
+    background-color: var(--color-surface);
     transition-duration: 500ms;
   }
   :root[data-pushed] body {
